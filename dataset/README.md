@@ -6,9 +6,9 @@ This directory contains datasets and dimension matrices for different problems. 
 
 ```
 dataset/
-├── keyhole/                    # Keyhole welding problem
-│   ├── dataset_keyhole.csv     # Keyhole dataset
-│   └── dimension_matrix.csv     # Dimension matrix for keyhole problem
+├── translational_symmetry/      # Translational symmetry problem
+│   ├── dataset_translational_symmetry.csv  # Translational symmetry dataset
+│   └── dimension_matrix.csv              # Dimension matrix for translational symmetry problem
 ├── problem2/                   # Another problem (example)
 │   ├── dataset_problem2.csv
 │   └── dimension_matrix.csv
@@ -32,9 +32,9 @@ dataset/
 
 ## Current Problems
 
-### keyhole
-- **Dataset**: `dataset/keyhole/dataset_keyhole.csv`
-- **Dimension Matrix**: `dataset/keyhole/dimension_matrix.csv`
-- **Config**: `pydimension/configs/config_keyhole.json`
-- **Description**: Keyhole welding problem with 90 samples, 12 input variables, and 1 output variable (e*)
+### translational_symmetry
+- **Dataset**: `dataset/translational_symmetry/dataset_translational_symmetry.csv`
+- **Dimension Matrix**: `dataset/translational_symmetry/dimension_matrix.csv`
+- **Config**: `pydimension/configs/config_translational_symmetry.json`
+- **Description**: Translational symmetry example from the tutorial paper (update variable names/columns to match your dataset).
 

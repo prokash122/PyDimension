@@ -101,6 +101,7 @@ The recommended approach is to use a **unified config file** (`config_synthetic.
 
 - **`config_synthetic.json`**: Main unified config file with all modules (data generation enabled)
 - **`config_synthetic_with_noise.json`**: Unified config with 5% noise enabled
+- **`config_translational_symmetry.json`**: Example config for the translational symmetry case study
 
 ## Usage
 

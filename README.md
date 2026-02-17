@@ -41,7 +41,7 @@ If you can provide a table of measurements (inputs with units and outputs), PyDi
 ## Publications
 
 ### Paper 1
-**Title:** *A Tutorial on Dimensionless Learning: Geometric Interpretation and the Effect of Noise*  
+**Title:** *A Tutorial on Translational Symmetry Learning: Geometric Interpretation and the Effect of Noise*  
 **Authors:** Zhengtao Gan, Xiaoyu Xie  
 **Status:** Preprint  
 **Link:** [arXiv:2512.15760](https://www.arxiv.org/abs/2512.15760)
@@ -238,20 +238,20 @@ python filter_constraints.py --config pydimension/configs/config_synthetic.json 
 python optimize_discovery.py --config pydimension/configs/config_synthetic.json --plot
 ```
 
-#### Keyhole Problem Example
+#### Translational Symmetry Example
 
 ```bash
-# Step 1: Preprocess data (using keyhole dataset)
-python preprocess_data.py --config pydimension/configs/config_keyhole.json --plot
+# Step 1: Preprocess data (using translational symmetry dataset)
+python preprocess_data.py --config pydimension/configs/config_translational_symmetry.json --plot
 
 # Step 2: Dimensional analysis
-python analyze_dimensions.py --config pydimension/configs/config_keyhole.json --plot
+python analyze_dimensions.py --config pydimension/configs/config_translational_symmetry.json --plot
 
 # Step 3: Dimensional filtering
-python filter_constraints.py --config pydimension/configs/config_keyhole.json --plot
+python filter_constraints.py --config pydimension/configs/config_translational_symmetry.json --plot
 
 # Step 4: Optimization discovery
-python optimize_discovery.py --config pydimension/configs/config_keyhole.json --plot
+python optimize_discovery.py --config pydimension/configs/config_translational_symmetry.json --plot
 ```
 
 ## Configuration

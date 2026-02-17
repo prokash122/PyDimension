@@ -741,6 +741,14 @@ class OptimizationDiscoverer:
                 results['gamma_distribution_plot_path'] = gamma_dist_plot_path
         except Exception as e:
             print(f"⚠️  Could not create gamma distribution plot: {e}")
+
+        # Create translational symmetry visualization (useful for keyhole/tutorial-style analysis)
+        try:
+            symmetry_plot_path = self.create_translational_symmetry_plot()
+            if symmetry_plot_path:
+                results['translational_symmetry_plot_path'] = symmetry_plot_path
+        except Exception as e:
+            print(f"⚠️  Could not create translational symmetry plot: {e}")
         
         # Save gamma vectors for each model to CSV
         try:
@@ -1565,6 +1573,145 @@ class OptimizationDiscoverer:
         print(f"   Training samples: {len(input_pi_train)}, Test samples: {len(input_pi_test)}")
         
         return str(plot_path)
+
+    def create_translational_symmetry_plot(
+        self,
+        filename: Optional[str] = None,
+        num_groups: int = 4
+    ) -> Optional[str]:
+        """Create a translational symmetry visualization from discovered representations.
+
+        The figure has two panels:
+        1) Raw curves of output vs discovered primary coordinate, grouped by a secondary coordinate.
+        2) The same curves after per-group translation (x and y centering), showing curve collapse.
+
+        This is useful for keyhole/tutorial-style cases where multiple grouped trends differ
+        mainly by translation and should align after symmetry-aware shifting.
+
+        Args:
+            filename: Output filename. Defaults to ``translational_symmetry_discovery.png``.
+            num_groups: Number of quantile-based groups on the secondary coordinate.
+
+        Returns:
+            Path to saved plot, or None when there is not enough data to build the figure.
+        """
+        if self.learned_coeffs is None or self.data is None:
+            return None
+
+        if not self.input_columns or len(self.input_columns) < 2:
+            print("⚠️  Translational symmetry plot requires at least two input dimensions.")
+            return None
+
+        if filename is None:
+            filename = 'translational_symmetry_discovery.png'
+
+        figures_dir = Path(self.config.output_dir) / self.config.figures_dir
+        figures_dir.mkdir(parents=True, exist_ok=True)
+        plot_path = figures_dir / filename
+
+        X_raw = self.data[self.input_columns].values.astype(np.float64)
+        y = self.data[self.output_column].values.astype(np.float64)
+
+        if self.X_scaler is not None:
+            X_for_gamma = self.X_scaler.transform(X_raw)
+        else:
+            X_for_gamma = X_raw
+
+        # Primary discovered coordinate from best gamma vector
+        best_gamma = self.learned_coeffs[0, :]
+        discovered_primary = X_for_gamma @ best_gamma
+
+        # Secondary coordinate for grouping (use second discovered gamma if available,
+        # otherwise use the second input column as grouping axis)
+        if self.learned_coeffs.shape[0] >= 2:
+            discovered_secondary = X_for_gamma @ self.learned_coeffs[1, :]
+            secondary_name = 'discovered secondary coordinate'
+        else:
+            discovered_secondary = X_raw[:, 1]
+            secondary_name = self.input_columns[1]
+
+        n_unique = np.unique(discovered_secondary).size
+        effective_groups = max(2, min(num_groups, n_unique))
+
+        try:
+            group_labels = pd.qcut(discovered_secondary, q=effective_groups, labels=False, duplicates='drop')
+        except Exception:
+            print("⚠️  Could not create quantile groups for translational symmetry plot.")
+            return None
+
+        if group_labels is None:
+            return None
+
+        valid_mask = ~pd.isna(group_labels)
+        discovered_primary = discovered_primary[valid_mask]
+        discovered_secondary = discovered_secondary[valid_mask]
+        y = y[valid_mask]
+        group_labels = np.asarray(group_labels[valid_mask], dtype=int)
+
+        unique_groups = np.unique(group_labels)
+        if len(unique_groups) < 2:
+            print("⚠️  Need at least two populated groups for translational symmetry plot.")
+            return None
+
+        palette = sns.color_palette('tab10', n_colors=len(unique_groups))
+
+        plt.close('all')
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+
+        for idx, group in enumerate(unique_groups):
+            mask = group_labels == group
+            x_group = discovered_primary[mask]
+            y_group = y[mask]
+            sec_group = discovered_secondary[mask]
+
+            if x_group.size < 3:
+                continue
+
+            order = np.argsort(x_group)
+            x_sorted = x_group[order]
+            y_sorted = y_group[order]
+
+            group_label = (
+                f"G{group + 1} [{np.nanmin(sec_group):.2f}, {np.nanmax(sec_group):.2f}]"
+            )
+
+            # Panel 1: raw grouped trends
+            axes[0].plot(x_sorted, y_sorted, '-', alpha=0.85, linewidth=1.7,
+                         color=palette[idx], label=group_label)
+            axes[0].scatter(x_sorted, y_sorted, s=12, alpha=0.45, color=palette[idx])
+
+            # Panel 2: translated/collapsed trends (subtract group medians)
+            x_centered = x_sorted - np.median(x_sorted)
+            y_centered = y_sorted - np.median(y_sorted)
+            axes[1].plot(x_centered, y_centered, '-', alpha=0.85, linewidth=1.7,
+                         color=palette[idx], label=group_label)
+            axes[1].scatter(x_centered, y_centered, s=12, alpha=0.45, color=palette[idx])
+
+        axes[0].set_title('Raw grouped trends', fontweight='bold')
+        axes[0].set_xlabel('Discovered primary coordinate')
+        axes[0].set_ylabel(self.output_column if self.output_column else 'Output')
+        axes[0].grid(alpha=0.3)
+
+        axes[1].set_title('After translational alignment', fontweight='bold')
+        axes[1].set_xlabel('Primary coordinate (centered per group)')
+        axes[1].grid(alpha=0.3)
+
+        handles, labels = axes[0].get_legend_handles_labels()
+        if handles:
+            fig.legend(handles, labels, loc='lower center', ncol=min(3, len(labels)),
+                       bbox_to_anchor=(0.5, -0.06), fontsize=9)
+
+        fig.suptitle(
+            f'Translational symmetry diagnostic (grouped by {secondary_name})',
+            fontsize=13,
+            fontweight='bold'
+        )
+        plt.tight_layout(rect=[0, 0.06, 1, 0.95])
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+        plt.close()
+
+        print(f"✅ Saved translational symmetry plot to: {plot_path}")
+        return str(plot_path)
     
     def process(self, verbose: bool = True) -> Dict[str, Any]:
         """Run the complete optimization and discovery process."""
@@ -1575,4 +1722,3 @@ class OptimizationDiscoverer:
         results = self.train(verbose=verbose)
         
         return results
-

@@ -130,6 +130,13 @@ This layout makes it easy to:
 - Identify the best performing model
 - Spot any models that didn't converge properly
 
+In addition, after discovery the module now also generates a **translational symmetry diagnostic**:
+- `output/figures/translational_symmetry_discovery.png`
+- Left panel: grouped raw trends in discovered coordinates
+- Right panel: the same trends after per-group translational alignment (curve collapse check)
+
+This is especially helpful for tutorial/keyhole-style cases where symmetry appears as shifted families of curves.
+
 ### Usage Examples
 
 ```bash
@@ -274,6 +281,9 @@ Saved to `output/figures/optimization_discovery_plots.png`:
 - Training history for all ensemble models
 - Predictions vs actual values with R² score
 
+Additional saved plot:
+- `output/figures/translational_symmetry_discovery.png` (if at least two input dimensions are available)
+
 ## Integration with Other Modules
 
 ### Workflow
@@ -394,4 +404,3 @@ If ensemble uncertainty is high:
 - Dimensional Filtering Module: `../constraint_filtering/README.md`
 - Config files: `../../configs/README.md`
 - Example config: `../../configs/config_synthetic.json`
-

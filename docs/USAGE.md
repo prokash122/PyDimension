@@ -70,13 +70,13 @@ python analyze_dimensions.py --config pydimension/configs/config_synthetic.json 
 python filter_constraints.py --config pydimension/configs/config_synthetic.json --plot
 python optimize_discovery.py --config pydimension/configs/config_synthetic.json --plot
 
-# For the keyhole problem
-python run_pipeline.py --config pydimension/configs/config_keyhole.json --plot
+# For the translational symmetry example
+python run_pipeline.py --config pydimension/configs/config_translational_symmetry.json --plot
 
-python preprocess_data.py --config pydimension/configs/config_keyhole.json --plot
-python analyze_dimensions.py --config pydimension/configs/config_keyhole.json --plot
-python filter_constraints.py --config pydimension/configs/config_keyhole.json --plot
-python optimize_discovery.py --config pydimension/configs/config_keyhole.json --plot
+python preprocess_data.py --config pydimension/configs/config_translational_symmetry.json --plot
+python analyze_dimensions.py --config pydimension/configs/config_translational_symmetry.json --plot
+python filter_constraints.py --config pydimension/configs/config_translational_symmetry.json --plot
+python optimize_discovery.py --config pydimension/configs/config_translational_symmetry.json --plot
 ```
 
 ## Finding Config Files
