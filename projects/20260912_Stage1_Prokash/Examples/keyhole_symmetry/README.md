@@ -33,9 +33,13 @@ via log-space linear weights.
 
 ## Pipeline
 
+0. **Dimensional analysis** — Build the (M, L, T, K) dimension matrix,
+   compute its null-space basis, simplify to primitive integer Pi groups
+   via SymPy — these are the *reduced candidates* fed to the encoder.
 1. **Data loading** — Read keyhole CSV (experimental data required)
 2. **Normalization** — Standardize features
-3. **Latent dimension** — Autoencoder sweep (expected: k ≈ 2-3)
+3. **Latent dimension** — Multilayer-encoder autoencoder sweep over
+   `[X, X², log|X|, π₁..π₃]` (expected: k ≈ 1–2)
 4. **Symmetry identification** — Competitive training (expected: scaling)
 5. **Generator extraction** — Null-space of encoder weights = scaling directions
 6. **Visualization** — 3-panel summary figure
@@ -44,13 +48,16 @@ via log-space linear weights.
 
 ```bash
 cd projects/20260912_Stage1_Prokash/Examples/keyhole_symmetry
+
+# Default: dimensional-analysis + multilayer encoder [64, 32] with reduced
+# Pi candidates injected as features
 python discover_symmetry.py --data dataset_keyhole.csv
 
-# With multi-layer encoder for latent dimension discovery:
-python discover_symmetry.py --data dataset_keyhole.csv --encoder-hidden 64 32
+# Deeper / wider encoder:
+python discover_symmetry.py --data dataset_keyhole.csv --encoder-hidden 128 64 32
 
-# With Pi group augmentation (uses known Ke exponents):
-python discover_symmetry.py --data dataset_keyhole.csv --encoder-hidden 64 32 --pi-basis
+# Ablation: disable the reduced candidate input (raw X only):
+python discover_symmetry.py --data dataset_keyhole.csv --no-pi-input
 ```
 
 ## Expected Results

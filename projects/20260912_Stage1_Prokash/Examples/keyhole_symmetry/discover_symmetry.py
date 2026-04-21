@@ -8,19 +8,30 @@ dimensionless keyhole number (Eq. 12 in the paper):
 
     Ke = etaP / ((Tl-T0) * pi * rho * Cp * sqrt(alpha * Vs * r0^3))
 
-This example takes the known Ke as given and uses the Stage1 pipeline to:
-  1. Confirm that the relationship e* = f(Ke) is a scaling symmetry
-  2. Extract the Lie-algebra generators of the symmetry group
-  3. Visualize the generators — showing which variable rescalings
-     preserve the keyhole number
+This example runs the full PyDimension dimensionless-learning flow:
 
-The generators are the novel output: they reveal the continuous family
-of unit-rescaling transformations under which Ke (and thus e*) is invariant.
+  0. Dimensional analysis: build the (M, L, T, K) dimension matrix of the
+     seven physical inputs, compute the null-space basis, simplify it to
+     a primitive integer basis (the "reduced candidates") via SymPy.
+     With 7 variables and 4 fundamental dimensions, 7 - 4 = 3 independent
+     Pi groups are produced — any valid Ke-like combination lies in their
+     span.
+
+  1. Feed the reduced candidates (log10 of each Pi group) into a
+     multilayer encoder alongside the raw variables, and let Stage1
+     discover the intrinsic latent dimension of e*.
+
+  2. Identify the symmetry type of e* (translational / rotational /
+     scaling) by competitive encoder training on raw X.
+
+  3. Extract the Lie-algebra generators of the winning symmetry group
+     and visualize which variable rescalings preserve the keyhole number.
 
 Usage
 -----
     python discover_symmetry.py --data dataset_keyhole.csv
-    python discover_symmetry.py --data dataset_keyhole.csv --encoder-hidden 64 32
+    python discover_symmetry.py --data dataset_keyhole.csv --encoder-hidden 128 64
+    python discover_symmetry.py --data dataset_keyhole.csv --no-pi-input
 """
 
 import sys
@@ -69,6 +80,22 @@ _tmp.cpu_count = lambda: 0
 VARIABLE_NAMES = ["etaP", "Vs", "r0", "alpha", "rho", "cp", "Tl-T0"]
 VARIABLE_UNITS = ["W", "m/s", "m", "m²/s", "kg/m³", "J/(kg·K)", "K"]
 
+# Dimension matrix, rows = (Mass, Length, Time, Temperature), cols = VARIABLE_NAMES.
+#   etaP  [W]       = kg · m² · s⁻³        →  ( 1,  2, -3,  0)
+#   Vs    [m/s]                             →  ( 0,  1, -1,  0)
+#   r0    [m]                               →  ( 0,  1,  0,  0)
+#   alpha [m²/s]                            →  ( 0,  2, -1,  0)
+#   rho   [kg/m³]                           →  ( 1, -3,  0,  0)
+#   cp    [J/(kg·K)]= m² · s⁻² · K⁻¹        →  ( 0,  2, -2, -1)
+#   Tl-T0 [K]                               →  ( 0,  0,  0,  1)
+DIMENSION_MATRIX = np.array([
+    [1, 0, 0, 0,  1, 0, 0],   # Mass
+    [2, 1, 1, 2, -3, 2, 0],   # Length
+    [-3, -1, 0, -1, 0, -2, 0],  # Time
+    [0, 0, 0, 0, 0, -1, 1],   # Temperature
+], dtype=float)
+DIMENSION_NAMES = ["Mass", "Length", "Time", "Temperature"]
+
 # Known keyhole number exponents (Eq. 12):
 #   Ke = etaP^1 * Vs^(-0.5) * r0^(-1.5) * alpha^(-0.5) * rho^(-1) * cp^(-1) * (Tl-T0)^(-1)
 KNOWN_KE_EXPONENTS = np.array([1.0, -0.5, -1.5, -0.5, -1.0, -1.0, -1.0])
@@ -78,6 +105,88 @@ def compute_ke(X: np.ndarray) -> np.ndarray:
     """Compute the known keyhole number Ke from 7 physical variables."""
     etaP, Vs, r0, alpha, rho, cp, Tl_T0 = [X[:, i] for i in range(7)]
     return etaP / (Tl_T0 * np.pi * rho * cp * np.sqrt(alpha * Vs * r0**3))
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Dimensional analysis — Stage-0 reduction to dimensionless candidates
+# ──────────────────────────────────────────────────────────────────────────────
+
+def compute_pi_basis(dim_matrix: np.ndarray) -> np.ndarray:
+    """Null-space basis of the dimension matrix (the reduced Pi candidates).
+
+    Mirrors ``pydimension.data_preprocessing.preprocessor.DataPreprocessor``:
+    scipy gives a numerical null-space, SymPy (if available) is used to
+    recover a primitive integer basis.  The returned matrix has shape
+    (n_variables, n_pi_groups); column k gives the exponents of Pi_k.
+    """
+    from scipy.linalg import null_space
+    null_sp = null_space(dim_matrix)
+    if null_sp.shape[1] == 0:
+        raise ValueError("Dimension matrix has trivial null space — nothing to reduce.")
+
+    try:
+        from sympy import Matrix, ilcm, igcd
+    except ImportError:
+        return null_sp
+
+    M = Matrix(dim_matrix.astype(int).tolist())
+    ns = M.nullspace()
+    if not ns:
+        return null_sp
+
+    primitives = []
+    for v in ns:
+        denom = [x.as_numer_denom()[1] for x in v if x != 0]
+        scale = denom[0] if denom else 1
+        for d in denom[1:]:
+            scale = ilcm(scale, d)
+        w = v * scale
+        elems = [abs(int(x)) for x in w if x != 0]
+        g = elems[0] if elems else 1
+        for e in elems[1:]:
+            g = igcd(g, e)
+        if g > 1:
+            w = w // g
+        for x in w:
+            if x != 0:
+                if x < 0:
+                    w = -w
+                break
+        primitives.append(np.array([float(x) for x in w]))
+    return np.column_stack(primitives)
+
+
+def compute_pi_features(X_raw: np.ndarray, basis: np.ndarray) -> np.ndarray:
+    """Evaluate each Pi group on positive raw X, return log10 then min-max to [0, 1].
+
+    The encoder expects augmented features on roughly the same magnitude as
+    the other inputs, so we log-compress (the physical range spans many
+    decades) and rescale to [0, 1] per column.
+    """
+    X_pos = np.maximum(X_raw, 1e-30)
+    log_pi = np.log10(X_pos) @ basis                   # (n_samples, n_groups)
+    log_pi = np.nan_to_num(log_pi, nan=0.0, posinf=0.0, neginf=0.0)
+    mn = log_pi.min(axis=0, keepdims=True)
+    mx = log_pi.max(axis=0, keepdims=True)
+    rng = np.where(mx - mn > 1e-12, mx - mn, 1.0)
+    return (log_pi - mn) / rng
+
+
+def format_pi_expression(basis_col: np.ndarray, names) -> str:
+    """Human-readable product form of a single Pi group."""
+    parts = []
+    for name, exp in zip(names, basis_col):
+        if abs(exp) < 1e-10:
+            continue
+        if abs(exp - 1.0) < 1e-10:
+            parts.append(f"{name}")
+        elif abs(exp + 1.0) < 1e-10:
+            parts.append(f"{name}^-1")
+        elif abs(exp - round(exp)) < 1e-10:
+            parts.append(f"{name}^{int(round(exp))}")
+        else:
+            parts.append(f"{name}^({exp:+.3f})")
+    return " · ".join(parts) if parts else "1"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -153,6 +262,34 @@ def run_pipeline(X, y, Ke, args):
     """Run Stage1 symmetry discovery on the physical variables."""
     results = {"Ke": Ke}
 
+    # --- Stage 0: Dimensional analysis → reduced Pi candidates ---
+    print("=" * 60)
+    print("Step 0: Dimensional analysis (Buckingham-Pi reduction)")
+    print("=" * 60)
+    print(f"  Dimension matrix shape: {DIMENSION_MATRIX.shape}  "
+          f"(rows = {DIMENSION_NAMES}, cols = {VARIABLE_NAMES})")
+    rank = int(np.linalg.matrix_rank(DIMENSION_MATRIX))
+    print(f"  Rank: {rank}   Expected Pi groups: {DIMENSION_MATRIX.shape[1] - rank}")
+    pi_basis = compute_pi_basis(DIMENSION_MATRIX)
+    print(f"  Basis vectors shape: {pi_basis.shape}")
+    for i in range(pi_basis.shape[1]):
+        expr = format_pi_expression(pi_basis[:, i], VARIABLE_NAMES)
+        print(f"    Pi{i+1} = {expr}")
+    # Cosine similarity of each candidate (and of their combinations) to Ke,
+    # as a sanity check that the known Ke lies in the null-space span.
+    Ke_ref = KNOWN_KE_EXPONENTS / np.linalg.norm(KNOWN_KE_EXPONENTS)
+    coords, *_ = np.linalg.lstsq(pi_basis, KNOWN_KE_EXPONENTS, rcond=None)
+    recon = pi_basis @ coords
+    recon_cos = float(np.dot(recon, Ke_ref) / (np.linalg.norm(recon) + 1e-12))
+    print(f"  Known Ke exponents projected onto null-space basis: cos = {recon_cos:+.4f}  "
+          f"(±1 means Ke lies in the Pi-group span)")
+    pi_features = compute_pi_features(X, pi_basis)
+    results["pi_basis"] = pi_basis
+    results["pi_features"] = pi_features
+    print(f"  Reduced candidates (pi_features) shape: {pi_features.shape}  "
+          f"range: [{pi_features.min():.3f}, {pi_features.max():.3f}]")
+    print()
+
     # --- Normalize ---
     print("=" * 60)
     print("Step 1: Normalizing data")
@@ -169,13 +306,17 @@ def run_pipeline(X, y, Ke, args):
     print("Step 2: Discovering intrinsic latent dimension")
     print("=" * 60)
     sys.stdout.flush()
-    # Optional: multi-layer encoder and Pi group augmentation
-    enc_kwargs = {}
-    if getattr(args, "encoder_hidden", None):
-        enc_kwargs["encoder_hidden_dims"] = args.encoder_hidden
-    if getattr(args, "pi_basis", False):
-        # Use known Ke exponents as Pi group basis (1 group)
-        enc_kwargs["pi_basis_vectors"] = KNOWN_KE_EXPONENTS.reshape(-1, 1)
+    # Wire in the reduced candidates and a multilayer encoder by default.
+    enc_kwargs = {"encoder_hidden_dims": args.encoder_hidden}
+    if not args.no_pi_input:
+        # Reduced candidates computed from physical (always-positive) X; the
+        # pi_features path injects them directly, side-stepping the library's
+        # log-of-normalised-X step which would see zeros after min-max scaling.
+        enc_kwargs["pi_features"] = pi_features
+
+    print(f"  Multilayer encoder hidden dims: {args.encoder_hidden}")
+    print(f"  Reduced-candidate input: "
+          f"{'ENABLED (' + str(pi_features.shape[1]) + ' Pi features)' if not args.no_pi_input else 'disabled'}")
 
     res_latent = discover_latent_dimension(
         X_norm, y_norm, max_latent=4,
@@ -379,10 +520,12 @@ def main():
     parser.add_argument("--sym-epochs", type=int, default=1500)
     parser.add_argument("--n-restarts", type=int, default=3)
     parser.add_argument("--output-dir", default="output_keyhole_symmetry")
-    parser.add_argument("--encoder-hidden", type=int, nargs="+", default=None,
-                        help="Hidden layer widths for multi-layer encoder (e.g. --encoder-hidden 64 32)")
-    parser.add_argument("--pi-basis", action="store_true",
-                        help="Augment encoder input with known Ke Pi group")
+    parser.add_argument("--encoder-hidden", type=int, nargs="+", default=[64, 32],
+                        help="Hidden layer widths for the multilayer encoder "
+                             "(default: 64 32)")
+    parser.add_argument("--no-pi-input", action="store_true",
+                        help="Disable the reduced (Pi) candidate features — "
+                             "run the encoder on raw variables only.")
     args = parser.parse_args()
 
     X, y, Ke = load_data(args)

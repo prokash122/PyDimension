@@ -36,21 +36,26 @@ the pore fraction unchanged.  The Stage1 pipeline recovers this
 invariance directly from the experimental data without being told the
 formula for ``Pi``.
 
-This script uses the Stage1 pipeline to:
-  1. Confirm that pore fraction ``f`` depends on a single latent (the
-     normalised enthalpy ``Pi``),
-  2. Confirm the symmetry type is **scaling** (competitive loss),
-  3. Extract the Lie-algebra generators of the scaling group, which span
-     the null-space of the linear log-space encoder — the simultaneous
-     unit rescalings that preserve ``Pi`` and hence porosity,
+This script runs the full PyDimension dimensionless-learning flow:
+
+  0. Dimensional analysis: build the (M, L, T, K) dimension matrix of the
+     seven LPBF inputs, compute the null-space basis, simplify to a
+     primitive integer Pi basis via SymPy — these are the *reduced
+     candidates* fed to the encoder.
+  1. Feed the reduced candidates (log10 of each Pi group) into a
+     multilayer encoder alongside the raw variables, and confirm pore
+     fraction depends on a single latent (the normalised enthalpy Pi).
+  2. Identify the symmetry type is **scaling** via competitive training.
+  3. Extract the Lie-algebra generators of the scaling group — the
+     simultaneous unit rescalings that preserve Pi and hence porosity.
   4. Produce a focussed 3-panel figure (Pi-collapse, symmetry-type bars,
      generator orbits).
 
 Usage
 -----
     python discover_symmetry.py --data dataset_lpbf.csv
-    python discover_symmetry.py --data dataset_lpbf.csv --encoder-hidden 64 32
-    python discover_symmetry.py --data dataset_lpbf.csv --pi-basis
+    python discover_symmetry.py --data dataset_lpbf.csv --encoder-hidden 128 64
+    python discover_symmetry.py --data dataset_lpbf.csv --no-pi-input
 """
 
 import sys
@@ -99,6 +104,22 @@ _tmp.cpu_count = lambda: 0
 VARIABLE_NAMES = ["P", "V", "A", "rho", "k", "Lv", "dT"]
 VARIABLE_UNITS = ["W", "m/s", "-", "kg/m³", "W/(m·K)", "J/kg", "K"]
 
+# Dimension matrix, rows = (Mass, Length, Time, Temperature), cols = VARIABLE_NAMES.
+#   P    [W]       = kg · m² · s⁻³          →  ( 1,  2, -3,  0)
+#   V    [m/s]                               →  ( 0,  1, -1,  0)
+#   A    [-]       (dimensionless)           →  ( 0,  0,  0,  0)
+#   rho  [kg/m³]                              →  ( 1, -3,  0,  0)
+#   k    [W/(m·K)] = kg · m · s⁻³ · K⁻¹       →  ( 1,  1, -3, -1)
+#   Lv   [J/kg]    = m² · s⁻²                 →  ( 0,  2, -2,  0)
+#   dT   [K]                                  →  ( 0,  0,  0,  1)
+DIMENSION_MATRIX = np.array([
+    [1, 0, 0,  1, 1, 0, 0],   # Mass
+    [2, 1, 0, -3, 1, 2, 0],   # Length
+    [-3, -1, 0, 0, -3, -2, 0], # Time
+    [0, 0, 0,  0, -1, 0, 1],  # Temperature
+], dtype=float)
+DIMENSION_NAMES = ["Mass", "Length", "Time", "Temperature"]
+
 # Pi = Lv^1 * rho^1 * A^1 * P^1 * V^1 * k^-2 * dT^-2
 KNOWN_PI_EXPONENTS = np.array([1.0, 1.0, 1.0, 1.0, -2.0, 1.0, -2.0])
 
@@ -107,6 +128,83 @@ def compute_pi(X: np.ndarray) -> np.ndarray:
     """Compute the notebook's normalised-enthalpy Pi from 7 physical variables."""
     P, V, A, rho, k, Lv, dT = [X[:, i] for i in range(7)]
     return (Lv * rho * A * P * V) / (k ** 2 * dT ** 2)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Dimensional analysis — Stage-0 reduction to dimensionless candidates
+# ──────────────────────────────────────────────────────────────────────────────
+
+def compute_pi_basis(dim_matrix: np.ndarray) -> np.ndarray:
+    """Null-space basis of the dimension matrix (the reduced Pi candidates).
+
+    Mirrors ``pydimension.data_preprocessing.preprocessor.DataPreprocessor``:
+    scipy gives a numerical null-space, SymPy (if available) is used to
+    recover a primitive integer basis.  The returned matrix has shape
+    (n_variables, n_pi_groups); column k gives the exponents of Pi_k.
+    """
+    from scipy.linalg import null_space
+    null_sp = null_space(dim_matrix)
+    if null_sp.shape[1] == 0:
+        raise ValueError("Dimension matrix has trivial null space — nothing to reduce.")
+
+    try:
+        from sympy import Matrix, ilcm, igcd
+    except ImportError:
+        return null_sp
+
+    M = Matrix(dim_matrix.astype(int).tolist())
+    ns = M.nullspace()
+    if not ns:
+        return null_sp
+
+    primitives = []
+    for v in ns:
+        denom = [x.as_numer_denom()[1] for x in v if x != 0]
+        scale = denom[0] if denom else 1
+        for d in denom[1:]:
+            scale = ilcm(scale, d)
+        w = v * scale
+        elems = [abs(int(x)) for x in w if x != 0]
+        g = elems[0] if elems else 1
+        for e in elems[1:]:
+            g = igcd(g, e)
+        if g > 1:
+            w = w // g
+        for x in w:
+            if x != 0:
+                if x < 0:
+                    w = -w
+                break
+        primitives.append(np.array([float(x) for x in w]))
+    return np.column_stack(primitives)
+
+
+def compute_pi_features(X_raw: np.ndarray, basis: np.ndarray) -> np.ndarray:
+    """Evaluate each Pi group on positive raw X, return log10 then min-max to [0, 1]."""
+    X_pos = np.maximum(X_raw, 1e-30)
+    log_pi = np.log10(X_pos) @ basis
+    log_pi = np.nan_to_num(log_pi, nan=0.0, posinf=0.0, neginf=0.0)
+    mn = log_pi.min(axis=0, keepdims=True)
+    mx = log_pi.max(axis=0, keepdims=True)
+    rng = np.where(mx - mn > 1e-12, mx - mn, 1.0)
+    return (log_pi - mn) / rng
+
+
+def format_pi_expression(basis_col: np.ndarray, names) -> str:
+    """Human-readable product form of a single Pi group."""
+    parts = []
+    for name, exp in zip(names, basis_col):
+        if abs(exp) < 1e-10:
+            continue
+        if abs(exp - 1.0) < 1e-10:
+            parts.append(f"{name}")
+        elif abs(exp + 1.0) < 1e-10:
+            parts.append(f"{name}^-1")
+        elif abs(exp - round(exp)) < 1e-10:
+            parts.append(f"{name}^{int(round(exp))}")
+        else:
+            parts.append(f"{name}^({exp:+.3f})")
+    return " · ".join(parts) if parts else "1"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -202,6 +300,33 @@ def run_pipeline(X, y, Pi, args):
     """Run Stage1 symmetry discovery on the LPBF physical variables."""
     results = {"Pi": Pi, "X_raw": X}
 
+    # --- Stage 0: Dimensional analysis → reduced Pi candidates ---
+    print("=" * 60)
+    print("Step 0: Dimensional analysis (Buckingham-Pi reduction)")
+    print("=" * 60)
+    print(f"  Dimension matrix shape: {DIMENSION_MATRIX.shape}  "
+          f"(rows = {DIMENSION_NAMES}, cols = {VARIABLE_NAMES})")
+    rank = int(np.linalg.matrix_rank(DIMENSION_MATRIX))
+    print(f"  Rank: {rank}   Expected Pi groups: {DIMENSION_MATRIX.shape[1] - rank}")
+    pi_basis = compute_pi_basis(DIMENSION_MATRIX)
+    print(f"  Basis vectors shape: {pi_basis.shape}")
+    for i in range(pi_basis.shape[1]):
+        expr = format_pi_expression(pi_basis[:, i], VARIABLE_NAMES)
+        print(f"    Pi{i+1} = {expr}")
+    # Verify the known normalised-enthalpy Pi lies in the null-space span.
+    coords, *_ = np.linalg.lstsq(pi_basis, KNOWN_PI_EXPONENTS, rcond=None)
+    recon = pi_basis @ coords
+    ref_n = KNOWN_PI_EXPONENTS / (np.linalg.norm(KNOWN_PI_EXPONENTS) + 1e-12)
+    recon_cos = float(np.dot(recon, ref_n) / (np.linalg.norm(recon) + 1e-12))
+    print(f"  Known Pi exponents projected onto null-space basis: cos = {recon_cos:+.4f}  "
+          f"(±1 means the notebook Pi lies in the Pi-group span)")
+    pi_features = compute_pi_features(X, pi_basis)
+    results["pi_basis"] = pi_basis
+    results["pi_features"] = pi_features
+    print(f"  Reduced candidates (pi_features) shape: {pi_features.shape}  "
+          f"range: [{pi_features.min():.3f}, {pi_features.max():.3f}]")
+    print()
+
     # --- Normalize ---
     print("=" * 60)
     print("Step 1: Normalizing data")
@@ -238,26 +363,19 @@ def run_pipeline(X, y, Pi, args):
     print("Step 2: Discovering intrinsic latent dimension")
     print("=" * 60)
     sys.stdout.flush()
-    enc_kwargs = {}
-    if getattr(args, "encoder_hidden", None):
-        enc_kwargs["encoder_hidden_dims"] = args.encoder_hidden
-    if getattr(args, "pi_basis", False):
-        # NB: we cannot use ``pi_basis_vectors`` here because the library
-        # applies it to the *normalised* X, which has exact zeros after
-        # min-max scaling (LPBF material-property columns only take 5
-        # discrete values, so entire material groups map to 0).  Taking
-        # log(0) and raising to negative exponents would blow up to NaN.
-        #
-        # Instead: compute the Pi feature from the *raw* positive X, take
-        # log10, min-max-scale it to [0, 1] so it lives on the same scale
-        # as the other encoder inputs, and inject it through the
-        # ``pi_features`` argument (which just concatenates it untouched).
-        pi_raw = compute_pi(X)  # uses raw physical X — always > 0
-        log_pi = np.log10(np.maximum(pi_raw, 1e-30))
-        log_pi_n = (log_pi - log_pi.min()) / (log_pi.max() - log_pi.min() + 1e-12)
-        enc_kwargs["pi_features"] = log_pi_n.reshape(-1, 1)
-        print(f"  Injecting precomputed log10(Pi) feature "
-              f"(raw Pi range: {pi_raw.min():.3g} .. {pi_raw.max():.3g})")
+    # Default pipeline: multilayer encoder + reduced Pi candidates.
+    # The pi_features path injects the precomputed log10(Pi_k) groups
+    # (one column per Buckingham-Pi basis vector) directly, side-stepping
+    # the library's log-of-normalised-X step.  That matters here because
+    # LPBF material-property columns (A, rho, k, Lv, dT) only take 5
+    # discrete values and entire material groups map to 0 after min-max
+    # scaling — log(0) and negative exponents would blow up to NaN.
+    enc_kwargs = {"encoder_hidden_dims": args.encoder_hidden}
+    if not args.no_pi_input:
+        enc_kwargs["pi_features"] = pi_features
+        print(f"  Injecting {pi_features.shape[1]} reduced Pi candidate(s) "
+              f"(log10 + min-max to [0, 1])")
+    print(f"  Multilayer encoder hidden dims: {args.encoder_hidden}")
 
     res_latent = discover_latent_dimension(
         X_norm, y_norm, max_latent=4,
@@ -620,10 +738,12 @@ def main():
     parser.add_argument("--sym-epochs", type=int, default=1500)
     parser.add_argument("--n-restarts", type=int, default=3)
     parser.add_argument("--output-dir", default="output_lpbf_porosity_symmetry")
-    parser.add_argument("--encoder-hidden", type=int, nargs="+", default=None,
-                        help="Hidden layer widths for multi-layer encoder (e.g. --encoder-hidden 64 32)")
-    parser.add_argument("--pi-basis", action="store_true",
-                        help="Augment encoder input with known Pi group (LPBF normalised enthalpy)")
+    parser.add_argument("--encoder-hidden", type=int, nargs="+", default=[64, 32],
+                        help="Hidden layer widths for the multilayer encoder "
+                             "(default: 64 32)")
+    parser.add_argument("--no-pi-input", action="store_true",
+                        help="Disable the reduced (Pi) candidate features — "
+                             "run the encoder on raw variables only.")
     parser.add_argument("--log-normalize", action="store_true",
                         help="Geometric-mean centre each column before scaling. This makes "
                              "the scaling encoder's internal log(X) act as centred log-physical "

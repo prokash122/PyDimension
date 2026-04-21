@@ -66,11 +66,14 @@ dropped.
 
 ## Pipeline
 
+0. **Dimensional analysis** — build the (M, L, T, K) dimension matrix of
+   the seven inputs, compute its null-space basis, simplify to primitive
+   integer Pi groups via SymPy — these *reduced candidates* are then fed
+   to the encoder
 1. **Data loading** — read the CSV, drop rows with non-positive `Pi`
 2. **Normalization** — min-max scaling
-3. **Latent dimension discovery** — autoencoder sweep (expected:
-   k* = 1, since the notebook's logistic collapse already shows that
-   porosity is a 1-D function of `log Pi`)
+3. **Latent dimension discovery** — multilayer-encoder autoencoder sweep
+   over `[X, X², log|X|, π₁..π₃]` (expected: k* = 1)
 4. **Symmetry identification** — competitive encoder training
    (expected: **scaling** wins by a large margin)
 5. **Generator extraction** — null-space of the linear log-space
@@ -86,13 +89,18 @@ dropped.
 ```bash
 cd projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry
 
+# Default: dimensional-analysis + multilayer encoder [64, 32] with reduced
+# Pi candidates injected as features
 python discover_symmetry.py --data dataset_lpbf.csv
 
-# With a multi-layer encoder for the latent-dimension sweep:
-python discover_symmetry.py --data dataset_lpbf.csv --encoder-hidden 64 32
+# Deeper / wider encoder:
+python discover_symmetry.py --data dataset_lpbf.csv --encoder-hidden 128 64 32
 
-# With Pi-group augmentation (inject known normalised enthalpy as a basis):
-python discover_symmetry.py --data dataset_lpbf.csv --pi-basis
+# Ablation: disable the reduced candidate input (raw X only):
+python discover_symmetry.py --data dataset_lpbf.csv --no-pi-input
+
+# Geometric-mean log prenormalisation:
+python discover_symmetry.py --data dataset_lpbf.csv --log-normalize
 ```
 
 ## Expected results
