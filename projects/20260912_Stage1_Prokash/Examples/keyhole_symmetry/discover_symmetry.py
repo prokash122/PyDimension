@@ -422,6 +422,80 @@ def _interpret_generator(g, idx):
 # Visualization (3 panels: Ke vs e*, symmetry losses, generator orbits)
 # ──────────────────────────────────────────────────────────────────────────────
 
+def plot_pi_candidates(X, y, results, output_dir):
+    """Plot the dimensional-analysis output: Pi-basis heatmap + y vs each Pi_k.
+
+    This is the visual counterpart of the "reduced candidates" step: every Pi
+    group discovered from the null-space of the dimension matrix gets its own
+    scatter against the output, so the reader can see which ones collapse the
+    data and which are under-determined.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    pi_basis = results["pi_basis"]           # (n_vars, n_pi)
+    n_pi = pi_basis.shape[1]
+
+    # Raw (positive) Pi_k values from physical X — same as what gets log-scaled
+    # and pushed into the encoder, but here we plot against y directly.
+    X_pos = np.maximum(X, 1e-30)
+    log10_pi = np.log10(X_pos) @ pi_basis     # (n_samples, n_pi)
+
+    fig = plt.figure(figsize=(5 * (n_pi + 1), 5))
+    gs  = fig.add_gridspec(1, n_pi + 1, width_ratios=[1.3] + [1.0] * n_pi,
+                           wspace=0.35)
+    fig.suptitle("Keyhole — Dimensional Analysis & Reduced Pi Candidates",
+                 fontsize=14, fontweight="bold")
+
+    # --- Panel A: Pi basis heatmap -------------------------------------------
+    ax = fig.add_subplot(gs[0, 0])
+    im = ax.imshow(pi_basis.T, cmap="RdBu_r",
+                   vmin=-np.max(np.abs(pi_basis)), vmax=np.max(np.abs(pi_basis)),
+                   aspect="auto")
+    ax.set_xticks(range(len(VARIABLE_NAMES)))
+    ax.set_xticklabels(VARIABLE_NAMES, rotation=30, ha="right")
+    ax.set_yticks(range(n_pi))
+    ax.set_yticklabels([f"Pi{i+1}" for i in range(n_pi)])
+    ax.set_title("Pi-basis exponents", fontsize=11)
+    # annotate cells
+    for i in range(n_pi):
+        for j in range(len(VARIABLE_NAMES)):
+            v = pi_basis[j, i]
+            if abs(v) > 1e-10:
+                ax.text(j, i, f"{v:+.0f}" if abs(v - round(v)) < 1e-9 else f"{v:+.2f}",
+                        ha="center", va="center",
+                        color="white" if abs(v) > 0.6 * np.max(np.abs(pi_basis)) else "black",
+                        fontsize=9)
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="exponent")
+
+    # --- Panels B..: y vs log10(Pi_k) -----------------------------------------
+    for i in range(n_pi):
+        ax = fig.add_subplot(gs[0, i + 1])
+        xk = log10_pi[:, i]
+        # R² of a quadratic fit against the raw output
+        try:
+            coeffs = np.polyfit(xk, y, 2)
+            yfit_on_data = np.polyval(coeffs, xk)
+            ss_res = np.sum((y - yfit_on_data) ** 2)
+            ss_tot = np.sum((y - y.mean()) ** 2)
+            r2 = 1 - ss_res / (ss_tot + 1e-12)
+            xf = np.linspace(xk.min(), xk.max(), 200)
+            ax.plot(xf, np.polyval(coeffs, xf), "r-", lw=1.8, alpha=0.9,
+                    label=f"quad R²={r2:.2f}")
+        except Exception:
+            pass
+        ax.scatter(xk, y, c="#4C72B0", s=18, alpha=0.7, edgecolors="none")
+        expr = format_pi_expression(pi_basis[:, i], VARIABLE_NAMES)
+        ax.set_xlabel(f"log₁₀(Pi{i+1})\n{expr}", fontsize=10)
+        ax.set_ylabel("e*", fontsize=10)
+        ax.set_title(f"Reduced candidate Pi{i+1}", fontsize=11)
+        ax.legend(fontsize=9, loc="best")
+
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
+    out_path = os.path.join(output_dir, "keyhole_pi_candidates.png")
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Pi candidates figure saved to {out_path}")
+
+
 def plot_results(X, y, results, output_dir):
     """Create a focused 3-panel figure."""
     os.makedirs(output_dir, exist_ok=True)
@@ -534,6 +608,7 @@ def main():
     print("=" * 60)
     print("Creating visualizations")
     print("=" * 60)
+    plot_pi_candidates(X, y, results, args.output_dir)
     plot_results(X, y, results, args.output_dir)
 
     print()

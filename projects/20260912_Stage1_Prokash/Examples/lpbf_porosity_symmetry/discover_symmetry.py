@@ -508,6 +508,92 @@ def _interpret_generator(g, idx):
 # Visualization (3 panels: Pi vs Pore, symmetry losses, generator orbits)
 # ──────────────────────────────────────────────────────────────────────────────
 
+def plot_pi_candidates(X, y, results, output_dir):
+    """Plot the dimensional-analysis output: Pi-basis heatmap + Pore vs each Pi_k.
+
+    This is the visual counterpart of the "reduced candidates" step: every Pi
+    group discovered from the null-space of the dimension matrix gets its own
+    scatter against Pore, so the reader can see which ones collapse the data
+    and which are under-determined (e.g. Pi = A is constant within a material
+    so it will look like a vertical stripe pattern).
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    pi_basis = results["pi_basis"]
+    n_pi = pi_basis.shape[1]
+
+    X_pos = np.maximum(X, 1e-30)
+    log10_pi = np.log10(X_pos) @ pi_basis
+
+    fig = plt.figure(figsize=(5 * (n_pi + 1), 5))
+    gs  = fig.add_gridspec(1, n_pi + 1, width_ratios=[1.3] + [1.0] * n_pi,
+                           wspace=0.35)
+    fig.suptitle("LPBF Porosity — Dimensional Analysis & Reduced Pi Candidates",
+                 fontsize=14, fontweight="bold")
+
+    # --- Panel A: Pi basis heatmap -------------------------------------------
+    ax = fig.add_subplot(gs[0, 0])
+    im = ax.imshow(pi_basis.T, cmap="RdBu_r",
+                   vmin=-np.max(np.abs(pi_basis)), vmax=np.max(np.abs(pi_basis)),
+                   aspect="auto")
+    ax.set_xticks(range(len(VARIABLE_NAMES)))
+    ax.set_xticklabels(VARIABLE_NAMES, rotation=30, ha="right")
+    ax.set_yticks(range(n_pi))
+    ax.set_yticklabels([f"Pi{i+1}" for i in range(n_pi)])
+    ax.set_title("Pi-basis exponents", fontsize=11)
+    for i in range(n_pi):
+        for j in range(len(VARIABLE_NAMES)):
+            v = pi_basis[j, i]
+            if abs(v) > 1e-10:
+                ax.text(j, i, f"{v:+.0f}" if abs(v - round(v)) < 1e-9 else f"{v:+.2f}",
+                        ha="center", va="center",
+                        color="white" if abs(v) > 0.6 * np.max(np.abs(pi_basis)) else "black",
+                        fontsize=9)
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="exponent")
+
+    # --- Panels B..: Pore fraction vs log10(Pi_k) ----------------------------
+    from scipy.optimize import curve_fit
+    def _logistic(x, k, x0):
+        return 1.0 / (1.0 + np.exp(-k * (x - x0)))
+
+    for i in range(n_pi):
+        ax = fig.add_subplot(gs[0, i + 1])
+        xk = log10_pi[:, i]
+        ax.scatter(xk, y, c="#4C72B0", s=18, alpha=0.7, edgecolors="none")
+        # If Pi_k is effectively constant (e.g. Pi = A, 5 discrete values)
+        # skip fitting — the scatter already tells the story.
+        if xk.max() - xk.min() > 1e-6:
+            try:
+                order = np.argsort(xk)
+                x0_init = xk[order][np.argmin(np.abs(y[order] - 0.5))]
+                popt, _ = curve_fit(_logistic, xk, y,
+                                    p0=[4.0, x0_init],
+                                    bounds=([0.1, xk.min() - 2], [50.0, xk.max() + 5]),
+                                    maxfev=5000)
+                xf = np.linspace(xk.min(), xk.max(), 200)
+                ax.plot(xf, _logistic(xf, *popt), "r-", lw=1.8, alpha=0.9,
+                        label="logistic fit")
+                yhat = _logistic(xk, *popt)
+                ss_res = np.sum((y - yhat) ** 2)
+                ss_tot = np.sum((y - y.mean()) ** 2)
+                r2 = 1 - ss_res / (ss_tot + 1e-12)
+                ax.text(0.03, 0.95, f"R² = {r2:.2f}", transform=ax.transAxes,
+                        va="top", ha="left", fontsize=10,
+                        bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
+            except Exception:
+                pass
+            ax.legend(fontsize=9, loc="lower right")
+        expr = format_pi_expression(pi_basis[:, i], VARIABLE_NAMES)
+        ax.set_xlabel(f"log₁₀(Pi{i+1})\n{expr}", fontsize=10)
+        ax.set_ylabel("Pore fraction", fontsize=10)
+        ax.set_title(f"Reduced candidate Pi{i+1}", fontsize=11)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
+    out_path = os.path.join(output_dir, "lpbf_pi_candidates.png")
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Pi candidates figure saved to {out_path}")
+
+
 def plot_results(X, y, results, output_dir):
     """Create a focused 3-panel figure."""
     os.makedirs(output_dir, exist_ok=True)
@@ -756,6 +842,7 @@ def main():
     print("=" * 60)
     print("Creating visualizations")
     print("=" * 60)
+    plot_pi_candidates(X, y, results, args.output_dir)
     plot_results(X, y, results, args.output_dir)
 
     print()
