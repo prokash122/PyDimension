@@ -416,7 +416,17 @@ def run_pipeline(X, y, Pi, PR, materials, args):
     print("=" * 60)
     sys.stdout.flush()
 
-    if getattr(args, "log_normalize", False):
+    pi_only = getattr(args, "pi_only", False)
+    if pi_only:
+        # Feed the dimensionless groups directly to the encoder; ignore raw X.
+        # pi_features is already log10(Pi) min-max scaled to [0, 1].
+        norm = normalize_data(pi_features, y, method="minmax")
+        norm["log_prescaled"] = False
+        norm["pi_only"] = True
+        feature_names = pi_feature_names
+        print(f"  --pi-only: using {pi_features.shape[1]} dimensionless features "
+              f"as encoder input (raw physical variables ignored)")
+    elif getattr(args, "log_normalize", False):
         # Geometric-mean centring so the scaling encoder (which applies
         # log(X.clamp(0.1)) internally) sees centred log-physical coordinates
         # instead of min-max-clipped affine ones.  After dividing each column
@@ -430,14 +440,19 @@ def run_pipeline(X, y, Pi, PR, materials, args):
         norm = normalize_data(X_prescaled, y, method="minmax")
         norm["log_prescaled"] = True
         norm["gmean_exp"] = gmean_exp
+        norm["pi_only"] = False
+        feature_names = VARIABLE_NAMES
         print(f"  Log-prenormalisation enabled (geometric-mean centring)")
         print(f"  X_prescaled range: [{X_prescaled.min():.3g}, {X_prescaled.max():.3g}]")
     else:
         norm = normalize_data(X, y, method="minmax")
         norm["log_prescaled"] = False
+        norm["pi_only"] = False
+        feature_names = VARIABLE_NAMES
 
     X_norm, y_norm = norm["X_normalized"], norm["y_normalized"]
     results["normalization"] = norm
+    results["feature_names"] = feature_names
     print(f"  X range: [{X_norm.min():.3f}, {X_norm.max():.3f}]")
     print()
 
@@ -454,7 +469,14 @@ def run_pipeline(X, y, Pi, PR, materials, args):
     # discrete values and entire material groups map to 0 after min-max
     # scaling — log(0) and negative exponents would blow up to NaN.
     enc_kwargs = {"encoder_hidden_dims": args.encoder_hidden}
-    if not args.no_pi_input:
+    if pi_only:
+        # X_norm already IS the Pi features — don't append them twice, and
+        # skip the [X, X², log|X|] augmentation so the encoder sees just
+        # the dimensionless groups directly.
+        enc_kwargs["raw_input"] = True
+        print(f"  --pi-only: encoder input = {X_norm.shape[1]} dimensionless features "
+              f"(no [X, X², log|X|] augmentation)")
+    elif not args.no_pi_input:
         enc_kwargs["pi_features"] = pi_features
         print(f"  Injecting {pi_features.shape[1]} reduced Pi candidate(s) "
               f"(log10 + min-max to [0, 1])")
@@ -514,45 +536,61 @@ def run_pipeline(X, y, Pi, PR, materials, args):
     # and their L2-normalised version lets the reader compare to the known
     # Pi exponents [+1, +1, +1, +1, −2, +1, −2].
     W = winner_encoder.weight_matrix  # (n_latent, n_inputs)
+    names_for_W = results["feature_names"]
     print("=" * 60)
     print("  Winning encoder weight vector(s)")
     print("=" * 60)
+    name_w = max(7, max(len(n) for n in names_for_W))
     for i in range(W.shape[0]):
         row = W[i]
         denom = np.linalg.norm(row) + 1e-12
         row_n = row / denom
         print(f"  Row {i+1} (scaling):")
-        header = "    " + "  ".join(f"{n:>7s}" for n in VARIABLE_NAMES)
-        raw    = "    " + "  ".join(f"{v:+7.4f}" for v in row)
-        normed = "    " + "  ".join(f"{v:+7.4f}" for v in row_n)
+        header = "    " + "  ".join(f"{n:>{name_w}s}" for n in names_for_W)
+        raw    = "    " + "  ".join(f"{v:+{name_w}.4f}" for v in row)
+        normed = "    " + "  ".join(f"{v:+{name_w}.4f}" for v in row_n)
         print(header)
         print(f"  raw :{raw}")
         print(f"  L2-n:{normed}")
-        # Compare direction against known Pi exponents
-        ref = KNOWN_PI_EXPONENTS
-        ref_n = ref / np.linalg.norm(ref)
-        cos = float(np.dot(row_n, ref_n))
-        print(f"  cos<row, known-Pi-exponents> = {cos:+.4f}  "
-              f"(±1 means perfect alignment)")
+        if not pi_only:
+            # Compare direction against known Pi exponents (only meaningful in
+            # the physical-variable basis; in pi-only mode the weights index
+            # Pi groups and comparison to KNOWN_PI_EXPONENTS is not defined).
+            ref = KNOWN_PI_EXPONENTS
+            ref_n = ref / np.linalg.norm(ref)
+            cos = float(np.dot(row_n, ref_n))
+            print(f"  cos<row, known-Pi-exponents> = {cos:+.4f}  "
+                  f"(±1 means perfect alignment)")
+        else:
+            # Highlight which Pi group the learned invariant weights most heavily
+            dom = int(np.argmax(np.abs(row)))
+            print(f"  Dominant Pi feature: {names_for_W[dom]}  (|w|={abs(row[dom]):.4f})")
     print()
 
     # --- Interpret generators physically ---
     print("=" * 60)
     print("Step 5: Physical interpretation of generators")
     print("=" * 60)
+    interp_names = names_for_W
     if winner_type == "scaling" and generators:
-        print(f"  Each generator is a direction in log-space along which Pi is preserved.")
-        print(f"  Physically: simultaneous rescaling of variables that keeps the")
-        print(f"  normalised enthalpy Pi (and therefore the pore fraction) invariant.\n")
+        if pi_only:
+            print(f"  Each generator is a direction in the dimensionless-group space")
+            print(f"  along which the learned invariant is preserved.  A non-zero")
+            print(f"  weight means that Pi group is relevant to the output.\n")
+        else:
+            print(f"  Each generator is a direction in log-space along which Pi is preserved.")
+            print(f"  Physically: simultaneous rescaling of variables that keeps the")
+            print(f"  normalised enthalpy Pi (and therefore the pore fraction) invariant.\n")
         for i, g in enumerate(generators):
             if g.ndim == 1:
                 parts = []
-                for j, name in enumerate(VARIABLE_NAMES):
+                for j, name in enumerate(interp_names):
                     if abs(g[j]) > 0.05:
                         parts.append(f"{name} x exp({g[j]:+.3f}*eps)")
                 print(f"  Generator {i+1}:")
                 print(f"    {', '.join(parts)}")
-                _interpret_generator(g, i + 1)
+                if not pi_only:
+                    _interpret_generator(g, i + 1)
                 print()
     elif winner_type == "rotational" and generators:
         for i, g in enumerate(generators):
@@ -561,7 +599,7 @@ def run_pipeline(X, y, Pi, PR, materials, args):
     else:
         for i, g in enumerate(generators):
             if g.ndim == 1:
-                parts = [f"{name}:{g[j]:+.3f}" for j, name in enumerate(VARIABLE_NAMES) if abs(g[j]) > 0.05]
+                parts = [f"{name}:{g[j]:+.3f}" for j, name in enumerate(interp_names) if abs(g[j]) > 0.05]
                 print(f"  Generator {i+1}: [{', '.join(parts)}]")
     print()
 
@@ -745,7 +783,21 @@ def plot_results(X, y, results, output_dir):
     # lines directly in log10(X_raw), rooted at data points.  That is the
     # honest geometric picture of the discovered scaling generator.
     ax = axes[2]
-    if generators and winner_type == "scaling":
+    # In --pi-only mode generators live in Pi-group space, not physical
+    # (P, V, …) space, so the log(P)–log(V) orbit panel doesn't apply.
+    # Show the encoder's Pi-weight bar chart instead.
+    if results["normalization"].get("pi_only", False) and generators and winner_type == "scaling":
+        names = results["feature_names"]
+        W = results["winner_encoder"].weight_matrix
+        row = W[0] if W.ndim == 2 else W
+        colors = ["#55A868" if v > 0 else "#DD8452" for v in row]
+        ax.barh(range(len(names)), row, color=colors, edgecolor="black", lw=1)
+        ax.set_yticks(range(len(names)))
+        ax.set_yticklabels(names, fontsize=9)
+        ax.axvline(0, color="black", lw=0.7)
+        ax.set_xlabel("Encoder weight (scaling)", fontsize=10)
+        ax.set_title("Pi-space weights: which dimensionless groups matter", fontsize=11)
+    elif generators and winner_type == "scaling":
         g = generators[0]
         importance = np.abs(g)
         top2 = np.argsort(importance)[-2:][::-1]
@@ -993,6 +1045,11 @@ def main():
     parser.add_argument("--no-pi-input", action="store_true",
                         help="Disable the reduced (Pi) candidate features — "
                              "run the encoder on raw variables only.")
+    parser.add_argument("--pi-only", action="store_true",
+                        help="Feed ONLY the dimensionless Pi groups (5 from Buckingham-Pi "
+                             "+ log10(P_recoil/P_Laplace)) to the encoder.  Raw physical "
+                             "variables are ignored.  Generator weights index Pi groups, "
+                             "not physical variables.")
     parser.add_argument("--log-normalize", action="store_true",
                         help="Geometric-mean centre each column before scaling. This makes "
                              "the scaling encoder's internal log(X) act as centred log-physical "
@@ -1017,9 +1074,14 @@ def main():
     print(f"  Symmetry: {sym_type}")
     print(f"  Generators: {len(results['generators'])}")
     if sym_type == "scaling":
-        print(f"  These generators show how P, V, A, rho, k, Lv, dT can be")
-        print(f"  simultaneously rescaled while preserving the normalised enthalpy Pi")
-        print(f"  — and therefore the LPBF pore fraction.")
+        if args.pi_only:
+            print(f"  --pi-only: generators live in dimensionless-group space.")
+            print(f"  Each direction is a rescaling of Pi groups that leaves the")
+            print(f"  learned pore-fraction invariant unchanged.")
+        else:
+            print(f"  These generators show how P, V, A, rho, k, Lv, dT, γ, Tb can be")
+            print(f"  simultaneously rescaled while preserving the normalised enthalpy Pi")
+            print(f"  — and therefore the LPBF pore fraction.")
     print()
 
 
