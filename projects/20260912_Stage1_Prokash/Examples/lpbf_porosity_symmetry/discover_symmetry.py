@@ -101,33 +101,70 @@ except ImportError as e:
 import torch.multiprocessing as _tmp
 _tmp.cpu_count = lambda: 0
 
-VARIABLE_NAMES = ["P", "V", "A", "rho", "k", "Lv", "dT"]
-VARIABLE_UNITS = ["W", "m/s", "-", "kg/m³", "W/(m·K)", "J/kg", "K"]
+VARIABLE_NAMES = ["P", "V", "A", "rho", "k", "Lv", "dT", "gamma", "Tb"]
+VARIABLE_UNITS = ["W", "m/s", "-", "kg/m³", "W/(m·K)", "J/kg", "K", "N/m", "K"]
 
 # Dimension matrix, rows = (Mass, Length, Time, Temperature), cols = VARIABLE_NAMES.
-#   P    [W]       = kg · m² · s⁻³          →  ( 1,  2, -3,  0)
-#   V    [m/s]                               →  ( 0,  1, -1,  0)
-#   A    [-]       (dimensionless)           →  ( 0,  0,  0,  0)
-#   rho  [kg/m³]                              →  ( 1, -3,  0,  0)
-#   k    [W/(m·K)] = kg · m · s⁻³ · K⁻¹       →  ( 1,  1, -3, -1)
-#   Lv   [J/kg]    = m² · s⁻²                 →  ( 0,  2, -2,  0)
-#   dT   [K]                                  →  ( 0,  0,  0,  1)
+#   P      [W]       = kg · m² · s⁻³          →  ( 1,  2, -3,  0)
+#   V      [m/s]                               →  ( 0,  1, -1,  0)
+#   A      [-]       (dimensionless)           →  ( 0,  0,  0,  0)
+#   rho    [kg/m³]                              →  ( 1, -3,  0,  0)
+#   k      [W/(m·K)] = kg · m · s⁻³ · K⁻¹       →  ( 1,  1, -3, -1)
+#   Lv     [J/kg]    = m² · s⁻²                 →  ( 0,  2, -2,  0)
+#   dT     [K]                                  →  ( 0,  0,  0,  1)
+#   gamma  [N/m]     = kg · s⁻²                 →  ( 1,  0, -2,  0)
+#   Tb     [K]                                  →  ( 0,  0,  0,  1)
 DIMENSION_MATRIX = np.array([
-    [1, 0, 0,  1, 1, 0, 0],   # Mass
-    [2, 1, 0, -3, 1, 2, 0],   # Length
-    [-3, -1, 0, 0, -3, -2, 0], # Time
-    [0, 0, 0,  0, -1, 0, 1],  # Temperature
+    # P  V  A  rho  k  Lv  dT  gamma  Tb
+    [ 1, 0, 0,  1,  1,  0,  0,   1,   0],   # Mass
+    [ 2, 1, 0, -3,  1,  2,  0,   0,   0],   # Length
+    [-3,-1, 0,  0, -3, -2,  0,  -2,   0],   # Time
+    [ 0, 0, 0,  0, -1,  0,  1,   0,   1],   # Temperature
 ], dtype=float)
 DIMENSION_NAMES = ["Mass", "Length", "Time", "Temperature"]
 
-# Pi = Lv^1 * rho^1 * A^1 * P^1 * V^1 * k^-2 * dT^-2
-KNOWN_PI_EXPONENTS = np.array([1.0, 1.0, 1.0, 1.0, -2.0, 1.0, -2.0])
+# Pi (normalised enthalpy) known exponents, now over 9 variables
+# (Lv·rho·A·P·V) / (k^2·dT^2) — γ and Tb have zero exponent here.
+#                              P    V    A    rho    k    Lv   dT   γ    Tb
+KNOWN_PI_EXPONENTS = np.array([1.0, 1.0, 1.0, 1.0, -2.0, 1.0, -2.0, 0.0, 0.0])
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Per-material thermophysical properties used by the notebook's
+# P_recoil / P_Laplace pressure ratio.  Copied verbatim from cell `db7b5b2e`
+# of projects/20260912_Stage1_Prokash/Examples/4_plot_3d-ZGAN(1).ipynb.
+# ──────────────────────────────────────────────────────────────────────────────
+PRESSURE_PROPS = {
+    # dHv [J/mol], T_boil [K], gamma [N/m]
+    "Ti64":   dict(dHv=422000.0, Tb=3560.0, gamma=1.65),
+    "SS304":  dict(dHv=341000.0, Tb=3090.0, gamma=1.80),
+    "Al2024": dict(dHv=294000.0, Tb=2792.0, gamma=0.90),
+    "Al6061": dict(dHv=294000.0, Tb=2792.0, gamma=0.90),
+    "Cu":     dict(dHv=305000.0, Tb=2835.0, gamma=1.30),
+}
+# Physical constants used in the Clausius–Clapeyron form of P_recoil
+P_ATM            = 101325.0      # Pa
+R_GAS            = 8.314         # J/(mol·K)
+R_KEYHOLE        = 35e-6         # m   (d_char/2 with d_char = 70 µm)
+T_SURFACE_FACTOR = 1.05          # T_s = 1.05 · T_boil (notebook default)
 
 
 def compute_pi(X: np.ndarray) -> np.ndarray:
-    """Compute the notebook's normalised-enthalpy Pi from 7 physical variables."""
-    P, V, A, rho, k, Lv, dT = [X[:, i] for i in range(7)]
+    """Compute the notebook's normalised-enthalpy Pi from the 9-column X."""
+    P, V, A, rho, k, Lv, dT = (X[:, i] for i in range(7))
     return (Lv * rho * A * P * V) / (k ** 2 * dT ** 2)
+
+
+def compute_pressure_ratio(Tb: np.ndarray, gamma: np.ndarray, dHv: np.ndarray) -> np.ndarray:
+    """P_recoil / P_Laplace from the notebook formula (non-power-law, per row).
+
+    The exponential is the Clausius–Clapeyron expression used by the
+    notebook's ``pressure_ratio()`` function in cell ``db7b5b2e`` of
+    ``4_plot_3d-ZGAN(1).ipynb``.
+    """
+    T_s = T_SURFACE_FACTOR * Tb
+    P_recoil  = 0.54 * P_ATM * np.exp((dHv / R_GAS) * (1.0 / Tb - 1.0 / T_s))
+    P_laplace = 2.0 * gamma * np.cos(0.0) / R_KEYHOLE
+    return P_recoil / P_laplace
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -212,59 +249,85 @@ def format_pi_expression(basis_col: np.ndarray, names) -> str:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def load_csv_data(csv_path: str) -> dict:
-    """Load LPBF porosity data from CSV (columns P, V, A, rho, k, Lv, dT, Pore)."""
+    """Load LPBF porosity data from CSV.
+
+    Expected columns: source, P, V, A, rho, k, Lv, dT, Pore.  The
+    per-material γ (surface tension), Tb (boiling temperature), and
+    dHv (molar heat of vaporisation) are looked up from
+    :data:`PRESSURE_PROPS` using the ``source`` column, so X is returned
+    with 9 columns matching :data:`VARIABLE_NAMES`.
+    """
     import csv
+    CSV_VARS = ["P", "V", "A", "rho", "k", "Lv", "dT"]  # columns in the file
     with open(csv_path, "r") as f:
         reader = csv.reader(f)
         header = next(reader)
         rows = list(reader)
 
-    input_cols = []
-    for var in VARIABLE_NAMES:
+    def _col(name):
         for i, h in enumerate(header):
-            if h.strip() == var:
-                input_cols.append(i)
-                break
+            if h.strip() == name:
+                return i
+        return None
 
+    input_cols = [_col(v) for v in CSV_VARS]
+    if any(c is None for c in input_cols):
+        missing = [v for v, c in zip(CSV_VARS, input_cols) if c is None]
+        raise ValueError(f"CSV is missing required columns: {missing}  (header={header})")
+    source_col = _col("source")
+    if source_col is None:
+        raise ValueError(f"CSV must have a 'source' column to look up gamma / Tb: {header}")
     output_col = None
     for target in ["Pore", "pore", "pore_fraction", "f", "porosity"]:
-        for i, h in enumerate(header):
-            if h.strip() == target:
-                output_col = i
-                break
+        output_col = _col(target)
         if output_col is not None:
             break
-
-    if len(input_cols) != 7:
-        raise ValueError(
-            f"Expected 7 input variables {VARIABLE_NAMES}, "
-            f"found {len(input_cols)} in: {header}"
-        )
     if output_col is None:
         raise ValueError(f"Could not find output column (Pore/porosity) in: {header}")
 
-    X_list, y_list = [], []
+    X_list, y_list, mat_list, dHv_list = [], [], [], []
     for r in rows:
         try:
-            X_list.append([float(r[c]) for c in input_cols])
+            mat = r[source_col].strip()
+            if mat not in PRESSURE_PROPS:
+                continue
+            props = PRESSURE_PROPS[mat]
+            row_vals = [float(r[c]) for c in input_cols]
+            # Append gamma and Tb as the 8th and 9th variables
+            row_vals.extend([props["gamma"], props["Tb"]])
+            X_list.append(row_vals)
             y_list.append(float(r[output_col]))
+            mat_list.append(mat)
+            dHv_list.append(props["dHv"])
         except (ValueError, IndexError):
             continue
     X = np.array(X_list)
     y = np.array(y_list)
-    print(f"  Loaded: {[header[i].strip() for i in input_cols]} -> {header[output_col].strip()}")
-    return {"X": X, "y": y}
+    dHv = np.array(dHv_list)
+    materials = np.array(mat_list)
+    print(f"  Loaded: {CSV_VARS + ['gamma (from source)', 'Tb (from source)']} -> "
+          f"{header[output_col].strip()}")
+    print(f"  Unique materials: {sorted(set(mat_list))}")
+    return {"X": X, "y": y, "materials": materials, "dHv": dHv}
 
 
 def load_data(args):
-    """Load data from CSV, compute Pi, return (X, y, Pi)."""
+    """Load data from CSV, compute Pi and P_recoil/P_Laplace.
+
+    Returns
+    -------
+    X          : (n, 9)      physical inputs (P, V, A, rho, k, Lv, dT, γ, Tb)
+    y          : (n,)        pore fraction, clipped to [0, 1]
+    Pi         : (n,)        notebook's normalised enthalpy
+    PR         : (n,)        P_recoil / P_Laplace ratio (non-power-law feature)
+    materials  : (n,)        material name per row, for colouring the 3D plot
+    """
     data_path = args.data
     if not os.path.exists(data_path):
-        # Try relative to script directory
         data_path = os.path.join(_here, os.path.basename(args.data))
     if not os.path.exists(data_path):
         print(f"ERROR: Data file not found: {args.data}")
-        print(f"Place your LPBF CSV (with columns {VARIABLE_NAMES} + Pore)")
+        print(f"Place your LPBF CSV (with columns source, P, V, A, rho, k, Lv, dT, Pore)")
         print(f"in {_here}/ and run:")
         print(f"  python discover_symmetry.py --data <your_file.csv>")
         sys.exit(1)
@@ -272,33 +335,39 @@ def load_data(args):
     print(f"Loading LPBF porosity data from {data_path}...")
     data = load_csv_data(data_path)
 
-    X, y = data["X"], data["y"]
-    Pi = compute_pi(X)
+    X         = data["X"]          # (n, 9)
+    y         = data["y"]
+    materials = data["materials"]
+    dHv       = data["dHv"]
 
-    # Remove rows with non-positive / non-finite Pi (log10 will be used later)
-    mask = np.isfinite(Pi) & (Pi > 0)
+    Pi = compute_pi(X)
+    # Columns 7, 8 are gamma, Tb
+    PR = compute_pressure_ratio(Tb=X[:, 8], gamma=X[:, 7], dHv=dHv)
+
+    # Drop rows with non-positive / non-finite Pi or PR (log10 will be taken later)
+    mask = np.isfinite(Pi) & (Pi > 0) & np.isfinite(PR) & (PR > 0)
     dropped = (~mask).sum()
     if dropped:
-        print(f"  Dropping {dropped} rows with non-positive Pi")
-        X, y, Pi = X[mask], y[mask], Pi[mask]
+        print(f"  Dropping {dropped} rows with non-positive Pi/PR")
+        X, y, Pi, PR, materials = X[mask], y[mask], Pi[mask], PR[mask], materials[mask]
 
-    # Clamp Pore fraction to [0, 1]
     y = np.clip(y, 0.0, 1.0)
 
     print(f"  Samples: {X.shape[0]}")
     print(f"  Pi range: [{Pi.min():.4g}, {Pi.max():.4g}]")
+    print(f"  PR (P_recoil/P_Laplace) range: [{PR.min():.4g}, {PR.max():.4g}]")
     print(f"  Pore range: [{y.min():.4f}, {y.max():.4f}]")
     print()
-    return X, y, Pi
+    return X, y, Pi, PR, materials
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Pipeline
 # ──────────────────────────────────────────────────────────────────────────────
 
-def run_pipeline(X, y, Pi, args):
+def run_pipeline(X, y, Pi, PR, materials, args):
     """Run Stage1 symmetry discovery on the LPBF physical variables."""
-    results = {"Pi": Pi, "X_raw": X}
+    results = {"Pi": Pi, "PR": PR, "X_raw": X, "materials": materials}
 
     # --- Stage 0: Dimensional analysis → reduced Pi candidates ---
     print("=" * 60)
@@ -321,10 +390,24 @@ def run_pipeline(X, y, Pi, args):
     print(f"  Known Pi exponents projected onto null-space basis: cos = {recon_cos:+.4f}  "
           f"(±1 means the notebook Pi lies in the Pi-group span)")
     pi_features = compute_pi_features(X, pi_basis)
+
+    # --- Empirical extra feature: P_recoil / P_Laplace --------------------
+    # The notebook visualises pore fraction over (log10(Pi), log10(PR)).
+    # PR is a Clausius–Clapeyron expression — non-power-law — so it cannot
+    # be produced by Buckingham-Pi null-space reduction alone.  We inject
+    # it here as a precomputed feature: log10(PR) min-max scaled to [0, 1].
+    logPR = np.log10(np.maximum(PR, 1e-30))
+    logPR_scaled = (logPR - logPR.min()) / (logPR.max() - logPR.min() + 1e-12)
+    pi_features = np.hstack([pi_features, logPR_scaled.reshape(-1, 1)])
+    pi_feature_names = [f"Pi{i+1} (DA)" for i in range(pi_basis.shape[1])] + [
+        "log10(P_recoil/P_Laplace)"
+    ]
     results["pi_basis"] = pi_basis
     results["pi_features"] = pi_features
+    results["pi_feature_names"] = pi_feature_names
     print(f"  Reduced candidates (pi_features) shape: {pi_features.shape}  "
           f"range: [{pi_features.min():.3f}, {pi_features.max():.3f}]")
+    print(f"  Feature list: {pi_feature_names}")
     print()
 
     # --- Normalize ---
@@ -446,7 +529,7 @@ def run_pipeline(X, y, Pi, args):
         print(f"  raw :{raw}")
         print(f"  L2-n:{normed}")
         # Compare direction against known Pi exponents
-        ref = np.array([+1.0, +1.0, +1.0, +1.0, -2.0, +1.0, -2.0])
+        ref = KNOWN_PI_EXPONENTS
         ref_n = ref / np.linalg.norm(ref)
         cos = float(np.dot(row_n, ref_n))
         print(f"  cos<row, known-Pi-exponents> = {cos:+.4f}  "
@@ -813,6 +896,86 @@ def plot_results(X, y, results, output_dir):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# 3D surface plot (matches notebook 4_plot_3d-ZGAN.ipynb)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def plot_3d_surface(Pi, PR, y, materials, output_dir):
+    """Recreate the notebook's 3D surface: Pore fraction over (log10(Pi), log10(PR)).
+
+    A per-material-coloured scatter of the experimental points is overlaid
+    on a fitted 2D logistic-sigmoid surface  ``1 / (1 + exp(-(a·u + b·v + c)))``
+    with ``u = log10(Pi)``, ``v = log10(PR)``.  This is the 3D generalisation
+    of the 1D logistic collapse shown in panel 1 of
+    :func:`plot_results`.
+    """
+    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  (registers 3d proj)
+    from scipy.optimize import curve_fit
+
+    os.makedirs(output_dir, exist_ok=True)
+    u = np.log10(np.maximum(Pi, 1e-30))
+    v = np.log10(np.maximum(PR, 1e-30))
+
+    def _sigmoid2d(UV, a, b, c):
+        uu, vv = UV
+        return 1.0 / (1.0 + np.exp(-(a * uu + b * vv + c)))
+
+    try:
+        popt, _ = curve_fit(_sigmoid2d, (u, v), y,
+                            p0=[2.0, 0.5, -2.0], maxfev=20000)
+        yhat = _sigmoid2d((u, v), *popt)
+        ss_res = np.sum((y - yhat) ** 2)
+        ss_tot = np.sum((y - y.mean()) ** 2)
+        r2 = 1 - ss_res / (ss_tot + 1e-12)
+        fit_ok = True
+    except Exception:
+        popt, r2, fit_ok = (0, 0, 0), float("nan"), False
+
+    fig = plt.figure(figsize=(11, 8))
+    ax = fig.add_subplot(111, projection="3d")
+    fig.suptitle("LPBF Porosity — 3D Collapse on (log₁₀Π, log₁₀(P_recoil/P_Laplace))",
+                 fontsize=13, fontweight="bold")
+
+    # Fitted surface
+    if fit_ok:
+        u_grid = np.linspace(u.min(), u.max(), 40)
+        v_grid = np.linspace(v.min(), v.max(), 40)
+        U, V = np.meshgrid(u_grid, v_grid)
+        Z = _sigmoid2d((U.ravel(), V.ravel()), *popt).reshape(U.shape)
+        ax.plot_surface(U, V, Z, cmap="viridis", alpha=0.45,
+                        linewidth=0, antialiased=True, edgecolor="none")
+
+    # Scatter, coloured per material
+    uniq_mats = sorted(set(materials.tolist()))
+    palette = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00",
+               "#a65628", "#f781bf"]
+    for i, mat in enumerate(uniq_mats):
+        m = (materials == mat)
+        ax.scatter(u[m], v[m], y[m],
+                   c=palette[i % len(palette)], s=28,
+                   label=f"{mat} (n={m.sum()})",
+                   edgecolors="black", linewidth=0.3, depthshade=True)
+
+    ax.set_xlabel(r"$\log_{10}\Pi$ — normalised enthalpy", fontsize=10, labelpad=6)
+    ax.set_ylabel(r"$\log_{10}(P_{recoil}/P_{Laplace})$", fontsize=10, labelpad=6)
+    ax.set_zlabel("Pore fraction", fontsize=10, labelpad=4)
+    if fit_ok:
+        a, b, c = popt
+        ax.set_title(
+            f"Logistic surface   σ(a·log₁₀Π + b·log₁₀PR + c)   "
+            f"a={a:+.2f}, b={b:+.2f}, c={c:+.2f}   R² = {r2:.3f}",
+            fontsize=11,
+        )
+    ax.legend(fontsize=9, loc="upper left", framealpha=0.9)
+    ax.view_init(elev=22, azim=-58)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    out_path = os.path.join(output_dir, "lpbf_3d_surface.png")
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"3D surface figure saved to {out_path}")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Main
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -836,14 +999,15 @@ def main():
                              "coordinates, so discovered slopes map 1:1 onto power-law exponents.")
     args = parser.parse_args()
 
-    X, y, Pi = load_data(args)
-    results = run_pipeline(X, y, Pi, args)
+    X, y, Pi, PR, materials = load_data(args)
+    results = run_pipeline(X, y, Pi, PR, materials, args)
 
     print("=" * 60)
     print("Creating visualizations")
     print("=" * 60)
     plot_pi_candidates(X, y, results, args.output_dir)
     plot_results(X, y, results, args.output_dir)
+    plot_3d_surface(Pi, PR, y, materials, args.output_dir)
 
     print()
     print("=" * 60)

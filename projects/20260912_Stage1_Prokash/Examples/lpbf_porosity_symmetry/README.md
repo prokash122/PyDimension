@@ -26,7 +26,7 @@ experimental data, with no formula for `Pi` supplied.
 ## Physics background
 
 The pore fraction `f` left in a single-track LPBF deposit depends on
-seven physical inputs with four fundamental dimensions (M, L, T, K):
+nine physical inputs with four fundamental dimensions (M, L, T, K):
 
 | Variable              | Symbol | Units    | Dimensions        |
 |-----------------------|--------|----------|-------------------|
@@ -37,10 +37,19 @@ seven physical inputs with four fundamental dimensions (M, L, T, K):
 | Thermal conductivity  | k      | W/(m·K)  | kg·m·s⁻³·K⁻¹      |
 | Latent heat of vap.   | Lv     | J/kg     | m²·s⁻²            |
 | Superheat (Tb - Tm)   | dT     | K        | K                 |
+| Surface tension       | γ      | N/m      | kg·s⁻²            |
+| Boiling temperature   | Tb     | K        | K                 |
 
-By the **Buckingham Pi theorem**, `7 − 4 = 3` independent dimensionless
-groups control `f`.  One of them is `Pi`; for the pore-fraction response
-it is the dominant one (the notebook shows it collapses all five alloys).
+By the **Buckingham Pi theorem**, `9 − 4 = 5` independent dimensionless
+groups control `f`.  One of them is the normalised enthalpy `Pi`, which
+dominates the single-track melting regime (the notebook shows it
+collapses all five alloys).  A second, **non-power-law** quantity —
+the recoil-to-capillary pressure ratio `P_recoil / P_Laplace` — separates
+the keyhole (high PR) from the conduction (low PR) regime.  Adding γ and
+Tb as inputs both (i) lets Buckingham-Pi produce a capillary-like
+dimensionless group and (ii) provides the physical data needed to
+compute the Clausius–Clapeyron PR factor, matching the two-axis collapse
+used in the companion notebook ``4_plot_3d-ZGAN(1).ipynb``.
 
 A **scaling symmetry** acts by simultaneously rescaling several physical
 variables in a way that leaves every dimensionless group unchanged.
@@ -67,22 +76,31 @@ dropped.
 ## Pipeline
 
 0. **Dimensional analysis** — build the (M, L, T, K) dimension matrix of
-   the seven inputs, compute its null-space basis, simplify to primitive
-   integer Pi groups via SymPy — these *reduced candidates* are then fed
-   to the encoder
-1. **Data loading** — read the CSV, drop rows with non-positive `Pi`
+   the nine inputs, compute its null-space basis, simplify to primitive
+   integer Pi groups via SymPy (5 groups) — these *reduced candidates*
+   are then fed to the encoder.  A sixth empirical feature
+   `log10(P_recoil / P_Laplace)` is appended; its exponential form cannot
+   be recovered from Buckingham-Pi alone and is taken directly from the
+   Clausius–Clapeyron expression used in the notebook.
+1. **Data loading** — read the CSV, look up per-material γ, Tb and
+   dHv from the built-in thermophysical-properties table, drop rows
+   with non-positive `Pi` or `PR`
 2. **Normalization** — min-max scaling
 3. **Latent dimension discovery** — multilayer-encoder autoencoder sweep
-   over `[X, X², log|X|, π₁..π₃]` (expected: k* = 1)
+   over `[X, X², log|X|, π₁..π₅, log10(PR)]` (expected: k* = 1–2)
 4. **Symmetry identification** — competitive encoder training
    (expected: **scaling** wins by a large margin)
 5. **Generator extraction** — null-space of the linear log-space
-   encoder ⇒ 6 scaling directions (`n_inputs − n_latent = 7 − 1`) that
-   leave `Pi` invariant
-6. **Visualization** — 3-panel summary figure:
-   * `log10(Pi)` vs pore fraction (collapse + logistic fit),
-   * validation MSE for translational / rotational / scaling,
-   * generator orbits over the two most-weighted variables
+   encoder ⇒ scaling directions (`n_inputs − n_latent = 9 − k*`) that
+   leave the learned invariant unchanged
+6. **Visualization** — three figures:
+   * `lpbf_pi_candidates.png` — Pi-basis exponent heatmap + scatter of pore
+     fraction against each log₁₀(Πₖ) with its logistic fit and R²
+   * `lpbf_porosity_symmetry_discovery.png` — 3-panel summary: Pi-collapse,
+     symmetry-type bar chart, discovered iso-invariant orbits in log-space
+   * `lpbf_3d_surface.png` — 3D plot matching the notebook:
+     pore fraction over `(log10(Pi), log10(P_recoil/P_Laplace))` with a
+     fitted 2-D logistic surface and per-material colouring
 
 ## Usage
 
