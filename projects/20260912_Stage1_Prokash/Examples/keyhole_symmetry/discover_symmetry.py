@@ -298,20 +298,29 @@ def run_pipeline(X, y, Ke, args):
     print("=" * 60)
     sys.stdout.flush()
     pi_only = getattr(args, "pi_only", False)
+
+    # Always normalize raw physical X — Step 3 (symmetry-type detection) runs
+    # on physical variables so its translational/rotational/scaling encoders
+    # (X, X², log|X|) act on multiplicatively-meaningful quantities.
+    norm_raw = normalize_data(X, y, method="minmax")
+    norm_raw["pi_only"] = pi_only
+    X_norm_raw = norm_raw["X_normalized"]
+    y_norm     = norm_raw["y_normalized"]
+
+    # In pi-only mode, also normalize pi_features for Step 2.
     if pi_only:
-        # Feed the dimensionless groups directly; ignore raw X.
-        norm = normalize_data(pi_features, y, method="minmax")
-        feature_names = pi_feature_names
-        print(f"  --pi-only: using {pi_features.shape[1]} dimensionless features "
-              f"as encoder input (raw physical variables ignored)")
+        norm_pi = normalize_data(pi_features, y, method="minmax")
+        X_norm_step2 = norm_pi["X_normalized"]
+        print(f"  --pi-only: Step 2 input = {pi_features.shape[1]} dimensionless features; "
+              f"Step 3 input = raw physical X ({X_norm_raw.shape[1]} variables)")
     else:
-        norm = normalize_data(X, y, method="minmax")
-        feature_names = VARIABLE_NAMES
-    norm["pi_only"] = pi_only
-    X_norm, y_norm = norm["X_normalized"], norm["y_normalized"]
-    results["normalization"] = norm
-    results["feature_names"] = feature_names
-    print(f"  X range: [{X_norm.min():.3f}, {X_norm.max():.3f}]")
+        X_norm_step2 = X_norm_raw
+
+    results["normalization"] = norm_raw
+    results["feature_names"] = VARIABLE_NAMES   # Step 3 always on physical X
+    print(f"  X_raw range: [{X_norm_raw.min():.3f}, {X_norm_raw.max():.3f}]")
+    if pi_only:
+        print(f"  X_pi  range: [{X_norm_step2.min():.3f}, {X_norm_step2.max():.3f}]")
     print()
 
     # --- Discover latent dimension ---
@@ -322,12 +331,11 @@ def run_pipeline(X, y, Ke, args):
     # Wire in the reduced candidates and a multilayer encoder by default.
     enc_kwargs = {"encoder_hidden_dims": args.encoder_hidden}
     if pi_only:
-        # X_norm IS pi_features now — don't re-append, and skip the
-        # [X, X², log|X|] augmentation so the encoder consumes the
-        # dimensionless groups directly.
+        # Step 2 X is the Pi features; skip [X, X², log|X|] augmentation so
+        # the encoder consumes the dimensionless groups directly.
         enc_kwargs["raw_input"] = True
-        print(f"  --pi-only: encoder input = {X_norm.shape[1]} dimensionless features "
-              f"(no [X, X², log|X|] augmentation)")
+        print(f"  --pi-only: Step 2 encoder input = {X_norm_step2.shape[1]} "
+              f"dimensionless features (no [X, X², log|X|] augmentation)")
     elif not args.no_pi_input:
         # Reduced candidates computed from physical (always-positive) X; the
         # pi_features path injects them directly, side-stepping the library's
@@ -340,7 +348,7 @@ def run_pipeline(X, y, Ke, args):
               f"{'ENABLED (' + str(pi_features.shape[1]) + ' Pi features)' if not args.no_pi_input else 'disabled'}")
 
     res_latent = discover_latent_dimension(
-        X_norm, y_norm, max_latent=4,
+        X_norm_step2, y_norm, max_latent=4,
         n_epochs=args.latent_epochs, n_restarts=args.n_restarts, seed=args.seed,
         **enc_kwargs,
     )
@@ -357,8 +365,13 @@ def run_pipeline(X, y, Ke, args):
     print("Step 3: Identifying symmetry type")
     print("=" * 60)
     sys.stdout.flush()
+    if pi_only:
+        print(f"  Running Step 3 on raw physical X ({X_norm_raw.shape[1]} variables) "
+              f"so the translational/rotational/scaling encoders see")
+        print(f"  multiplicatively-meaningful quantities (avoids the log-of-log "
+              f"degeneracy of feeding pre-log-scaled Pi groups).")
     res_sym = identify_symmetry(
-        X_norm, y_norm, n_latent=n_latent, decoder=res_latent["best_decoder"],
+        X_norm_raw, y_norm, n_latent=n_latent, decoder=res_latent["best_decoder"],
         n_epochs=args.sym_epochs, n_restarts=args.n_restarts, seed=args.seed,
     )
     results["symmetry"] = res_sym
@@ -390,24 +403,19 @@ def run_pipeline(X, y, Ke, args):
     print("=" * 60)
     print("Step 5: Physical interpretation of generators")
     print("=" * 60)
-    interp_names = results["feature_names"]
     if winner_type == "scaling" and generators:
-        if pi_only:
-            print(f"  Each generator is a direction in dimensionless-group space")
-            print(f"  along which the learned invariant is preserved.\n")
-        else:
-            print(f"  Each generator is a direction in log-space along which Ke is preserved.")
-            print(f"  Physically: simultaneous rescaling of variables that keeps the physics invariant.\n")
+        print(f"  Each generator is a direction in log-space along which Ke is preserved.")
+        print(f"  Physically: simultaneous rescaling of variables that keeps the physics invariant.\n")
         for i, g in enumerate(generators):
             if g.ndim == 1:
                 parts = []
-                for j, name in enumerate(interp_names):
+                for j, name in enumerate(VARIABLE_NAMES):
                     if abs(g[j]) > 0.05:
                         parts.append(f"{name} x exp({g[j]:+.3f}*eps)")
                 print(f"  Generator {i+1}:")
                 print(f"    {', '.join(parts)}")
-                if not pi_only:
-                    _interpret_generator(g, i + 1)
+                # Physical meaning
+                _interpret_generator(g, i + 1)
                 print()
     elif winner_type == "rotational" and generators:
         for i, g in enumerate(generators):
@@ -416,7 +424,7 @@ def run_pipeline(X, y, Ke, args):
     else:
         for i, g in enumerate(generators):
             if g.ndim == 1:
-                parts = [f"{name}:{g[j]:+.3f}" for j, name in enumerate(interp_names) if abs(g[j]) > 0.05]
+                parts = [f"{name}:{g[j]:+.3f}" for j, name in enumerate(VARIABLE_NAMES) if abs(g[j]) > 0.05]
                 print(f"  Generator {i+1}: [{', '.join(parts)}]")
     print()
 
@@ -562,21 +570,7 @@ def plot_results(X, y, results, output_dir):
 
     # --- Panel 3: Generator orbits in log-space ---
     ax = axes[2]
-    # In --pi-only mode generators live in Pi-group space, not physical
-    # space, so the log(X)–log(Y) orbit panel doesn't apply.  Show the
-    # encoder's Pi-weight bar chart instead.
-    if results["normalization"].get("pi_only", False) and generators and winner_type == "scaling":
-        names = results["feature_names"]
-        W = results["winner_encoder"].weight_matrix
-        row = W[0] if W.ndim == 2 else W
-        colors = ["#55A868" if v > 0 else "#DD8452" for v in row]
-        ax.barh(range(len(names)), row, color=colors, edgecolor="black", lw=1)
-        ax.set_yticks(range(len(names)))
-        ax.set_yticklabels(names, fontsize=9)
-        ax.axvline(0, color="black", lw=0.7)
-        ax.set_xlabel("Encoder weight (scaling)", fontsize=10)
-        ax.set_title("Pi-space weights: which dimensionless groups matter", fontsize=11)
-    elif generators and winner_type == "scaling":
+    if generators and winner_type == "scaling":
         # Pick two most important variables from the first generator
         g = generators[0]
         importance = np.abs(g)
