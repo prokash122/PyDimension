@@ -73,6 +73,26 @@ except ImportError as e:
     print(f"projects/20260912_Stage1_Prokash/ into the same directory as this script.")
     sys.exit(1)
 
+# Repository-level dimensional-analysis pipeline.
+try:
+    _da_root = _here
+    while _da_root and not os.path.isdir(os.path.join(_da_root, "pydimension")):
+        nxt = os.path.dirname(_da_root)
+        if nxt == _da_root:
+            break
+        _da_root = nxt
+    if os.path.isdir(os.path.join(_da_root, "pydimension")):
+        sys.path.insert(0, _da_root)
+    from pydimension.data_preprocessing import (
+        DataPreprocessor,
+        DataPreprocessingConfig,
+    )
+    _REPO_DA_AVAILABLE = True
+except ImportError as _da_err:
+    print(f"  ⚠️ Could not import pydimension.data_preprocessing "
+          f"({_da_err}); falling back to inline DA implementation.")
+    _REPO_DA_AVAILABLE = False
+
 # Prevent silent multiprocessing crashes on Windows
 import torch.multiprocessing as _tmp
 _tmp.cpu_count = lambda: 0
@@ -190,6 +210,50 @@ def format_pi_expression(basis_col: np.ndarray, names) -> str:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Repository pipeline: drive pydimension.data_preprocessing.DataPreprocessor
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _write_dimension_matrix_csv(out_path: str, variable_names, dim_matrix: np.ndarray) -> str:
+    """Emit a Dimension/Variable CSV that DataPreprocessor.load_dimension_matrix understands."""
+    import csv as _csv
+    dim_names = ["Mass", "Length", "Time", "Temperature"][: dim_matrix.shape[0]]
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    with open(out_path, "w", newline="") as f:
+        w = _csv.writer(f)
+        w.writerow(["Dimension"] + list(variable_names))
+        for i, dn in enumerate(dim_names):
+            w.writerow([dn] + [int(dim_matrix[i, j]) for j in range(len(variable_names))])
+    return out_path
+
+
+def run_repo_dimensional_analysis(csv_path: str, input_vars, output_var: str,
+                                  dim_matrix: np.ndarray, output_dir: str) -> dict:
+    """Drive the repo's ``DataPreprocessor.process_with_dimensional_analysis``."""
+    if not _REPO_DA_AVAILABLE:
+        raise RuntimeError("pydimension.data_preprocessing is not importable")
+    os.makedirs(output_dir, exist_ok=True)
+    dim_csv = os.path.join(output_dir, "dimension_matrix.csv")
+    _write_dimension_matrix_csv(dim_csv, input_vars, dim_matrix)
+    cfg = DataPreprocessingConfig(
+        input_file=str(csv_path),
+        input_variables=list(input_vars),
+        output_variables=[output_var],
+        dimension_matrix_file=dim_csv,
+        normalize=True,
+        normalize_basis=False,
+        output_dir=output_dir,
+    )
+    pre = DataPreprocessor(cfg)
+    pre.process_with_dimensional_analysis(verbose=True)
+    return {
+        "preprocessor": pre,
+        "basis_vectors": np.asarray(pre.basis_vectors, dtype=float),
+        "expressions":   list(pre.dimensionless_expressions),
+        "afterDA":       pre.afterDA_data,
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Data loading
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -270,11 +334,32 @@ def run_pipeline(X, y, Ke, args):
           f"(rows = {DIMENSION_NAMES}, cols = {VARIABLE_NAMES})")
     rank = int(np.linalg.matrix_rank(DIMENSION_MATRIX))
     print(f"  Rank: {rank}   Expected Pi groups: {DIMENSION_MATRIX.shape[1] - rank}")
-    pi_basis = compute_pi_basis(DIMENSION_MATRIX)
-    print(f"  Basis vectors shape: {pi_basis.shape}")
-    for i in range(pi_basis.shape[1]):
-        expr = format_pi_expression(pi_basis[:, i], VARIABLE_NAMES)
-        print(f"    Pi{i+1} = {expr}")
+
+    if _REPO_DA_AVAILABLE and not getattr(args, "no_repo_da", False):
+        repo_out_dir = os.path.join(args.output_dir, "_da_repo")
+        os.makedirs(repo_out_dir, exist_ok=True)
+        print(f"  Using pydimension.data_preprocessing.DataPreprocessor "
+              f"(CSV: {args.data})")
+        repo_res = run_repo_dimensional_analysis(
+            csv_path=args.data,
+            input_vars=VARIABLE_NAMES,
+            output_var="e*",
+            dim_matrix=DIMENSION_MATRIX,
+            output_dir=repo_out_dir,
+        )
+        pi_basis = repo_res["basis_vectors"]
+        results["repo_da"] = repo_res
+        print(f"  Basis vectors shape (repo): {pi_basis.shape}")
+        for line in repo_res["expressions"]:
+            print(f"    {line}")
+    else:
+        if not _REPO_DA_AVAILABLE:
+            print(f"  Falling back to inline DA (pydimension not importable)")
+        pi_basis = compute_pi_basis(DIMENSION_MATRIX)
+        print(f"  Basis vectors shape: {pi_basis.shape}")
+        for i in range(pi_basis.shape[1]):
+            expr = format_pi_expression(pi_basis[:, i], VARIABLE_NAMES)
+            print(f"    Pi{i+1} = {expr}")
     # Cosine similarity of each candidate (and of their combinations) to Ke,
     # as a sanity check that the known Ke lies in the null-space span.
     Ke_ref = KNOWN_KE_EXPONENTS / np.linalg.norm(KNOWN_KE_EXPONENTS)
@@ -638,6 +723,10 @@ def main():
                         help="Feed ONLY the dimensionless Pi groups to the encoder. "
                              "Raw physical variables are ignored.  Generator weights "
                              "index Pi groups, not physical variables.")
+    parser.add_argument("--no-repo-da", action="store_true",
+                        help="Use the inline dimensional-analysis implementation instead of "
+                             "the repository's pydimension.data_preprocessing.DataPreprocessor "
+                             "pipeline.")
     args = parser.parse_args()
 
     X, y, Ke = load_data(args)
