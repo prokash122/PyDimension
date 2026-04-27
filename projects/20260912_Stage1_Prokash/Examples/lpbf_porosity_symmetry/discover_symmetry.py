@@ -840,215 +840,48 @@ def plot_pi_candidates(X, y, results, output_dir):
 
 
 def plot_results(X, y, results, output_dir):
-    """Create a focused 3-panel figure."""
+    """Two-panel summary: symmetry type bar chart + latent-dimension R² curve."""
     os.makedirs(output_dir, exist_ok=True)
-    Pi = results["Pi"]
-    generators = results["generators"]
     winner_type = results["winner_type"]
-    norm = results["normalization"]
     sym_res = results["symmetry"]
 
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5.5))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5.5))
     fig.suptitle("LPBF Porosity — Symmetry Discovery", fontsize=15, fontweight="bold")
 
-    # --- Panel 1: Known Pi vs Pore fraction ---
+    # --- Panel 1: Symmetry type identification ---
     ax = axes[0]
-    logPi = np.log10(Pi)
-    ax.scatter(logPi, y, c="#4C72B0", s=20, alpha=0.6, edgecolors="none")
-    # Fit a simple logistic to show collapse
-    try:
-        from scipy.optimize import curve_fit
-        def _logistic(x, k, x0):
-            return 1.0 / (1.0 + np.exp(-k * (x - x0)))
-        order = np.argsort(logPi)
-        x0_init = logPi[order][np.argmin(np.abs(y[order] - 0.5))]
-        popt, _ = curve_fit(_logistic, logPi, y,
-                            p0=[4.0, x0_init],
-                            bounds=([0.1, logPi.min() - 2], [50.0, logPi.max() + 5]),
-                            maxfev=10000)
-        x_fit = np.linspace(logPi.min(), logPi.max(), 200)
-        y_fit = _logistic(x_fit, *popt)
-        ss_res = np.sum((y - _logistic(logPi, *popt)) ** 2)
-    except Exception:
-        coeffs = np.polyfit(logPi, y, 2)
-        x_fit = np.linspace(logPi.min(), logPi.max(), 200)
-        y_fit = np.polyval(coeffs, x_fit)
-        ss_res = np.sum((y - np.polyval(coeffs, logPi)) ** 2)
-    ax.plot(x_fit, y_fit, "r-", lw=2, label="logistic fit")
-    ss_tot = np.sum((y - y.mean()) ** 2)
-    r2 = 1 - ss_res / (ss_tot + 1e-12)
-    ax.set_xlabel(r"$\log_{10}(\Pi)$ — normalised enthalpy", fontsize=11)
-    ax.set_ylabel("Pore fraction", fontsize=11)
-    ax.set_title(f"Pi-collapse   (R² = {r2:.3f})", fontsize=12)
-    ax.legend(fontsize=9)
-
-    # --- Panel 2: Symmetry type identification ---
-    ax = axes[1]
     types = list(sym_res["losses"].keys())
     losses = [sym_res["losses"][t] for t in types]
     colors = ["#55A868" if t == sym_res["symmetry_type"] else "#DD8452" for t in types]
     bars = ax.bar(types, losses, color=colors, edgecolor="black", lw=1)
-    ax.set_ylabel("Validation MSE", fontsize=11)
-    ax.set_title(f"Symmetry Type (winner: {sym_res['symmetry_type']})", fontsize=12)
+    ax.set_ylabel("Validation MSE", fontsize=12)
+    ax.set_title(f"Symmetry Type  (winner: {sym_res['symmetry_type']})", fontsize=13)
     for bar, loss in zip(bars, losses):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
-                f"{loss:.4f}", ha="center", va="bottom", fontsize=9)
+                f"{loss:.4f}", ha="center", va="bottom", fontsize=10)
+    sorted_losses = sorted(losses)
+    if len(sorted_losses) >= 2 and sorted_losses[0] > 0:
+        gap = sorted_losses[1] / sorted_losses[0]
+        ax.text(0.97, 0.97, f"Loss gap: {gap:.1f}\u00d7",
+                ha="right", va="top", transform=ax.transAxes,
+                fontsize=10, color="#333333")
 
-    # --- Panel 3: Generator orbits in log-space ---
-    #
-    # A scaling symmetry acts multiplicatively on X, equivalently additively
-    # on log(X).  Its orbits are therefore STRAIGHT LINES in log-log space,
-    # with slope s = g[d1] / g[d0] set by the null-space generator g.
-    #
-    # The earlier implementation traced the orbit in minmax-*normalised*
-    # coordinates and inverse-transformed back — because minmax is affine
-    # and not multiplicative, an exp(ε g) step in normalised space bends
-    # into a curve in log(X_raw).  Here we instead draw the iso-invariant
-    # lines directly in log10(X_raw), rooted at data points.  That is the
-    # honest geometric picture of the discovered scaling generator.
-    ax = axes[2]
-    if generators and winner_type == "scaling":
-        g = generators[0]
-        importance = np.abs(g)
-        top2 = np.argsort(importance)[-2:][::-1]
-        d0, d1 = top2[0], top2[1]
-
-        # Scatter the data (log10 of raw physical X) coloured by pore fraction
-        logX0 = np.log10(np.maximum(X[:, d0], 1e-30))
-        logX1 = np.log10(np.maximum(X[:, d1], 1e-30))
-        sc = ax.scatter(logX0, logX1, c=y, cmap="plasma",
-                        s=22, alpha=0.9, edgecolors="black", linewidth=0.3)
-        fig.colorbar(sc, ax=ax, label="Pore fraction", fraction=0.046, pad=0.04)
-
-        x_lo, x_hi = logX0.min(), logX0.max()
-        y_lo, y_hi = logX1.min(), logX1.max()
-        x_pad = 0.1 * (x_hi - x_lo + 1e-9)
-        y_pad = 0.15 * (y_hi - y_lo + 1e-9)
-        x_line = np.linspace(x_lo - x_pad, x_hi + x_pad, 2)
-
-        # ---- Reference: iso-Pi contours from the KNOWN formula ----------
-        # Pi exponents for (P, V, A, rho, k, Lv, dT) = [+1,+1,+1,+1,-2,+1,-2].
-        # Holding all variables except (d0, d1) at their column-wise
-        # geometric means, log10(Pi) = c + e[d0]*log10(X[d0]) + e[d1]*log10(X[d1]).
-        # Iso-Pi contour → log10(X[d1]) = (log10(Pi) - c - e[d0]*log10(X[d0])) / e[d1].
-        pi_exp = KNOWN_PI_EXPONENTS  # (7,)
-        if abs(pi_exp[d1]) > 1e-12:
-            # Pick Pi levels uniformly spanning the data's log(Pi) range so
-            # the reference lines actually cross the scatter.
-            log10_Pi = np.log10(np.maximum(results["Pi"], 1e-30))
-            levels = np.linspace(log10_Pi.min(), log10_Pi.max(), 6)
-            # Contribution of the "other" variables, at their geom-mean value:
-            log10_X_all = np.log10(np.maximum(X, 1e-30))
-            gmean_log = log10_X_all.mean(axis=0)
-            other_mask = np.ones(len(pi_exp), dtype=bool)
-            other_mask[d0] = other_mask[d1] = False
-            const = float(np.dot(pi_exp[other_mask], gmean_log[other_mask]))
-            ref_slope = -pi_exp[d0] / pi_exp[d1]
-            first = True
-            for lev in levels:
-                y_ref = (lev - const - pi_exp[d0] * x_line) / pi_exp[d1]
-                ax.plot(x_line, y_ref,
-                        color="grey", ls="--", lw=1.0, alpha=0.55,
-                        label="known-Pi iso-contour" if first else None,
-                        zorder=1)
-                first = False
-        else:
-            ref_slope = float("nan")
-
-        # ---- Discovered iso-invariant lines from the scaling generator --
-        orbit_colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3"]
-        rng = np.random.default_rng(42)
-        # Pick starting points spread across the data, avoiding duplicates in
-        # the (d0, d1) plane (LPBF material-property columns take discrete values).
-        pts2d = np.column_stack([logX0, logX1])
-        uniq, uniq_idx = np.unique(np.round(pts2d, 4), axis=0, return_index=True)
-        start_indices = rng.choice(uniq_idx, min(4, len(uniq_idx)), replace=False)
-
-        if abs(g[d0]) < 1e-12:
-            # Vertical iso-line: constant log(X[d0])
-            slope = float("inf")
-            for k, idx in enumerate(start_indices):
-                ax.axvline(logX0[idx],
-                           color=orbit_colors[k % len(orbit_colors)],
-                           lw=2.2, alpha=0.9,
-                           label=f"discovered orbit {k+1}" if k < 3 else None,
-                           zorder=3)
-        else:
-            slope = g[d1] / g[d0]
-            for k, idx in enumerate(start_indices):
-                y_line = logX1[idx] + slope * (x_line - logX0[idx])
-                ax.plot(x_line, y_line,
-                        color=orbit_colors[k % len(orbit_colors)],
-                        lw=2.2, alpha=0.95,
-                        label=f"discovered orbit {k+1}" if k < 3 else None,
-                        zorder=3)
-                # Direction arrow in the middle of the orbit
-                mid_x = logX0[idx]
-                mid_y = logX1[idx]
-                # unit tangent (in plot units), scaled to ~10% of x-range
-                tvec = np.array([1.0, slope])
-                tvec /= np.linalg.norm(tvec) + 1e-12
-                arr_len = 0.15 * (x_hi - x_lo + 1e-9)
-                ax.annotate(
-                    "",
-                    xy=(mid_x + arr_len * tvec[0], mid_y + arr_len * tvec[1]),
-                    xytext=(mid_x, mid_y),
-                    arrowprops=dict(
-                        arrowstyle="->",
-                        color=orbit_colors[k % len(orbit_colors)],
-                        lw=2.0, shrinkA=0, shrinkB=0,
-                    ),
-                    zorder=4,
-                )
-
-        # ---- Restricted encoder orbit in the (d0, d1) plane -------
-        # The null-space generator g lives in 6D (for n_latent=1), and its
-        # projection g[d1]/g[d0] onto the 2-variable plane includes
-        # contributions from the other 5 variables.  The "restricted" slope
-        # -W[d0]/W[d1] from the encoder weight vector W answers a cleaner
-        # question: "if ONLY X[d0] and X[d1] change (other variables
-        # fixed), what slope preserves the learned invariant?"  If the
-        # encoder learned Pi exactly, this equals the known-Pi slope.
-        W = results["winner_encoder"].weight_matrix  # (n_latent, n_inputs)
-        w = W[0] if W.ndim == 2 else W
-        if abs(w[d1]) > 1e-12:
-            restricted_slope = -w[d0] / w[d1]
-            # Draw one representative restricted-orbit line through the
-            # data centroid so the user can compare all three.
-            cx = float(logX0.mean())
-            cy = float(logX1.mean())
-            y_restr = cy + restricted_slope * (x_line - cx)
-            ax.plot(x_line, y_restr,
-                    color="black", ls="-.", lw=2.0, alpha=0.75,
-                    label=f"encoder restricted (slope {restricted_slope:+.2f})",
-                    zorder=2)
-        else:
-            restricted_slope = float("nan")
-
-        ax.set_ylim(y_lo - y_pad, y_hi + y_pad)
-        ax.set_xlim(x_lo - x_pad, x_hi + x_pad)
-
-        # Title shows discovered vs expected slope
-        slope_str = (f"{slope:+.2f}" if np.isfinite(slope) else "vertical")
-        ref_str   = (f"{ref_slope:+.2f}" if np.isfinite(ref_slope) else "—")
-        ax.set_xlabel(
-            f"log₁₀({VARIABLE_NAMES[d0]})  [{VARIABLE_UNITS[d0]}]",
-            fontsize=11,
-        )
-        ax.set_ylabel(
-            f"log₁₀({VARIABLE_NAMES[d1]})  [{VARIABLE_UNITS[d1]}]",
-            fontsize=11,
-        )
-        ax.set_title(
-            f"Iso-invariant lines   discovered slope = {slope_str}   "
-            f"(known Pi: {ref_str})",
-            fontsize=11,
-        )
-        ax.legend(fontsize=8, loc="best", framealpha=0.9)
-    else:
-        ax.text(0.5, 0.5, f"No scaling orbits\n(detected: {winner_type})",
-                ha="center", va="center", transform=ax.transAxes, fontsize=12)
-        ax.set_title("Generator Orbits")
+    # --- Panel 2: Latent dimension R² curve ---
+    ax = axes[1]
+    lat_res = results["latent"]
+    ks = sorted(lat_res["metrics"].keys())
+    r2_train = [lat_res["metrics"][k].get("R2_train", float("nan")) for k in ks]
+    r2_test  = [lat_res["metrics"][k]["R2"] for k in ks]
+    ax.plot(ks, r2_train, "o--", color="#4C72B0", lw=1.8, ms=7, label="R\u00b2 train")
+    ax.plot(ks, r2_test,  "s-",  color="#DD8452", lw=2.2, ms=8, label="R\u00b2 test")
+    k_star = lat_res["optimal_n_latent"]
+    ax.axvline(k_star, color="grey", ls=":", lw=1.5, label=f"k* = {k_star}")
+    ax.set_xlabel("Latent dimension k", fontsize=12)
+    ax.set_ylabel("R\u00b2", fontsize=12)
+    ax.set_title("Latent Dimension Discovery", fontsize=13)
+    ax.set_xticks(ks)
+    ax.set_ylim(0, 1.05)
+    ax.legend(fontsize=10)
 
     plt.tight_layout(rect=[0, 0, 1, 0.93])
     plot_path = os.path.join(output_dir, "lpbf_porosity_symmetry_discovery.png")
