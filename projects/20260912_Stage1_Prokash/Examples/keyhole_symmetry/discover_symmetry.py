@@ -613,83 +613,48 @@ def plot_pi_candidates(X, y, results, output_dir):
 
 
 def plot_results(X, y, results, output_dir):
-    """Create a focused 3-panel figure."""
+    """Two-panel summary: symmetry type bar chart + latent-dimension R² curve."""
     os.makedirs(output_dir, exist_ok=True)
-    Ke = results["Ke"]
-    generators = results["generators"]
     winner_type = results["winner_type"]
-    norm = results["normalization"]
     sym_res = results["symmetry"]
 
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5.5))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5.5))
     fig.suptitle("Keyhole — Symmetry Discovery", fontsize=15, fontweight="bold")
 
-    # --- Panel 1: Known Ke vs e* ---
+    # --- Panel 1: Symmetry type identification ---
     ax = axes[0]
-    ax.scatter(Ke, y, c="#4C72B0", s=20, alpha=0.6, edgecolors="none")
-    coeffs = np.polyfit(Ke, y, 2)
-    Ke_fit = np.linspace(Ke.min(), Ke.max(), 200)
-    ax.plot(Ke_fit, np.polyval(coeffs, Ke_fit), "r-", lw=2, label="polynomial fit")
-    ss_res = np.sum((y - np.polyval(coeffs, Ke))**2)
-    ss_tot = np.sum((y - y.mean())**2)
-    r2 = 1 - ss_res / (ss_tot + 1e-12)
-    ax.set_xlabel("Ke (known keyhole number)", fontsize=11)
-    ax.set_ylabel("e*", fontsize=11)
-    ax.set_title(f"Known Ke vs e*   (R² = {r2:.3f})", fontsize=12)
-    ax.legend(fontsize=9)
-
-    # --- Panel 2: Symmetry type identification ---
-    ax = axes[1]
     types = list(sym_res["losses"].keys())
     losses = [sym_res["losses"][t] for t in types]
     colors = ["#55A868" if t == sym_res["symmetry_type"] else "#DD8452" for t in types]
     bars = ax.bar(types, losses, color=colors, edgecolor="black", lw=1)
-    ax.set_ylabel("Validation MSE", fontsize=11)
-    ax.set_title(f"Symmetry Type (winner: {sym_res['symmetry_type']})", fontsize=12)
+    ax.set_ylabel("Validation MSE", fontsize=12)
+    ax.set_title(f"Symmetry Type  (winner: {sym_res['symmetry_type']})", fontsize=13)
     for bar, loss in zip(bars, losses):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
-                f"{loss:.4f}", ha="center", va="bottom", fontsize=9)
+                f"{loss:.4f}", ha="center", va="bottom", fontsize=10)
+    sorted_losses = sorted(losses)
+    if len(sorted_losses) >= 2 and sorted_losses[0] > 0:
+        gap = sorted_losses[1] / sorted_losses[0]
+        ax.text(0.97, 0.97, f"Loss gap: {gap:.1f}×",
+                ha="right", va="top", transform=ax.transAxes,
+                fontsize=10, color="#333333")
 
-    # --- Panel 3: Generator orbits in log-space ---
-    ax = axes[2]
-    if generators and winner_type == "scaling":
-        # Pick two most important variables from the first generator
-        g = generators[0]
-        importance = np.abs(g)
-        top2 = np.argsort(importance)[-2:][::-1]
-        d0, d1 = top2[0], top2[1]
-
-        sc = ax.scatter(np.log10(X[:, d0] + 1e-12), np.log10(X[:, d1] + 1e-12),
-                        c=y, cmap="plasma", s=15, alpha=0.5, edgecolors="none")
-        fig.colorbar(sc, ax=ax, label="e*", fraction=0.046, pad=0.04)
-
-        # Trace multiple orbits
-        orbit_colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3"]
-        rng = np.random.default_rng(42)
-        start_indices = rng.choice(len(X), min(4, len(X)), replace=False)
-
-        for k, idx in enumerate(start_indices):
-            x_start = norm["X_normalized"][idx]
-            n_steps = 150
-            eps = 0.02
-            fwd = generator_orbit(x_start, g, n_steps, eps, winner_type)
-            back = generator_orbit(x_start, g, n_steps, -eps, winner_type)
-            orb = np.vstack([back[::-1], fwd[1:]])
-            orb_orig = norm["scaler_X"].inverse_transform(orb)
-
-            ax.plot(np.log10(np.abs(orb_orig[:, d0]) + 1e-12),
-                    np.log10(np.abs(orb_orig[:, d1]) + 1e-12),
-                    color=orbit_colors[k % len(orbit_colors)], lw=2, alpha=0.8,
-                    label=f"orbit {k+1}" if k < 3 else None)
-
-        ax.set_xlabel(f"log₁₀({VARIABLE_NAMES[d0]})", fontsize=11)
-        ax.set_ylabel(f"log₁₀({VARIABLE_NAMES[d1]})", fontsize=11)
-        ax.set_title("Generator Orbits (scaling directions)", fontsize=12)
-        ax.legend(fontsize=8, loc="best")
-    else:
-        ax.text(0.5, 0.5, f"No scaling orbits\n(detected: {winner_type})",
-                ha="center", va="center", transform=ax.transAxes, fontsize=12)
-        ax.set_title("Generator Orbits")
+    # --- Panel 2: Latent dimension R² curve ---
+    ax = axes[1]
+    lat_res = results["latent"]
+    ks = sorted(lat_res["metrics"].keys())
+    r2_train = [lat_res["metrics"][k].get("R2_train", float("nan")) for k in ks]
+    r2_test  = [lat_res["metrics"][k]["R2"] for k in ks]
+    ax.plot(ks, r2_train, "o--", color="#4C72B0", lw=1.8, ms=7, label="R² train")
+    ax.plot(ks, r2_test,  "s-",  color="#DD8452", lw=2.2, ms=8, label="R² test")
+    k_star = lat_res["optimal_n_latent"]
+    ax.axvline(k_star, color="grey", ls=":", lw=1.5, label=f"k* = {k_star}")
+    ax.set_xlabel("Latent dimension k", fontsize=12)
+    ax.set_ylabel("R²", fontsize=12)
+    ax.set_title("Latent Dimension Discovery", fontsize=13)
+    ax.set_xticks(ks)
+    ax.set_ylim(0, 1.05)
+    ax.legend(fontsize=10)
 
     plt.tight_layout(rect=[0, 0, 1, 0.93])
     plot_path = os.path.join(output_dir, "keyhole_symmetry_discovery.png")
