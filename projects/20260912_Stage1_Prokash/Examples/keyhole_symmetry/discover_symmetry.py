@@ -31,7 +31,7 @@ Usage
 -----
     python discover_symmetry.py --data dataset_keyhole.csv
     python discover_symmetry.py --data dataset_keyhole.csv --encoder-hidden 128 64
-    python discover_symmetry.py --data dataset_keyhole.csv --no-pi-input
+    python discover_symmetry.py --data dataset_keyhole.csv --no-pi-only
 """
 
 import sys
@@ -421,16 +421,13 @@ def run_pipeline(X, y, Ke, args):
         enc_kwargs["raw_input"] = True
         print(f"  --pi-only: Step 2 encoder input = {X_norm_step2.shape[1]} "
               f"dimensionless features (no [X, X², log|X|] augmentation)")
-    elif not args.no_pi_input:
-        # Reduced candidates computed from physical (always-positive) X; the
-        # pi_features path injects them directly, side-stepping the library's
-        # log-of-normalised-X step which would see zeros after min-max scaling.
+    else:
+        # --no-pi-only: inject Pi features alongside [X, X², log|X|] augmentation.
         enc_kwargs["pi_features"] = pi_features
 
     print(f"  Multilayer encoder hidden dims: {args.encoder_hidden}")
     if not pi_only:
-        print(f"  Reduced-candidate input: "
-              f"{'ENABLED (' + str(pi_features.shape[1]) + ' Pi features)' if not args.no_pi_input else 'disabled'}")
+        print(f"  Reduced-candidate input: ENABLED ({pi_features.shape[1]} Pi features)")
 
     res_latent = discover_latent_dimension(
         X_norm_step2, y_norm, max_latent=4,
@@ -716,18 +713,15 @@ def main():
     parser.add_argument("--encoder-hidden", type=int, nargs="+", default=[64, 32],
                         help="Hidden layer widths for the multilayer encoder "
                              "(default: 64 32)")
-    parser.add_argument("--no-pi-input", action="store_true",
-                        help="Disable the reduced (Pi) candidate features — "
-                             "run the encoder on raw variables only.")
-    parser.add_argument("--pi-only", action="store_true",
-                        help="Feed ONLY the dimensionless Pi groups to the encoder. "
-                             "Raw physical variables are ignored.  Generator weights "
-                             "index Pi groups, not physical variables.")
+    parser.add_argument("--no-pi-only", action="store_true",
+                        help="Disable the default pi-only mode: feed [X, X², log|X|, Pi] "
+                             "to the Step 2 encoder instead of Pi groups alone.")
     parser.add_argument("--no-repo-da", action="store_true",
                         help="Use the inline dimensional-analysis implementation instead of "
                              "the repository's pydimension.data_preprocessing.DataPreprocessor "
                              "pipeline.")
     args = parser.parse_args()
+    args.pi_only = not args.no_pi_only
 
     X, y, Ke = load_data(args)
     results = run_pipeline(X, y, Ke, args)

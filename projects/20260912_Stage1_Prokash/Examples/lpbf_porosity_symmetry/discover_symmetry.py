@@ -55,7 +55,7 @@ Usage
 -----
     python discover_symmetry.py --data dataset_lpbf.csv
     python discover_symmetry.py --data dataset_lpbf.csv --encoder-hidden 128 64
-    python discover_symmetry.py --data dataset_lpbf.csv --no-pi-input
+    python discover_symmetry.py --data dataset_lpbf.csv --no-pi-only
 """
 
 import sys
@@ -611,7 +611,8 @@ def run_pipeline(X, y, Pi, PR, materials, args):
         enc_kwargs["raw_input"] = True
         print(f"  --pi-only: Step 2 encoder input = {X_norm_step2.shape[1]} "
               f"dimensionless features (no [X, X², log|X|] augmentation)")
-    elif not args.no_pi_input:
+    else:
+        # --no-pi-only: inject Pi features alongside [X, X², log|X|] augmentation.
         enc_kwargs["pi_features"] = pi_features
         print(f"  Injecting {pi_features.shape[1]} reduced Pi candidate(s) "
               f"(log10 + min-max to [0, 1])")
@@ -1151,14 +1152,9 @@ def main():
     parser.add_argument("--encoder-hidden", type=int, nargs="+", default=[64, 32],
                         help="Hidden layer widths for the multilayer encoder "
                              "(default: 64 32)")
-    parser.add_argument("--no-pi-input", action="store_true",
-                        help="Disable the reduced (Pi) candidate features — "
-                             "run the encoder on raw variables only.")
-    parser.add_argument("--pi-only", action="store_true",
-                        help="Feed ONLY the dimensionless Pi groups (5 from Buckingham-Pi "
-                             "+ log10(P_recoil/P_Laplace)) to the encoder.  Raw physical "
-                             "variables are ignored.  Generator weights index Pi groups, "
-                             "not physical variables.")
+    parser.add_argument("--no-pi-only", action="store_true",
+                        help="Disable the default pi-only mode: feed [X, X², log|X|, Pi] "
+                             "to the Step 2 encoder instead of Pi groups alone.")
     parser.add_argument("--no-repo-da", action="store_true",
                         help="Use the inline dimensional-analysis implementation instead of "
                              "the repository's pydimension.data_preprocessing.DataPreprocessor "
@@ -1168,6 +1164,7 @@ def main():
                              "the scaling encoder's internal log(X) act as centred log-physical "
                              "coordinates, so discovered slopes map 1:1 onto power-law exponents.")
     args = parser.parse_args()
+    args.pi_only = not args.no_pi_only
 
     X, y, Pi, PR, materials = load_data(args)
     results = run_pipeline(X, y, Pi, PR, materials, args)
