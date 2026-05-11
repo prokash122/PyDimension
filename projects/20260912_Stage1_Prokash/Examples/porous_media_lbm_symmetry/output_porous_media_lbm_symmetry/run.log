@@ -1,0 +1,126 @@
+Loading LBM porous media data from dataset_lbm_porous.csv...
+  Loaded 96 converged LBM runs
+  Variables: ['dP_L', 'v', 'mu', 'rho', 'd', 'phi']
+    dP_L   range: [5.236e-09, 1.571e-06]  (3 unique)
+    v      range: [1.062e-08, 1.44e-05]  (13 unique)
+    mu     range: [0.1333, 0.2]  (27 unique)
+    rho    range: [0.9996, 1]  (14 unique)
+    d      range: [10, 10]  (1 unique)
+    phi    range: [0.4585, 0.6095]  (4 unique)
+  Re_p range: [5.308e-07, 1.080e-03]
+  f range:    [7.575e+04, 4.645e+08]
+  f / f_ergun: mean = 0.660,  std = 0.081
+
+============================================================
+Step 0: Dimensional analysis (Buckingham-Pi reduction)
+============================================================
+  Dimension matrix shape: (3, 6)  (rows = ['Mass', 'Length', 'Time'], cols = ['dP_L', 'v', 'mu', 'rho', 'd', 'phi'])
+  Rank: 3   Expected Pi groups: 3
+  Basis vectors shape: (6, 3)
+    Pi1 = dP_L · v^-3 · mu · rho^-2
+    Pi2 = dP_L · v^-1 · mu^-1 · d^2
+    Pi3 = phi
+  Known f (friction factor) exponents in Pi span: cos = +1.0000  (±1 means it lies in the discovered Pi space)
+  Known Re_p (Reynolds) exponents in Pi span: cos = +1.0000  (±1 means it lies in the discovered Pi space)
+  Pi features for Step 2 encoder: ['log10(Re_p)', 'phi']
+  pi_features_norm shape: (96, 2)  range: [0.000, 1.000]
+
+============================================================
+Step 1: Normalizing data
+============================================================
+  ⚠️  Constant/near-constant columns: ['d']
+     Their symmetry exponents will be unconstrained by the dataset.
+  X_raw  range: [0.000, 1.000]  ((96, 6))
+  y = log10(f) normalized to [0, 1]
+  log10(f) range: [4.879, 8.667]
+
+============================================================
+Step 2: Discovering intrinsic latent dimension
+============================================================
+  Step 2 encoder input: 2 Pi features (['log10(Re_p)', 'phi'])
+  Multilayer encoder hidden dims: [64, 32]
+  Multi-layer encoder: [64, 32]
+  raw_input=True: [X, X², log|X|] augmentation is disabled
+
+  Optimal latent dimension: 1
+    k=1: R2_train=0.9982, R2_test=0.9972, MSE=0.000173
+    k=2: R2_train=0.9983, R2_test=0.9974, MSE=0.000158
+
+============================================================
+Step 3: Identifying symmetry type
+============================================================
+  Step 3 input: raw physical X (6 variables)
+
+  Detected symmetry: scaling
+    scaling        : 0.011508 <--
+    translational  : 0.018762
+    rotational     : 0.021459
+  Loss gap: 1.6x
+
+============================================================
+Step 4: Extracting Lie-algebra generators
+============================================================
+  Symmetry type: scaling
+  Generators: 5
+
+============================================================
+  Winning encoder weight vector(s)
+============================================================
+  Row 1 (scaling):
+       dP_L        v       mu      rho        d      phi
+  raw :    -0.2230  +0.0129  +0.0279  +0.3635  +0.0491  -0.1299
+  L2-n:    -0.4961  +0.0287  +0.0622  +0.8086  +0.1092  -0.2889
+  cos<row, known Re_p exponents> = +0.4422
+  cos<row, known f    exponents> = -0.4736
+
+============================================================
+Step 5: Physical interpretation of generators
+============================================================
+  Each generator is a direction in log-space along which
+  the friction factor f is preserved. Physically: a
+  simultaneous rescaling of variables that keeps the flow
+  invariant (Darcy/Forchheimer regime preserved).
+
+  Generator 1:
+    v x exp(+0.999*eps)
+
+  Generator 2:
+    dP_L x exp(+0.062*eps), mu x exp(+0.997*eps)
+    Meaning: increase mu while increase dP_L
+             to keep friction factor f invariant
+
+  Generator 3:
+    dP_L x exp(+0.809*eps), rho x exp(+0.563*eps), d x exp(-0.059*eps), phi x exp(+0.156*eps)
+    Meaning: increase dP_L while increase rho, decrease d, increase phi
+             to keep friction factor f invariant
+
+  Generator 4:
+    dP_L x exp(+0.109*eps), rho x exp(-0.059*eps), d x exp(+0.992*eps)
+    Meaning: increase d while increase dP_L, decrease rho
+             to keep friction factor f invariant
+
+  Generator 5:
+    dP_L x exp(-0.289*eps), rho x exp(+0.156*eps), phi x exp(+0.944*eps)
+    Meaning: increase phi while decrease dP_L, increase rho
+             to keep friction factor f invariant
+
+
+============================================================
+Creating visualizations
+============================================================
+Ergun collapse figure saved to output_porous_media_lbm_symmetry/lbm_ergun_collapse.png
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry/discover_symmetry.py:553: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  plt.tight_layout(rect=[0, 0, 1, 0.93])
+Pi candidates figure saved to output_porous_media_lbm_symmetry/lbm_pi_candidates.png
+Symmetry-discovery figure saved to output_porous_media_lbm_symmetry/lbm_symmetry_discovery.png
+
+============================================================
+COMPLETE
+============================================================
+  Symmetry: scaling
+  Generators: 5
+  These generators show how dP_L, v, mu, rho, d, phi can
+  be simultaneously rescaled while preserving the friction
+  factor f -- the porous-media analogue of the Ergun
+  scaling invariance.
+
