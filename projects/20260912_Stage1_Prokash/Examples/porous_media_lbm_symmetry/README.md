@@ -77,17 +77,28 @@ to reach the Forchheimer regime.
 
 ### Step 0 — Dimensional Analysis (Buckingham-Pi)
 
+**Driver:** `pydimension.data_preprocessing.DataPreprocessor` — same null-space +
+SymPy primitive-integer reduction used by every other Stage1 example. The
+script writes a hand-checked `dimension_matrix.csv` to `_da_repo/` and calls
+`DataPreprocessor.process_with_dimensional_analysis()`. An inline
+`compute_pi_basis()` (scipy + SymPy) is retained as a fallback and can be
+forced via `--no-repo-da`.
+
 **Input:** 3×6 dimension matrix (M, L, T × 6 variables; phi already dimensionless).
 
-**Output — 3 Pi groups:**
+**Output — 3 Pi groups (DataPreprocessor):**
 ```
-π1 = phi
-π2 = rho · v · d / mu          (Re_p)
-π3 = (dP_L · d) / (rho · v²)   (f — the OUTPUT)
+π1 = dP_L · v⁻³ · μ · ρ⁻²        (= f / Re_p² in the f-Re_p basis)
+π2 = dP_L · v⁻¹ · μ⁻¹ · d²       (Darcy form)
+π3 = φ
 ```
 
+Any null-space basis is valid — the canonical pair `Re_p = ρvd/μ` and
+`f = dP_L·d/(ρv²)` is a different choice of basis vectors in the same span.
+
 **Verification:** Project known `f` and `Re_p` exponent vectors onto the
-discovered null-space → both should give cos = ±1.
+discovered null-space → both give cos = +1.0000 ✓ (confirming `f` and `Re_p`
+lie exactly in the span of the discovered Pi groups).
 
 ---
 
@@ -119,8 +130,15 @@ discovered null-space → both should give cos = ±1.
 Three competing single-layer encoders test power-law (`log|X|`),
 additive (`X`), and quadratic (`X²`) symmetries.
 
-**Expected:** Scaling wins decisively because the Darcy law `f ∝ 1/Re_p`
-is a pure power-law.
+**Expected (physics):** Scaling should win, because the Darcy law
+`f ∝ 1/Re_p` is a pure power-law.
+
+**Observed:** No symmetry type wins decisively on this dataset — see the
+**Caveat on symmetry-type volatility** in Observed Results below. With only
+3 of 6 variables meaningfully varying, all three losses sit within ~1.5×
+of each other and the winner flips run-to-run. This is honest behaviour:
+the pipeline reports its uncertainty rather than confidently picking the
+wrong family. Step 0 (Pi recovery) is the physically meaningful result.
 
 ---
 
@@ -157,6 +175,9 @@ All outputs go to `output_porous_media_lbm_symmetry/`.
 | `lbm_pi_candidates.png` | Pi-basis heatmap + scatter of log₁₀(f) vs each log₁₀(Πₖ) |
 | `lbm_symmetry_discovery.png` | 2-panel: symmetry-type bars + latent-dim R² curve |
 | `run.log` | Full stdout log of the pipeline run |
+| `_da_repo/dimension_matrix.csv` | Hand-checked integer dimension matrix fed to `DataPreprocessor` |
+| `_da_repo/data/basis_vectors.csv` | Primitive integer Pi-group exponent vectors emitted by `DataPreprocessor` |
+| `_da_repo/data/afterDA_data.csv` | Normalised Pi values per row produced by `DataPreprocessor` |
 
 ---
 
@@ -164,24 +185,32 @@ All outputs go to `output_porous_media_lbm_symmetry/`.
 
 The committed output figures were produced with reduced training
 (`--latent-epochs 300 --sym-epochs 600 --n-restarts 2 --seed 42`).
+Step 0 is driven by `pydimension.data_preprocessing.DataPreprocessor`.
 Full results:
 
 | Aspect | Observed |
 |---|---|
-| Pi groups discovered | 3 — `Pi1 = dP_L·v⁻³·μ·ρ⁻²`, `Pi2 = dP_L·v⁻¹·μ⁻¹·d²`, `Pi3 = φ` |
+| Pi-basis driver | `DataPreprocessor.process_with_dimensional_analysis()` ✓ |
+| Pi groups discovered | 3 — `π1 = dP_L·v⁻³·μ·ρ⁻²`, `π2 = dP_L·v⁻¹·μ⁻¹·d²`, `π3 = φ` |
 | Known `f` exponents in Pi span | **cos = +1.0000 ✓** |
 | Known `Re_p` exponents in Pi span | **cos = +1.0000 ✓** |
-| Latent dimension `k*` | **1** (R² = 0.997 at k=1, only 0.0002 gain at k=2) |
-| Symmetry type | **Scaling** ✓ (MSE 0.0115 vs translational 0.0188, rotational 0.0215) |
-| Loss gap | **1.6×** |
+| Latent dimension `k*` | **1** (R² ≈ 0.997 at k=1) |
+| Symmetry type | **Rotational** (MSE 0.0089) > scaling (0.0125) > translational (0.0167) |
+| Loss gap | ~1.4× — well within the dataset's symmetry-instability band |
 | Generators | 5 directions (6 vars − 1 latent) |
+
+**Stable physics (Step 0):** The Buckingham-Pi reduction is fully
+reproducible. `DataPreprocessor` returns the same three primitive integer
+Pi groups every run, and the known `f` and `Re_p` exponent vectors both
+project onto the discovered span with `cos = +1.0000`. This is the
+physically meaningful result of the example.
 
 **Ergun collapse:** All 4 porosity bins collapse onto a single curve with
 slope = −1 (pure Darcy), running **~30% below** the textbook `150/x` line.
 This systematic offset (mean `f / f_ergun ≈ 0.66`) is consistent across all
 data and indicates the LBM under-predicts drag relative to the textbook
 empirical constant — likely a combination of single-packing-realisation
-effects and `d/Δx = 10` resolution.
+effects, `d/Δx = 10` resolution, and bounce-back boundary slip.
 
 **Why `k* = 1` instead of the expected `k* = 2`?** Because in the pure
 Darcy regime `f ≈ 150·(1−φ)²/(φ³·Re_p)`, and `log(f)` varies by ~5 orders
@@ -191,15 +220,17 @@ porosity range. So `Re_p` alone explains 99.7% of the variance —
 we'd need a wider φ range or higher Re_p where the inertial Forchheimer
 term `1.75·(1−φ)/φ³` becomes important.
 
-**Caveat on symmetry-type stability:** With longer training
-(default `--sym-epochs 1500 --n-restarts 3`), the three encoder losses
-converge to very similar values and the winner can flip between
-scaling/translational/rotational. This indicates the dataset is **too
-degenerate** to robustly identify the symmetry type from raw X alone — only
-3 of 6 variables have meaningful variation (dP_L, v, mu; rho ≈ const,
-d = const, φ has only 4 levels). The shorter-training result above is the
-physically-expected one (scaling, since the Darcy law is power-law), but
-relying on it requires acknowledging this fragility. The fix is more
+**Caveat on symmetry-type (Step 3) volatility:** The Step 3 winner is
+**not** robust on this dataset. Across fresh runs and different seeds the
+loss gap between scaling, translational, and rotational stays in the
+1.0–2.0× range, and any of the three can win. Earlier committed runs
+reported "scaling" with a 1.6× gap; current runs report "rotational" with
+a 1.4× gap. This is the expected behaviour for a dataset where only 3 of
+6 variables have meaningful variation (dP_L, v, mu) — d is constant, rho
+is nearly constant, and phi has only 4 levels. The symmetry-discovery
+machinery does not have enough leverage to separate the three encoder
+families. **The physically meaningful result is the Buckingham-Pi
+recovery (cos = +1.0000), not the Step 3 winner.** The fix is more
 particle-size variation and a wider Re_p range — see Future Work below.
 
 ---

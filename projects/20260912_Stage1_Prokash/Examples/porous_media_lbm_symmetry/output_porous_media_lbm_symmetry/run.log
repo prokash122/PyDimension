@@ -1,3 +1,4 @@
+⚠️ scikit-learn not available. Some features may not work.
 Loading LBM porous media data from dataset_lbm_porous.csv...
   Loaded 96 converged LBM runs
   Variables: ['dP_L', 'v', 'mu', 'rho', 'd', 'phi']
@@ -16,10 +17,50 @@ Step 0: Dimensional analysis (Buckingham-Pi reduction)
 ============================================================
   Dimension matrix shape: (3, 6)  (rows = ['Mass', 'Length', 'Time'], cols = ['dP_L', 'v', 'mu', 'rho', 'd', 'phi'])
   Rank: 3   Expected Pi groups: 3
+  Using pydimension.data_preprocessing.DataPreprocessor (output → output_porous_media_lbm_symmetry/_da_repo)
+=== Data Preprocessing ===
+✅ Loaded data from: dataset_lbm_porous.csv
+   Shape: (96, 15)
+   Columns: ['filename', 'tau', 'delta_p', 'dP_L', 'v', 'mu', 'rho', 'd', 'phi', 'f', 'Re_p', 'f_ergun', 'steps', 'converged', 'stalled']
+✅ Detected variables:
+   Input variables (6): ['dP_L', 'v', 'mu', 'rho', 'd', 'phi']
+   Output variables (1): ['f']
+   f: not in matrix, assuming dimensionless
+✅ Loaded dimension matrix from file
+✅ Normalized data
+   Shape: (96, 7)
+   Value range: [0.0002, 1.0000]
+
+=== Preprocessing Complete ===
+=== Dimensional Analysis ===
+   Input variables: ['dP_L', 'v', 'mu', 'rho', 'd', 'phi']
+   Output variable: f
+   Active dimensions: ['Mass', 'Length', 'Time']
+   Matrix shape: (3, 6)
+   Matrix rank: 3
+   Variables: 6
+   Expected null space dimension: 3
+
+=== Finding Null Space ===
+Dimension matrix shape: (3, 6)
+Null space shape: (6, 3)
+
+=== Simplifying Basis Vectors ===
+Simplified basis vectors shape: (6, 3)
+
+=== Created Dimensionless Variables ===
+Number of dimensionless groups: 3
+  π1 = dP_L × v^-3 × mu × rho^-2
+  π2 = dP_L × v^(-1) × mu^(-1) × d^2
+  π3 = phi
+
+=== Dimensional Analysis Complete ===
+AfterDA data: output_porous_media_lbm_symmetry/_da_repo/data/afterDA_data.csv
+Basis vectors: output_porous_media_lbm_symmetry/_da_repo/data/basis_vectors.csv
   Basis vectors shape: (6, 3)
-    Pi1 = dP_L · v^-3 · mu · rho^-2
-    Pi2 = dP_L · v^-1 · mu^-1 · d^2
-    Pi3 = phi
+    Pi1 = dP_L · v^-3 · mu · rho^-2    (repo: π1 = dP_L × v^-3 × mu × rho^-2)
+    Pi2 = dP_L · v^-1 · mu^-1 · d^2    (repo: π2 = dP_L × v^(-1) × mu^(-1) × d^2)
+    Pi3 = phi    (repo: π3 = phi)
   Known f (friction factor) exponents in Pi span: cos = +1.0000  (±1 means it lies in the discovered Pi space)
   Known Re_p (Reynolds) exponents in Pi span: cos = +1.0000  (±1 means it lies in the discovered Pi space)
   Pi features for Step 2 encoder: ['log10(Re_p)', 'phi']
@@ -51,65 +92,42 @@ Step 3: Identifying symmetry type
 ============================================================
   Step 3 input: raw physical X (6 variables)
 
-  Detected symmetry: scaling
-    scaling        : 0.011508 <--
-    translational  : 0.018762
-    rotational     : 0.021459
-  Loss gap: 1.6x
+  Detected symmetry: translational
+    translational  : 0.007768 <--
+    scaling        : 0.010814
+    rotational     : 0.011939
+  Loss gap: 1.4x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
 ============================================================
-  Symmetry type: scaling
+  Symmetry type: translational
   Generators: 5
 
 ============================================================
   Winning encoder weight vector(s)
 ============================================================
-  Row 1 (scaling):
+  Row 1 (translational):
        dP_L        v       mu      rho        d      phi
-  raw :    -0.2230  +0.0129  +0.0279  +0.3635  +0.0491  -0.1299
-  L2-n:    -0.4961  +0.0287  +0.0622  +0.8086  +0.1092  -0.2889
-  cos<row, known Re_p exponents> = +0.4422
-  cos<row, known f    exponents> = -0.4736
+  raw :    -0.4275  -0.6159  +0.0333  +0.4296  -0.1386  -0.0780
+  L2-n:    -0.4862  -0.7005  +0.0379  +0.4886  -0.1576  -0.0887
+  cos<row, known Re_p exponents> = -0.2037
+  cos<row, known f    exponents> = +0.1015
 
 ============================================================
 Step 5: Physical interpretation of generators
 ============================================================
-  Each generator is a direction in log-space along which
-  the friction factor f is preserved. Physically: a
-  simultaneous rescaling of variables that keeps the flow
-  invariant (Darcy/Forchheimer regime preserved).
-
-  Generator 1:
-    v x exp(+0.999*eps)
-
-  Generator 2:
-    dP_L x exp(+0.062*eps), mu x exp(+0.997*eps)
-    Meaning: increase mu while increase dP_L
-             to keep friction factor f invariant
-
-  Generator 3:
-    dP_L x exp(+0.809*eps), rho x exp(+0.563*eps), d x exp(-0.059*eps), phi x exp(+0.156*eps)
-    Meaning: increase dP_L while increase rho, decrease d, increase phi
-             to keep friction factor f invariant
-
-  Generator 4:
-    dP_L x exp(+0.109*eps), rho x exp(-0.059*eps), d x exp(+0.992*eps)
-    Meaning: increase d while increase dP_L, decrease rho
-             to keep friction factor f invariant
-
-  Generator 5:
-    dP_L x exp(-0.289*eps), rho x exp(+0.156*eps), phi x exp(+0.944*eps)
-    Meaning: increase phi while decrease dP_L, increase rho
-             to keep friction factor f invariant
-
+  Generator 1: [dP_L:-0.701, v:+0.670, rho:+0.230, d:-0.074]
+  Generator 2: [mu:+0.999]
+  Generator 3: [dP_L:+0.489, v:+0.230, rho:+0.839, d:+0.052]
+  Generator 4: [dP_L:-0.158, v:-0.074, rho:+0.052, d:+0.983]
+  Generator 5: [dP_L:-0.089, phi:+0.995]
 
 ============================================================
 Creating visualizations
 ============================================================
 Ergun collapse figure saved to output_porous_media_lbm_symmetry/lbm_ergun_collapse.png
-/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry/discover_symmetry.py:553: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry/discover_symmetry.py:665: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   plt.tight_layout(rect=[0, 0, 1, 0.93])
 Pi candidates figure saved to output_porous_media_lbm_symmetry/lbm_pi_candidates.png
 Symmetry-discovery figure saved to output_porous_media_lbm_symmetry/lbm_symmetry_discovery.png
@@ -117,10 +135,6 @@ Symmetry-discovery figure saved to output_porous_media_lbm_symmetry/lbm_symmetry
 ============================================================
 COMPLETE
 ============================================================
-  Symmetry: scaling
+  Symmetry: translational
   Generators: 5
-  These generators show how dP_L, v, mu, rho, d, phi can
-  be simultaneously rescaled while preserving the friction
-  factor f -- the porous-media analogue of the Ergun
-  scaling invariance.
 

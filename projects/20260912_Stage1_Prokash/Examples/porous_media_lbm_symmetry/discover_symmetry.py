@@ -79,6 +79,28 @@ except ImportError as e:
     print(f"ERROR: Could not import Stage1 modules: {e}")
     sys.exit(1)
 
+# Try to import the repository's DataPreprocessor for Buckingham-Pi reduction.
+# When available, this replaces the inline compute_pi_basis() so the example
+# uses the same dimensional-analysis pipeline as the rest of pydimension.
+try:
+    _da_root = _here
+    while _da_root and not os.path.isdir(os.path.join(_da_root, "pydimension")):
+        nxt = os.path.dirname(_da_root)
+        if nxt == _da_root:
+            break
+        _da_root = nxt
+    if os.path.isdir(os.path.join(_da_root, "pydimension")):
+        sys.path.insert(0, _da_root)
+    from pydimension.data_preprocessing import (
+        DataPreprocessor,
+        DataPreprocessingConfig,
+    )
+    _REPO_DA_AVAILABLE = True
+except ImportError as _da_err:
+    print(f"  ⚠️ Could not import pydimension.data_preprocessing "
+          f"({_da_err}); falling back to inline DA implementation.")
+    _REPO_DA_AVAILABLE = False
+
 import torch.multiprocessing as _tmp
 _tmp.cpu_count = lambda: 0
 
@@ -167,6 +189,67 @@ def format_pi_expression(basis_col: np.ndarray, names) -> str:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Repository pipeline: drive pydimension.data_preprocessing.DataPreprocessor
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _write_dimension_matrix_csv(out_path: str, variable_names, dim_matrix: np.ndarray) -> str:
+    """Emit a Dimension/Variable CSV that DataPreprocessor.load_dimension_matrix understands.
+
+    ``dim_matrix`` is (n_dims, n_vars) with rows ordered (Mass, Length, Time).
+    The repo's loader expects a column named ``Dimension`` plus one column per
+    variable.  Passing this CSV bypasses the unit-string parser entirely.
+    """
+    import csv as _csv
+    dim_names = ["Mass", "Length", "Time"][: dim_matrix.shape[0]]
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    with open(out_path, "w", newline="") as f:
+        w = _csv.writer(f)
+        w.writerow(["Dimension"] + list(variable_names))
+        for i, dn in enumerate(dim_names):
+            w.writerow([dn] + [int(dim_matrix[i, j]) for j in range(len(variable_names))])
+    return out_path
+
+
+def run_repo_dimensional_analysis(csv_path: str, input_vars, output_var: str,
+                                  dim_matrix: np.ndarray, output_dir: str) -> dict:
+    """Drive the repo's ``DataPreprocessor.process_with_dimensional_analysis``.
+
+    We pass an explicit dimension-matrix CSV (built from the hand-checked
+    integer matrix) so the result comes from pydimension's null-space +
+    SymPy primitive-integer reduction, not from this script's inline copy.
+    Returns a dict with the basis vectors, dimensionless expressions, and
+    the ``afterDA`` dataframe of Pi groups.
+    """
+    if not _REPO_DA_AVAILABLE:
+        raise RuntimeError("pydimension.data_preprocessing is not importable")
+    os.makedirs(output_dir, exist_ok=True)
+    dim_csv = os.path.join(output_dir, "dimension_matrix.csv")
+    _write_dimension_matrix_csv(dim_csv, input_vars, dim_matrix)
+
+    cfg = DataPreprocessingConfig(
+        input_file=str(csv_path),
+        input_variables=list(input_vars),
+        output_variables=[output_var],
+        dimension_matrix_file=dim_csv,
+        normalize=True,
+        normalize_basis=False,    # keep primitive integer basis vectors
+        output_dir=output_dir,
+    )
+    pre = DataPreprocessor(cfg)
+    pre.process_with_dimensional_analysis(verbose=True)
+    try:
+        pre.save_dimensional_analysis_results()
+    except Exception as e:
+        print(f"  ⚠️ Could not save DataPreprocessor outputs: {e}")
+    return {
+        "preprocessor": pre,
+        "basis_vectors": np.asarray(pre.basis_vectors, dtype=float),
+        "expressions":   list(pre.dimensionless_expressions),
+        "afterDA":       pre.afterDA_data,
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Data loading
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -247,11 +330,40 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
     print(f"  Rank: {rank}   Expected Pi groups: "
           f"{DIMENSION_MATRIX.shape[1] - rank}")
 
-    pi_basis = compute_pi_basis(DIMENSION_MATRIX)
+    pi_basis = None
+    pi_expressions = None
+    if _REPO_DA_AVAILABLE and not getattr(args, "no_repo_da", False):
+        repo_out_dir = os.path.join(args.output_dir, "_da_repo")
+        try:
+            print(f"  Using pydimension.data_preprocessing.DataPreprocessor "
+                  f"(output → {repo_out_dir})")
+            repo_res = run_repo_dimensional_analysis(
+                csv_path=args.data,
+                input_vars=VARIABLE_NAMES,
+                output_var="f",
+                dim_matrix=DIMENSION_MATRIX,
+                output_dir=repo_out_dir,
+            )
+            pi_basis = repo_res["basis_vectors"]
+            pi_expressions = repo_res["expressions"]
+            results["da_repo"] = repo_res
+        except Exception as e:
+            print(f"  ⚠️ DataPreprocessor pipeline failed ({e}); "
+                  f"falling back to inline compute_pi_basis().")
+            traceback.print_exc()
+            pi_basis = None
+
+    if pi_basis is None:
+        pi_basis = compute_pi_basis(DIMENSION_MATRIX)
+        print(f"  Using inline compute_pi_basis() (scipy null-space + SymPy)")
+
     print(f"  Basis vectors shape: {pi_basis.shape}")
     for i in range(pi_basis.shape[1]):
         expr = format_pi_expression(pi_basis[:, i], VARIABLE_NAMES)
-        print(f"    Pi{i+1} = {expr}")
+        if pi_expressions and i < len(pi_expressions):
+            print(f"    Pi{i+1} = {expr}    (repo: {pi_expressions[i]})")
+        else:
+            print(f"    Pi{i+1} = {expr}")
 
     # Project known exponents onto null space
     for label, ref in [("f (friction factor)", KNOWN_F_EXPONENTS),
@@ -630,6 +742,9 @@ def main():
                         default="output_porous_media_lbm_symmetry")
     parser.add_argument("--encoder-hidden", type=int, nargs="+",
                         default=[64, 32])
+    parser.add_argument("--no-repo-da", action="store_true",
+                        help="Skip pydimension.data_preprocessing.DataPreprocessor "
+                             "and use the inline compute_pi_basis() fallback.")
     args = parser.parse_args()
 
     X, y, Re_p, f_ergun = load_data(args)
