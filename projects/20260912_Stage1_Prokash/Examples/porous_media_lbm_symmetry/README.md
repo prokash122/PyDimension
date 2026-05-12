@@ -184,9 +184,10 @@ All outputs go to `output_porous_media_lbm_symmetry/`.
 ## Observed Results (committed run)
 
 The committed output figures were produced with reduced training
-(`--latent-epochs 300 --sym-epochs 600 --n-restarts 2 --seed 42`).
-Step 0 is driven by `pydimension.data_preprocessing.DataPreprocessor`.
-Full results:
+(`--latent-epochs 300 --sym-epochs 600 --n-restarts 3 --seed 42`) and a
+single BLAS thread (`OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
+OPENBLAS_NUM_THREADS=1`) so the run is bit-reproducible. Step 0 is
+driven by `pydimension.data_preprocessing.DataPreprocessor`.
 
 | Aspect | Observed |
 |---|---|
@@ -195,15 +196,15 @@ Full results:
 | Known `f` exponents in Pi span | **cos = +1.0000 ✓** |
 | Known `Re_p` exponents in Pi span | **cos = +1.0000 ✓** |
 | Latent dimension `k*` | **1** (R² ≈ 0.997 at k=1) |
-| Symmetry type | **Rotational** (MSE 0.0089) > scaling (0.0125) > translational (0.0167) |
-| Loss gap | ~1.4× — well within the dataset's symmetry-instability band |
+| Symmetry type | **Translational** (MSE 0.00712) > scaling (0.01433) ≈ rotational (0.01444) |
+| Loss gap | 2.0× — well within the dataset's symmetry-instability band |
 | Generators | 5 directions (6 vars − 1 latent) |
 
 **Stable physics (Step 0):** The Buckingham-Pi reduction is fully
 reproducible. `DataPreprocessor` returns the same three primitive integer
 Pi groups every run, and the known `f` and `Re_p` exponent vectors both
-project onto the discovered span with `cos = +1.0000`. This is the
-physically meaningful result of the example.
+project onto the discovered span with `cos = +1.0000`. **This is the
+physically meaningful result of the example.**
 
 **Ergun collapse:** All 4 porosity bins collapse onto a single curve with
 slope = −1 (pure Darcy), running **~30% below** the textbook `150/x` line.
@@ -220,18 +221,38 @@ porosity range. So `Re_p` alone explains 99.7% of the variance —
 we'd need a wider φ range or higher Re_p where the inertial Forchheimer
 term `1.75·(1−φ)/φ³` becomes important.
 
-**Caveat on symmetry-type (Step 3) volatility:** The Step 3 winner is
-**not** robust on this dataset. Across fresh runs and different seeds the
-loss gap between scaling, translational, and rotational stays in the
-1.0–2.0× range, and any of the three can win. Earlier committed runs
-reported "scaling" with a 1.6× gap; current runs report "rotational" with
-a 1.4× gap. This is the expected behaviour for a dataset where only 3 of
-6 variables have meaningful variation (dP_L, v, mu) — d is constant, rho
-is nearly constant, and phi has only 4 levels. The symmetry-discovery
-machinery does not have enough leverage to separate the three encoder
-families. **The physically meaningful result is the Buckingham-Pi
-recovery (cos = +1.0000), not the Step 3 winner.** The fix is more
-particle-size variation and a wider Re_p range — see Future Work below.
+**Why doesn't scaling win, when physics says it should?** Because
+the symmetry-type test is fundamentally **inconclusive on this dataset**.
+A seed sweep at the committed training budget shows:
+
+| Seed | Winner | scaling MSE | trans MSE | rot MSE | gap |
+|---|---|---|---|---|---|
+| 42 | translational | 0.01433 | **0.00712** | 0.01444 | 2.0× |
+| 0  | translational | 0.01077 | **0.00766** | 0.00995 | 1.3× |
+| 1  | rotational    | 0.01625 | 0.01774 | **0.00782** | 2.1× |
+| 2  | **scaling**   | **0.01830** | 0.02202 | 0.02441 | 1.2× |
+| 7  | rotational    | 0.01368 | 0.01275 | **0.00515** | 2.5× |
+| 100| rotational    | 0.02297 | 0.01939 | **0.00997** | 1.9× |
+
+Scaling wins in only 1 of 6 seeds. The Darcy law `f ∝ 1/Re_p` is a pure
+power-law, so scaling *should* win — but the dataset has only 3 of 6
+variables varying meaningfully (`dP_L`, `v`, `mu`; `d` is constant,
+`rho` is near-constant, `φ` has 4 levels) and the MLP decoder is a
+universal approximator. With sufficient capacity the decoder can fit
+power-law `y(log Re_p)` through any of the three encoder feature maps
+(`X`, `X²`, `log|X|`), so which encoder converges fastest on a given
+random init becomes a tie-breaker rather than a physics result.
+
+Earlier committed runs claimed a "scaling" winner with a 1.6× gap; that
+was an artefact of multi-threaded BLAS non-determinism in the prior
+environment (`torch.manual_seed` does not control parallel-reduction
+ordering). Locking threads (`OMP_NUM_THREADS=1` etc.) makes the result
+fully reproducible — and the reproducible answer is honest: **the test
+cannot decide between scaling/translational/rotational on this 96-row
+single-`d`, single-packing dataset.**
+
+The fix is more variable diversity (multiple sphere radii, more porosity
+levels, two-or-more fluids) — see Future Work.
 
 ---
 
@@ -240,7 +261,12 @@ particle-size variation and a wider Re_p range — see Future Work below.
 ```bash
 cd projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry
 
-# Default run
+# Reproducible run (matches committed run.log)
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
+  python discover_symmetry.py --data dataset_lbm_porous.csv \
+    --latent-epochs 300 --sym-epochs 600 --n-restarts 3 --seed 42
+
+# Default run (multi-threaded, faster, but Step 3 winner is non-deterministic)
 python discover_symmetry.py --data dataset_lbm_porous.csv
 
 # Deeper encoder

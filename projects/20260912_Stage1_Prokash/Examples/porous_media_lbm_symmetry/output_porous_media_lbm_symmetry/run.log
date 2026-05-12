@@ -69,6 +69,7 @@ Basis vectors: output_porous_media_lbm_symmetry/_da_repo/data/basis_vectors.csv
 ============================================================
 Step 1: Normalizing data
 ============================================================
+  Log-prenormalisation OFF (plain min-max)
   ⚠️  Constant/near-constant columns: ['d']
      Their symmetry exponents will be unconstrained by the dataset.
   X_raw  range: [0.000, 1.000]  ((96, 6))
@@ -93,10 +94,10 @@ Step 3: Identifying symmetry type
   Step 3 input: raw physical X (6 variables)
 
   Detected symmetry: translational
-    translational  : 0.007768 <--
-    scaling        : 0.010814
-    rotational     : 0.011939
-  Loss gap: 1.4x
+    translational  : 0.007121 <--
+    scaling        : 0.014331
+    rotational     : 0.014441
+  Loss gap: 2.0x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
@@ -109,25 +110,25 @@ Step 4: Extracting Lie-algebra generators
 ============================================================
   Row 1 (translational):
        dP_L        v       mu      rho        d      phi
-  raw :    -0.4275  -0.6159  +0.0333  +0.4296  -0.1386  -0.0780
-  L2-n:    -0.4862  -0.7005  +0.0379  +0.4886  -0.1576  -0.0887
-  cos<row, known Re_p exponents> = -0.2037
-  cos<row, known f    exponents> = +0.1015
+  raw :    -0.3354  -0.6154  +0.0354  +0.2963  +0.0190  -0.1370
+  L2-n:    -0.4332  -0.7949  +0.0457  +0.3827  +0.0246  -0.1770
+  cos<row, known Re_p exponents> = -0.2167
+  cos<row, known f    exponents> = +0.3018
 
 ============================================================
 Step 5: Physical interpretation of generators
 ============================================================
-  Generator 1: [dP_L:-0.701, v:+0.670, rho:+0.230, d:-0.074]
+  Generator 1: [dP_L:-0.795, v:+0.559, rho:+0.212, phi:-0.098]
   Generator 2: [mu:+0.999]
-  Generator 3: [dP_L:+0.489, v:+0.230, rho:+0.839, d:+0.052]
-  Generator 4: [dP_L:-0.158, v:-0.074, rho:+0.052, d:+0.983]
-  Generator 5: [dP_L:-0.089, phi:+0.995]
+  Generator 3: [dP_L:+0.383, v:+0.212, rho:+0.898]
+  Generator 4: [d:+1.000]
+  Generator 5: [dP_L:-0.177, v:-0.098, phi:+0.978]
 
 ============================================================
 Creating visualizations
 ============================================================
 Ergun collapse figure saved to output_porous_media_lbm_symmetry/lbm_ergun_collapse.png
-/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry/discover_symmetry.py:665: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry/discover_symmetry.py:686: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   plt.tight_layout(rect=[0, 0, 1, 0.93])
 Pi candidates figure saved to output_porous_media_lbm_symmetry/lbm_pi_candidates.png
 Symmetry-discovery figure saved to output_porous_media_lbm_symmetry/lbm_symmetry_discovery.png
