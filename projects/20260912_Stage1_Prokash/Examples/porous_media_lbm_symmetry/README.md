@@ -38,12 +38,12 @@ but the pipeline does not know this — it should recover the structure
 
 | Property | Value |
 |---|---|
-| Rows | 96 converged LBM runs |
-| Geometries | 4 (all r = 5 LU; phi ∈ {0.46, 0.50, 0.55, 0.61}) |
+| Rows | 144 converged LBM runs |
+| Sphere radii | 2 (r = 3 and r = 5 LU; d = 6 and d = 10) |
+| Porosities | 6 (phi ∈ {0.459, 0.502, 0.543, 0.551, 0.603, 0.609}) |
 | Relaxation time `tau` | 0.9, 1.0, 1.1 (3 viscosities) |
 | Driving force `delta_p` | 8 values: 1e-6 to 3e-4 |
-| Particle diameter `d` | constant = 10 LU |
-| Re_p range | [5e-7, 1e-3] — **deep Darcy regime** |
+| Re_p range | [3e-7, 1e-3] — **deep Darcy regime** |
 | f range | [7.6e4, 4.6e8] — spans ~5 orders of magnitude |
 
 **Schema:**
@@ -58,18 +58,18 @@ but the pipeline does not know this — it should recover the structure
 
 ### Known limitations of this dataset
 
-- **Single particle size (d = 10 LU)** — symmetry generators involving `d` are
-  not fully constrained. The pipeline will report the d-direction as
-  near-zero in the encoder weights (uninformative).
+- **Only two particle sizes (d ∈ {6, 10})** — the d-direction generator
+  is now constrained (it was undetermined in the earlier single-radius
+  dataset) but a third radius would still help.
 - **Deep Darcy regime only** (Re_p < 1e-3) — the inertial Forchheimer term
   (1.75) is invisible. The data follows pure `f ∝ 1/Re_p`.
 - **f / f_ergun ≈ 0.66** — LBM gives ~34% lower drag than the textbook
   Ergun constant (150). This is fine for symmetry discovery (the functional
   form, not the prefactor, is what matters).
 
-To address these limitations, the dataset can be extended with additional
-sphere radii `r ∈ {4, 6, 8}` and higher driving force `delta_p ∈ {1e-3, 1e-2}`
-to reach the Forchheimer regime.
+To address remaining limitations, the dataset can be extended with one
+more sphere radius (e.g. `r = 4` or `r = 7`) and higher driving force
+`delta_p ∈ {1e-3, 1e-2}` to reach the Forchheimer regime.
 
 ---
 
@@ -184,10 +184,12 @@ All outputs go to `output_porous_media_lbm_symmetry/`.
 ## Observed Results (committed run)
 
 The committed output figures were produced with reduced training
-(`--latent-epochs 300 --sym-epochs 600 --n-restarts 3 --seed 42`) and a
-single BLAS thread (`OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
-OPENBLAS_NUM_THREADS=1`) so the run is bit-reproducible. Step 0 is
-driven by `pydimension.data_preprocessing.DataPreprocessor`.
+(`--latent-epochs 300 --sym-epochs 600 --n-restarts 3 --seed 42`) and
+locked threads + hash seed for bit-reproducibility:
+```
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 PYTHONHASHSEED=0
+```
+Step 0 is driven by `pydimension.data_preprocessing.DataPreprocessor`.
 
 | Aspect | Observed |
 |---|---|
@@ -196,9 +198,9 @@ driven by `pydimension.data_preprocessing.DataPreprocessor`.
 | Known `f` exponents in Pi span | **cos = +1.0000 ✓** |
 | Known `Re_p` exponents in Pi span | **cos = +1.0000 ✓** |
 | Latent dimension `k*` | **1** (R² ≈ 0.997 at k=1) |
-| Symmetry type | **Translational** (MSE 0.00712) > scaling (0.01433) ≈ rotational (0.01444) |
-| Loss gap | 2.0× — well within the dataset's symmetry-instability band |
-| Generators | 5 directions (6 vars − 1 latent) |
+| Symmetry type | **Rotational** (MSE 0.00715) > translational (0.01085) > scaling (0.01100) |
+| Loss gap | 1.5× — narrow, see caveat below |
+| Generators | 10 directions (rotational-family encoding) |
 
 **Stable physics (Step 0):** The Buckingham-Pi reduction is fully
 reproducible. `DataPreprocessor` returns the same three primitive integer
@@ -221,38 +223,51 @@ porosity range. So `Re_p` alone explains 99.7% of the variance —
 we'd need a wider φ range or higher Re_p where the inertial Forchheimer
 term `1.75·(1−φ)/φ³` becomes important.
 
-**Why doesn't scaling win, when physics says it should?** Because
-the symmetry-type test is fundamentally **inconclusive on this dataset**.
-A seed sweep at the committed training budget shows:
+**Why doesn't scaling win, when physics says it should?** The
+symmetry-type test favours rotational on this dataset. A deterministic
+seed sweep at the committed training budget:
 
 | Seed | Winner | scaling MSE | trans MSE | rot MSE | gap |
 |---|---|---|---|---|---|
-| 42 | translational | 0.01433 | **0.00712** | 0.01444 | 2.0× |
-| 0  | translational | 0.01077 | **0.00766** | 0.00995 | 1.3× |
-| 1  | rotational    | 0.01625 | 0.01774 | **0.00782** | 2.1× |
-| 2  | **scaling**   | **0.01830** | 0.02202 | 0.02441 | 1.2× |
-| 7  | rotational    | 0.01368 | 0.01275 | **0.00515** | 2.5× |
-| 100| rotational    | 0.02297 | 0.01939 | **0.00997** | 1.9× |
+| 42  | **rotational**    | 0.01100 | 0.01085 | **0.00715** | 1.5× |
+| 0   | **rotational**    | 0.02216 | 0.02608 | **0.01139** | 1.9× |
+| 1   | **scaling**       | **0.01786** | 0.01911 | 0.02283 | 1.1× |
+| 2   | **translational** | 0.02053 | **0.01762** | 0.01801 | 1.0× |
+| 7   | **rotational**    | 0.01205 | 0.01627 | **0.01086** | 1.1× |
+| 100 | **rotational**    | 0.02076 | 0.02303 | **0.01961** | 1.1× |
 
-Scaling wins in only 1 of 6 seeds. The Darcy law `f ∝ 1/Re_p` is a pure
-power-law, so scaling *should* win — but the dataset has only 3 of 6
-variables varying meaningfully (`dP_L`, `v`, `mu`; `d` is constant,
-`rho` is near-constant, `φ` has 4 levels) and the MLP decoder is a
-universal approximator. With sufficient capacity the decoder can fit
-power-law `y(log Re_p)` through any of the three encoder feature maps
-(`X`, `X²`, `log|X|`), so which encoder converges fastest on a given
-random init becomes a tie-breaker rather than a physics result.
+Rotational wins 4/6, scaling 1/6, translational 1/6. Two competing
+forces:
 
-Earlier committed runs claimed a "scaling" winner with a 1.6× gap; that
-was an artefact of multi-threaded BLAS non-determinism in the prior
-environment (`torch.manual_seed` does not control parallel-reduction
-ordering). Locking threads (`OMP_NUM_THREADS=1` etc.) makes the result
-fully reproducible — and the reproducible answer is honest: **the test
-cannot decide between scaling/translational/rotational on this 96-row
-single-`d`, single-packing dataset.**
+1. **Physics says scaling.** Darcy's law `f ∝ 1/Re_p` is a pure
+   power-law: `log f = -log(ρ·v·d/μ) + const`. The scaling encoder
+   `z = W · log|X|` should fit this exactly with `W ≈ -[0,1,-1,1,1,0]`.
 
-The fix is more variable diversity (multiple sphere radii, more porosity
-levels, two-or-more fluids) — see Future Work.
+2. **The implementation handicaps scaling.** The encoder applies
+   `log(|X|.clamp(min=0.1))` on min-max-normalised X. After min-max,
+   many values cluster near 0 and get clipped to 0.1, so the log
+   transform loses information for those columns. The rotational
+   (`X²`) and translational (`X`) encoders preserve the full [0,1]
+   range, and a sufficiently flexible MLP decoder can approximate the
+   needed `log()` internally — letting them win on raw fit MSE even
+   though they don't encode the underlying invariance correctly.
+
+This is honest behaviour of the pipeline as implemented: the Step 3
+test compares fit quality on min-max'd input, not whether the encoder's
+feature map matches the underlying physical symmetry. **The Pi
+recovery in Step 0 (cos = +1.0000 for both `f` and `Re_p` exponent
+vectors) is the meaningful physics result** — it confirms the scaling
+invariance is in the data; Step 3's rotational winner reflects the
+test's input-normalisation artefact, not a physical truth.
+
+Earlier committed runs (with multi-threaded BLAS and unfixed
+`PYTHONHASHSEED`) reported different winners each invocation; locking
+all three (`OMP_NUM_THREADS`, `MKL_NUM_THREADS`, `OPENBLAS_NUM_THREADS`,
+`PYTHONHASHSEED`) makes the run bit-reproducible.
+
+The fix is either (a) a more variable-rich dataset, or (b) modify the
+scaling encoder to apply log to the raw positive X before normalisation
+(out of scope for this example — it would change the Stage1 library).
 
 ---
 
@@ -262,7 +277,7 @@ levels, two-or-more fluids) — see Future Work.
 cd projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry
 
 # Reproducible run (matches committed run.log)
-OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 PYTHONHASHSEED=0 \
   python discover_symmetry.py --data dataset_lbm_porous.csv \
     --latent-epochs 300 --sym-epochs 600 --n-restarts 3 --seed 42
 
@@ -297,7 +312,7 @@ PyDimension/
         ├── PLAN.md                           ← full design plan
         ├── README.md                         ← this file
         ├── discover_symmetry.py              ← Stage1 pipeline script
-        └── dataset_lbm_porous.csv            ← 96-row LBM dataset
+        └── dataset_lbm_porous.csv            ← 144-row LBM dataset (r ∈ {3, 5})
 ```
 
 Dependencies: `torch`, `numpy`, `scipy`, `sympy`, `matplotlib`, `seaborn`.

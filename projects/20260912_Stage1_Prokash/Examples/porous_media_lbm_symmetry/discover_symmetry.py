@@ -271,9 +271,9 @@ def load_data(args):
     rows = []
     with open(data_path) as f:
         for r in csv.DictReader(f):
-            if r.get('converged', 'False') != 'True':
+            if (r.get('converged', 'False') or 'False').strip().lower() != 'true':
                 continue
-            if r.get('stalled', 'False') == 'True':
+            if (r.get('stalled', 'False') or 'False').strip().lower() == 'true':
                 continue
             try:
                 row = {
@@ -559,12 +559,20 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
                 _interpret_generator(g)
                 print()
     else:
+        print(f"  Winner is '{winner_type}', not scaling. Generators below are "
+              f"null-space directions of W in raw-X space; they do NOT correspond")
+        print(f"  to log-space rescalings (which is the physically meaningful")
+        print(f"  invariance for the Darcy power-law). Reporting them for")
+        print(f"  completeness only.\n")
         for i, g in enumerate(generators):
-            if g.ndim == 1:
-                parts = [f"{name}:{g[j]:+.3f}"
+            g_arr = np.asarray(g)
+            if g_arr.ndim == 1:
+                parts = [f"{name}:{g_arr[j]:+.3f}"
                          for j, name in enumerate(VARIABLE_NAMES)
-                         if abs(g[j]) > 0.05]
-                print(f"  Generator {i+1}: [{', '.join(parts)}]")
+                         if abs(g_arr[j]) > 0.05]
+                print(f"  Generator {i+1}: [{', '.join(parts) if parts else '(all components < 0.05)'}]")
+            else:
+                print(f"  Generator {i+1}: shape={g_arr.shape}, not flattened")
     print()
 
     return results
