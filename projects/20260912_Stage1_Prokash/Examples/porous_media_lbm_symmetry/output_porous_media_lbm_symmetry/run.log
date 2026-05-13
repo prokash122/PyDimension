@@ -69,8 +69,9 @@ Basis vectors: output_porous_media_lbm_symmetry/_da_repo/data/basis_vectors.csv
 ============================================================
 Step 1: Normalizing data
 ============================================================
-  Log-prenormalisation OFF (plain min-max)
-  X_raw  range: [0.000, 1.000]  ((144, 6))
+  Log-prenormalisation ON  (geometric-mean centring, NO min-max on X)
+  X_prescaled range per col: min=[0.03986545 0.0190258  0.81067957 0.99965388 0.71137866 0.84634256], max=[11.94441951 32.15628904  1.21656737  1.00010438  1.1856311   1.12488891]
+  X_raw  range: [0.019, 32.156]  ((144, 6))
   y = log10(f) normalized to [0, 1]
   log10(f) range: [4.879, 8.667]
 
@@ -91,52 +92,67 @@ Step 3: Identifying symmetry type
 ============================================================
   Step 3 input: raw physical X (6 variables)
 
-  Detected symmetry: rotational
-    rotational     : 0.007153 <--
-    translational  : 0.010846
-    scaling        : 0.010999
-  Loss gap: 1.5x
+  Detected symmetry: scaling
+    scaling        : 0.000924 <--
+    translational  : 0.004599
+    rotational     : 0.006139
+  Loss gap: 5.0x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
 ============================================================
-  Symmetry type: rotational
-  Generators: 10
+  Symmetry type: scaling
+  Generators: 5
 
 ============================================================
   Winning encoder weight vector(s)
 ============================================================
-  Row 1 (rotational):
+  Row 1 (scaling):
        dP_L        v       mu      rho        d      phi
-  raw :    +0.0830  -0.0224  -0.0423  -0.3811  +0.1301  +0.2063
-  L2-n:    +0.1794  -0.0485  -0.0914  -0.8240  +0.2813  +0.4461
-  cos<row, known Re_p exponents> = -0.2499
-  cos<row, known f    exponents> = +0.5222
+  raw :    -0.0289  -0.2108  +0.0526  -0.1051  -0.1635  -0.5441
+  L2-n:    -0.0467  -0.3411  +0.0851  -0.1701  -0.2646  -0.8805
+  cos<row, known Re_p exponents> = -0.4304
+  cos<row, known f    exponents> = +0.2045
 
 ============================================================
 Step 5: Physical interpretation of generators
 ============================================================
-  Winner is 'rotational', not scaling. Generators below are null-space directions of W in raw-X space; they do NOT correspond
-  to log-space rescalings (which is the physically meaningful
-  invariance for the Darcy power-law). Reporting them for
-  completeness only.
+  Each generator is a direction in log-space along which
+  the friction factor f is preserved. Physically: a
+  simultaneous rescaling of variables that keeps the flow
+  invariant (Darcy/Forchheimer regime preserved).
 
-  Generator 1: shape=(6, 6), not flattened
-  Generator 2: shape=(6, 6), not flattened
-  Generator 3: shape=(6, 6), not flattened
-  Generator 4: shape=(6, 6), not flattened
-  Generator 5: shape=(6, 6), not flattened
-  Generator 6: shape=(6, 6), not flattened
-  Generator 7: shape=(6, 6), not flattened
-  Generator 8: shape=(6, 6), not flattened
-  Generator 9: shape=(6, 6), not flattened
-  Generator 10: shape=(6, 6), not flattened
+  Generator 1:
+    dP_L x exp(-0.341*eps), v x exp(+0.889*eps), rho x exp(-0.055*eps), d x exp(-0.086*eps), phi x exp(-0.287*eps)
+    Meaning: increase v while decrease dP_L, decrease rho, decrease d, decrease phi
+             to keep friction factor f invariant
+
+  Generator 2:
+    dP_L x exp(+0.085*eps), mu x exp(+0.993*eps), phi x exp(+0.072*eps)
+    Meaning: increase mu while increase dP_L, increase phi
+             to keep friction factor f invariant
+
+  Generator 3:
+    dP_L x exp(-0.170*eps), v x exp(-0.055*eps), rho x exp(+0.972*eps), phi x exp(-0.143*eps)
+    Meaning: increase rho while decrease dP_L, decrease v, decrease phi
+             to keep friction factor f invariant
+
+  Generator 4:
+    dP_L x exp(-0.265*eps), v x exp(-0.086*eps), d x exp(+0.933*eps), phi x exp(-0.223*eps)
+    Meaning: increase d while decrease dP_L, decrease v, decrease phi
+             to keep friction factor f invariant
+
+  Generator 5:
+    dP_L x exp(-0.881*eps), v x exp(-0.287*eps), mu x exp(+0.072*eps), rho x exp(-0.143*eps), d x exp(-0.223*eps), phi x exp(+0.259*eps)
+    Meaning: decrease dP_L while decrease v, increase mu, decrease rho, decrease d, increase phi
+             to keep friction factor f invariant
+
 
 ============================================================
 Creating visualizations
 ============================================================
 Ergun collapse figure saved to output_porous_media_lbm_symmetry/lbm_ergun_collapse.png
-/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry/discover_symmetry.py:694: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry/discover_symmetry.py:704: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   plt.tight_layout(rect=[0, 0, 1, 0.93])
 Pi candidates figure saved to output_porous_media_lbm_symmetry/lbm_pi_candidates.png
 Symmetry-discovery figure saved to output_porous_media_lbm_symmetry/lbm_symmetry_discovery.png
@@ -144,6 +160,10 @@ Symmetry-discovery figure saved to output_porous_media_lbm_symmetry/lbm_symmetry
 ============================================================
 COMPLETE
 ============================================================
-  Symmetry: rotational
-  Generators: 10
+  Symmetry: scaling
+  Generators: 5
+  These generators show how dP_L, v, mu, rho, d, phi can
+  be simultaneously rescaled while preserving the friction
+  factor f -- the porous-media analogue of the Ergun
+  scaling invariance.
 

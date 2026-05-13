@@ -198,9 +198,8 @@ Step 0 is driven by `pydimension.data_preprocessing.DataPreprocessor`.
 | Known `f` exponents in Pi span | **cos = +1.0000 ✓** |
 | Known `Re_p` exponents in Pi span | **cos = +1.0000 ✓** |
 | Latent dimension `k*` | **1** (R² ≈ 0.997 at k=1) |
-| Symmetry type | **Rotational** (MSE 0.00715) > translational (0.01085) > scaling (0.01100) |
-| Loss gap | 1.5× — narrow, see caveat below |
-| Generators | 10 directions (rotational-family encoding) |
+| Symmetry type | **Scaling ✓** (MSE 0.000924) — winner by **5.0× margin** over translational (0.00460) and rotational (0.00614) |
+| Generators | 5 directions in 6-D log-space — Darcy invariance, length-scale rescaling, fluid-swap, plus the under-constrained ρ direction |
 
 **Stable physics (Step 0):** The Buckingham-Pi reduction is fully
 reproducible. `DataPreprocessor` returns the same three primitive integer
@@ -223,51 +222,50 @@ porosity range. So `Re_p` alone explains 99.7% of the variance —
 we'd need a wider φ range or higher Re_p where the inertial Forchheimer
 term `1.75·(1−φ)/φ³` becomes important.
 
-**Why doesn't scaling win, when physics says it should?** The
-symmetry-type test favours rotational on this dataset. A deterministic
-seed sweep at the committed training budget:
+**Scaling wins decisively across all six seeds:**
 
 | Seed | Winner | scaling MSE | trans MSE | rot MSE | gap |
 |---|---|---|---|---|---|
-| 42  | **rotational**    | 0.01100 | 0.01085 | **0.00715** | 1.5× |
-| 0   | **rotational**    | 0.02216 | 0.02608 | **0.01139** | 1.9× |
-| 1   | **scaling**       | **0.01786** | 0.01911 | 0.02283 | 1.1× |
-| 2   | **translational** | 0.02053 | **0.01762** | 0.01801 | 1.0× |
-| 7   | **rotational**    | 0.01205 | 0.01627 | **0.01086** | 1.1× |
-| 100 | **rotational**    | 0.02076 | 0.02303 | **0.01961** | 1.1× |
+| 42  | **scaling** | **0.000924** | 0.004599 | 0.006139 | 5.0× |
+| 0   | **scaling** | **0.003283** | 0.009857 | 0.010836 | 3.0× |
+| 1   | **scaling** | **0.003573** | 0.007249 | 0.009900 | 2.0× |
+| 2   | **scaling** | **0.002314** | 0.005995 | 0.012743 | 2.6× |
+| 7   | **scaling** | **0.001862** | 0.005840 | 0.005315 | 2.9× |
+| 100 | **scaling** | **0.003560** | 0.009357 | 0.010138 | 2.6× |
 
-Rotational wins 4/6, scaling 1/6, translational 1/6. Two competing
-forces:
+This is the physically expected result: Darcy's law `f ∝ 1/Re_p` is a
+pure power-law, so `log f` is linear in `log(ρ·v·d/μ)`, which is
+exactly the family of relationships the scaling encoder
+`z = W · log|X|` is designed to recover.
 
-1. **Physics says scaling.** Darcy's law `f ∝ 1/Re_p` is a pure
-   power-law: `log f = -log(ρ·v·d/μ) + const`. The scaling encoder
-   `z = W · log|X|` should fit this exactly with `W ≈ -[0,1,-1,1,1,0]`.
+**Why earlier runs got "rotational":** The Stage1 scaling encoder
+applies `log(|X|.clamp(min=0.1))` internally. The clamp threshold of
+0.1 is calibrated for **raw multiplicatively-meaningful X** (positive
+values of order unity, spanning a few orders of magnitude). If we
+min-max-normalise X into `[0, 1]` first — the default Stage1
+preprocessing for the other two examples — many values land below
+0.1 and get pinned by the clamp, destroying the multiplicative signal
+that the scaling encoder needs. The rotational (`X²`) and
+translational (`X`) encoders are bijective on `[0, 1]` so they keep
+the full input information, and a flexible MLP decoder approximates
+the needed `log()` internally — letting them appear to win on raw fit
+MSE even though their feature maps don't encode the underlying
+invariance.
 
-2. **The implementation handicaps scaling.** The encoder applies
-   `log(|X|.clamp(min=0.1))` on min-max-normalised X. After min-max,
-   many values cluster near 0 and get clipped to 0.1, so the log
-   transform loses information for those columns. The rotational
-   (`X²`) and translational (`X`) encoders preserve the full [0,1]
-   range, and a sufficiently flexible MLP decoder can approximate the
-   needed `log()` internally — letting them win on raw fit MSE even
-   though they don't encode the underlying invariance correctly.
+The fix in this example: **skip the min-max step on X for Step 3**.
+The script geometric-mean-centres each column (so the per-column
+geometric mean is exactly 1.0) and passes that directly to
+`identify_symmetry`. Values now span roughly `[0.05, 25]` per column
+— the regime the clamp threshold was designed for — and the scaling
+encoder works as intended. Toggle this with `--no-log-normalize` to
+reproduce the broken behaviour for comparison (it will revert to
+rotational/translational wins).
 
-This is honest behaviour of the pipeline as implemented: the Step 3
-test compares fit quality on min-max'd input, not whether the encoder's
-feature map matches the underlying physical symmetry. **The Pi
-recovery in Step 0 (cos = +1.0000 for both `f` and `Re_p` exponent
-vectors) is the meaningful physics result** — it confirms the scaling
-invariance is in the data; Step 3's rotational winner reflects the
-test's input-normalisation artefact, not a physical truth.
-
-Earlier committed runs (with multi-threaded BLAS and unfixed
-`PYTHONHASHSEED`) reported different winners each invocation; locking
-all three (`OMP_NUM_THREADS`, `MKL_NUM_THREADS`, `OPENBLAS_NUM_THREADS`,
-`PYTHONHASHSEED`) makes the run bit-reproducible.
-
-The fix is either (a) a more variable-rich dataset, or (b) modify the
-scaling encoder to apply log to the raw positive X before normalisation
-(out of scope for this example — it would change the Stage1 library).
+**Reproducibility:** lock the three BLAS thread vars and
+`PYTHONHASHSEED` so the run is bit-reproducible. Without
+`PYTHONHASHSEED=0`, Python's string hash randomisation feeds different
+torch seeds into `identify_symmetry` each invocation (it computes
+`seed + hash(sym_type) % 1000 + restart * 37`).
 
 ---
 

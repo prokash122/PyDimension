@@ -406,12 +406,18 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
     # Log-transform y because f spans ~5 orders of magnitude.
     y_log = np.log10(np.maximum(y, 1e-30))
 
-    # Step 3's scaling encoder applies log(X.clamp(min=0.1)) internally.
-    # If we feed it raw min-max-normalised X (in [0, 1] with much of the mass
-    # near zero), the clamp destroys the multiplicative signal and scaling
-    # loses unfairly to translational/rotational.  Geometric-mean centring
-    # before min-max preserves the per-column log-spread, so the scaling
-    # encoder sees genuine multiplicatively-meaningful coordinates.
+    # Step 3's three encoders apply X, X², and log(|X|.clamp(min=0.1)).  The
+    # clamp threshold is calibrated for raw-physical X with multiplicative
+    # spread (values O(1) ± some orders of magnitude).  If we min-max raw X
+    # into [0, 1] first, many values land below 0.1 and get pinned by the
+    # clamp -- the scaling encoder then loses its multiplicative signal and
+    # rotational/translational win purely on input-preservation grounds,
+    # regardless of the underlying physics.
+    #
+    # Fix: geometric-mean-centre each column (so per-column geometric mean
+    # is exactly 1.0) and pass the result DIRECTLY -- no min-max.  Values
+    # span roughly [0.05, 25] per column with the spread set by the raw
+    # log-range, which is what the scaling encoder is calibrated for.
     if getattr(args, "log_normalize", True):
         log10_X = np.log10(np.maximum(X, 1e-30))
         col_std = log10_X.std(axis=0)
@@ -419,16 +425,20 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
         gmean_exp = np.zeros(log10_X.shape[1])
         gmean_exp[active] = log10_X[:, active].mean(axis=0)
         X_prescaled = 10 ** (log10_X - gmean_exp)
-        norm_raw = normalize_data(X_prescaled, y_log, method="minmax")
+        # Min-max y only.
+        ymin, ymax = y_log.min(), y_log.max()
+        y_norm = (y_log - ymin) / max(ymax - ymin, 1e-12)
+        X_norm_raw = X_prescaled
+        norm_raw = {"X_normalized": X_norm_raw, "y_normalized": y_norm}
         print(f"  Log-prenormalisation ON  "
-              f"(geometric-mean centring before min-max)")
-        print(f"  X_prescaled range: [{X_prescaled.min():.3g}, "
-              f"{X_prescaled.max():.3g}]")
+              f"(geometric-mean centring, NO min-max on X)")
+        print(f"  X_prescaled range per col: "
+              f"min={X_prescaled.min(axis=0)}, max={X_prescaled.max(axis=0)}")
     else:
         norm_raw = normalize_data(X, y_log, method="minmax")
-        print(f"  Log-prenormalisation OFF (plain min-max)")
-    X_norm_raw = norm_raw["X_normalized"]
-    y_norm = norm_raw["y_normalized"]
+        X_norm_raw = norm_raw["X_normalized"]
+        y_norm = norm_raw["y_normalized"]
+        print(f"  Log-prenormalisation OFF (plain min-max on raw X)")
 
     # Identify constant columns (their generators will be undetermined)
     raw_std = X.std(axis=0) / (np.abs(X.mean(axis=0)) + 1e-30)
@@ -775,14 +785,17 @@ def main():
                         help="Skip pydimension.data_preprocessing.DataPreprocessor "
                              "and use the inline compute_pi_basis() fallback.")
     parser.add_argument("--log-normalize", dest="log_normalize",
-                        action="store_true", default=False,
-                        help="Geometric-mean centring before min-max for Step 3. "
-                             "Ported from the LPBF example. On this porous-media "
-                             "dataset it does NOT help the scaling encoder win — "
-                             "see the README symmetry-type caveat. OFF by default.")
+                        action="store_true", default=True,
+                        help="Geometric-mean centre each column and skip the "
+                             "min-max step on X for Step 3 (default ON). "
+                             "Required for the scaling encoder to see "
+                             "multiplicatively-meaningful coordinates rather "
+                             "than min-max-clipped affine ones.")
     parser.add_argument("--no-log-normalize", dest="log_normalize",
                         action="store_false",
-                        help="Plain min-max on raw X for Step 3 (default).")
+                        help="Plain min-max on raw X for Step 3. Handicaps "
+                             "the scaling encoder via log-clamp truncation; "
+                             "for ablation / comparison only.")
     args = parser.parse_args()
 
     X, y, Re_p, f_ergun = load_data(args)
