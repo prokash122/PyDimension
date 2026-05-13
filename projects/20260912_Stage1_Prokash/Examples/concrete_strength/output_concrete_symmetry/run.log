@@ -1,0 +1,79 @@
+Loading concrete data from Concrete_Data.xls...
+  Loaded Excel: ['Cement (component 1)(kg in a m^3 mixture)', 'Blast Furnace Slag (component 2)(kg in a m^3 mixture)', 'Fly Ash (component 3)(kg in a m^3 mixture)', 'Water  (component 4)(kg in a m^3 mixture)', 'Superplasticizer (component 5)(kg in a m^3 mixture)', 'Coarse Aggregate  (component 6)(kg in a m^3 mixture)', 'Fine Aggregate (component 7)(kg in a m^3 mixture)', 'Age (day)', 'Concrete compressive strength(MPa, megapascals) ']
+  Samples: 1030, Features: 8
+  Strength range: [2.3, 82.6] MPa
+
+============================================================
+Step 1: Normalizing data
+============================================================
+  X range: [-2.802, 5.058]
+
+============================================================
+Step 2: Discovering intrinsic latent dimension
+============================================================
+  Multi-layer encoder: [64, 32]
+
+  Optimal latent dimension: 3
+    k=1: R2_train=0.9696, R2_test=0.8919, MSE=0.099916
+    k=2: R2_train=0.9701, R2_test=0.8616, MSE=0.127954
+    k=3: R2_train=0.9726, R2_test=0.8922, MSE=0.099592
+    k=4: R2_train=0.9722, R2_test=0.8806, MSE=0.110351
+
+============================================================
+Step 3: Identifying symmetry type
+============================================================
+
+  Detected symmetry: translational
+    translational  : 0.122325 <--
+    scaling        : 0.449601
+    rotational     : 0.578864
+  Loss gap: 3.7x
+
+============================================================
+Step 4: Extracting Lie-algebra generators
+============================================================
+  Symmetry type: translational
+  Generators: 5
+
+  Learned encoder weights W:
+
+============================================================
+Step 5: Physical interpretation of generators
+============================================================
+  Each generator is a direction in input space along which
+  strength is preserved: x → x + ε·g keeps f(W·x) unchanged.
+
+  Physically: mix substitutions that maintain the same strength.
+
+  Generator 1: [Cement: +0.088, Slag: +0.090, Fly Ash: +0.162, Water: +0.977]
+
+  Generator 2: [Slag: +0.230, Fly Ash: -0.603, Water: +0.068, Superplast.: +0.697, Coarse Agg.: -0.054, Fine Agg.: -0.299]
+    → Increase Superplast., Slag while decreasing Fly Ash, Fine Agg.
+      to maintain the same compressive strength
+
+  Generator 3: [Fly Ash: -0.129, Coarse Agg.: +0.988]
+    → Increase Coarse Agg. while decreasing Fly Ash
+      to maintain the same compressive strength
+
+  Generator 4: [Slag: +0.141, Fly Ash: -0.619, Water: +0.073, Superplast.: -0.290, Coarse Agg.: -0.057, Fine Agg.: +0.709]
+    → Increase Fine Agg., Slag while decreasing Fly Ash, Superplast.
+      to maintain the same compressive strength
+
+  Generator 5: [Cement: +0.731, Slag: -0.581, Fly Ash: -0.289, Superplast.: -0.108, Coarse Agg.: -0.052, Fine Agg.: -0.157, Age: -0.060]
+    → Increase Cement while decreasing Slag, Fly Ash
+      to maintain the same compressive strength
+
+
+============================================================
+Creating visualizations
+============================================================
+Figure saved to output_concrete_symmetry/concrete_symmetry_discovery.png
+
+============================================================
+COMPLETE
+============================================================
+  Symmetry: translational
+  Generators: 5
+  These generators show mix substitutions (e.g., replace cement
+  with slag) that preserve the same compressive strength.
+

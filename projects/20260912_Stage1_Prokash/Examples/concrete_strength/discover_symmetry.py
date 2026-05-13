@@ -62,7 +62,7 @@ try:
     from preprocessing.normalize import normalize_data
     from intrinsic_coordinate.discovery import discover_latent_dimension
     from symmetry_discovery.identification import identify_symmetry
-    from symmetry_discovery.generators import extract_generators, generator_orbit
+    from symmetry_discovery.generators import extract_generators
 except ImportError as e:
     print(f"ERROR: Could not import Stage1 modules: {e}")
     print(f"Copy preprocessing/, intrinsic_coordinate/, symmetry_discovery/ from")
@@ -284,27 +284,23 @@ def _interpret_translational_generator(g, idx):
 # ──────────────────────────────────────────────────────────────────────────────
 
 def plot_results(X, y, results, output_dir):
-    """Create a 3-panel figure: learned z vs strength, symmetry losses, generator orbits."""
+    """Create a 2-panel figure: learned z vs strength and symmetry losses."""
     os.makedirs(output_dir, exist_ok=True)
-    generators = results["generators"]
-    winner_type = results["winner_type"]
     norm = results["normalization"]
     sym_res = results["symmetry"]
     W = results["W"]
 
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5.5))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5.5))
     fig.suptitle("Concrete Compressive Strength — Symmetry Discovery",
                  fontsize=15, fontweight="bold")
 
     # --- Panel 1: Learned latent variable z vs strength ---
     ax = axes[0]
     X_norm = norm["X_normalized"]
-    # Compute z = W·x for each sample
     z = X_norm @ W.T  # (n_samples, n_latent)
     if z.shape[1] == 1:
         z = z.ravel()
         ax.scatter(z, y, c="#4C72B0", s=12, alpha=0.5, edgecolors="none")
-        # Fit line
         coeffs = np.polyfit(z, y, 2)
         z_fit = np.linspace(z.min(), z.max(), 200)
         ax.plot(z_fit, np.polyval(coeffs, z_fit), "r-", lw=2, label="quadratic fit")
@@ -332,58 +328,6 @@ def plot_results(X, y, results, output_dir):
     for bar, loss in zip(bars, losses):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
                 f"{loss:.4f}", ha="center", va="bottom", fontsize=9)
-
-    # --- Panel 3: Generator orbits ---
-    ax = axes[2]
-    if generators and winner_type == "translational":
-        g = generators[0]
-        abs_g = np.abs(g)
-        top2 = np.argsort(abs_g)[-2:][::-1]
-        d0, d1 = top2[0], top2[1]
-
-        sc = ax.scatter(X[:, d0], X[:, d1], c=y, cmap="viridis", s=12, alpha=0.5,
-                        edgecolors="none")
-        fig.colorbar(sc, ax=ax, label="Strength (MPa)", fraction=0.046, pad=0.04)
-
-        # Trace orbits from different starting points
-        orbit_colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3"]
-        rng = np.random.default_rng(42)
-        start_indices = rng.choice(len(X), min(4, len(X)), replace=False)
-
-        for k, idx in enumerate(start_indices):
-            x_start = norm["X_normalized"][idx]
-            n_steps = 100
-            eps = 0.03
-            fwd = generator_orbit(x_start, g, n_steps, eps, winner_type)
-            back = generator_orbit(x_start, g, n_steps, -eps, winner_type)
-            orb = np.vstack([back[::-1], fwd[1:]])
-            orb_orig = norm["scaler_X"].inverse_transform(orb)
-
-            ax.plot(orb_orig[:, d0], orb_orig[:, d1],
-                    color=orbit_colors[k % len(orbit_colors)], lw=2, alpha=0.8,
-                    label=f"orbit {k+1}" if k < 3 else None)
-
-        ax.set_xlabel(f"{VARIABLE_NAMES[d0]} ({VARIABLE_UNITS[d0]})", fontsize=11)
-        ax.set_ylabel(f"{VARIABLE_NAMES[d1]} ({VARIABLE_UNITS[d1]})", fontsize=11)
-        ax.set_title("Generator Orbits (constant-strength lines)", fontsize=12)
-        ax.legend(fontsize=8, loc="best")
-
-    elif generators and winner_type == "scaling":
-        g = generators[0]
-        abs_g = np.abs(g)
-        top2 = np.argsort(abs_g)[-2:][::-1]
-        d0, d1 = top2[0], top2[1]
-
-        sc = ax.scatter(np.log10(X[:, d0] + 1e-12), np.log10(X[:, d1] + 1e-12),
-                        c=y, cmap="viridis", s=12, alpha=0.5, edgecolors="none")
-        fig.colorbar(sc, ax=ax, label="Strength (MPa)", fraction=0.046, pad=0.04)
-        ax.set_xlabel(f"log₁₀({VARIABLE_NAMES[d0]})", fontsize=11)
-        ax.set_ylabel(f"log₁₀({VARIABLE_NAMES[d1]})", fontsize=11)
-        ax.set_title("Generator Orbits (log-space)", fontsize=12)
-    else:
-        ax.text(0.5, 0.5, f"No orbits for {winner_type}",
-                ha="center", va="center", transform=ax.transAxes, fontsize=12)
-        ax.set_title("Generator Orbits")
 
     plt.tight_layout(rect=[0, 0, 1, 0.93])
     plot_path = os.path.join(output_dir, "concrete_symmetry_discovery.png")
