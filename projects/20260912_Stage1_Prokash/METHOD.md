@@ -54,6 +54,23 @@ dimensionless candidates `Π` are normalised by the same procedure and
 either (i) injected alongside the raw augmentation, or (ii) used as the
 sole encoder input in **Π-only mode** (Sec. 4.4).
 
+The Π *basis* — the integer exponents `α_{ij}` such that
+`Π_j = ∏_i x_i^{α_{ij}}` — is obtained from
+`pydimension.data_preprocessing.DataPreprocessor.process_with_dimensional_analysis()`
+in the keyhole, LPBF-porosity, and porous-media-LBM examples, with an
+inline `scipy.linalg.null_space` + SymPy integer-simplification fallback
+used only when the repository pipeline cannot be loaded. The per-sample
+numerical values of the Π features are then evaluated in-script as
+`Π_j(x) = ∏_i x_i^{α_{ij}}` (or, where the physics dictates a specific
+parametrisation, as the dedicated combination such as
+`log_{10} Re` and `φ` for the porous-media case). The LHC dijet example
+does *not* use `DataPreprocessor` for its Π candidates: the
+dimensionless quantities of interest (`cos Δφ`, signed `p_T` ratios,
+opening angles) are not power-law products of the raw momentum
+components and are constructed inline. The concrete-strength example
+does not use Π features at all, since its additive ansatz operates
+directly on the raw mass densities.
+
 ---
 
 ## 3. Intrinsic-coordinate discovery (Step 2)
