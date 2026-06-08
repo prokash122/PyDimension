@@ -350,8 +350,8 @@ def main():
     parser.add_argument("--sym-epochs", type=int, default=1500)
     parser.add_argument("--n-restarts", type=int, default=3)
     parser.add_argument("--output-dir", default="output_concrete_symmetry")
-    parser.add_argument("--encoder-hidden", type=int, nargs="+", default=None,
-                        help="Hidden layer widths for multi-layer encoder (e.g. --encoder-hidden 64 32)")
+    parser.add_argument("--encoder-hidden", type=int, nargs="+", default=[64, 32],
+                        help="Hidden layer widths for multi-layer encoder (default: 64 32)")
     args = parser.parse_args()
 
     X, y = load_data(args)
