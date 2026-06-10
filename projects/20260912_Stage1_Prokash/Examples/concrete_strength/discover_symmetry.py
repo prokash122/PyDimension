@@ -167,9 +167,13 @@ def run_pipeline(X, y, args):
     print("Step 2: Discovering intrinsic latent dimension")
     print("=" * 60)
     sys.stdout.flush()
-    enc_kwargs = {}
+    enc_kwargs = {"raw_input": True}
     if getattr(args, "encoder_hidden", None):
         enc_kwargs["encoder_hidden_dims"] = args.encoder_hidden
+
+    print(f"  Multi-layer encoder hidden dims: {args.encoder_hidden}")
+    print(f"  Feature augmentation: DISABLED (raw_input=True); "
+          f"encoder consumes the {X_norm.shape[1]} standardised inputs directly")
 
     res_latent = discover_latent_dimension(
         X_norm, y_norm, max_latent=4,

@@ -7,14 +7,16 @@ Concrete Compressive Strength dataset (Yeh, 1998; 1030 samples, 8 mix-design
 inputs) to test whether the governing functional form is consistent with an
 **additive (translational)** symmetry. A multilayer perceptron (MLP) encoder
 with hidden widths `[64, 32]` is trained jointly with a paired decoder. The
-intrinsic latent dimension is identified via held-out reconstruction
-performance, and the symmetry type is determined by a competitive
-encoder-training step over translational, rotational, and scaling
-candidates. The translational candidate is selected with a 3.7&times;
-validation-MSE gap over the next-best (scaling) candidate, and five
-independent Lie-algebra generators are extracted. Each generator
-corresponds to a physically interpretable **mix substitution** that
-preserves compressive strength.
+encoder consumes the eight standardised mix-design inputs **directly**
+(`raw_input=True`, no `[X, X², log|X|]` augmentation); the MLP is expected
+to compose any non-linearity it needs internally. The intrinsic latent
+dimension is identified via held-out reconstruction performance, and the
+symmetry type is determined by a competitive encoder-training step over
+translational, rotational, and scaling candidates. The translational
+candidate is selected with a **3.3&times;** validation-MSE gap over the
+next-best (scaling) candidate, and **six** independent Lie-algebra
+generators are extracted. Each generator corresponds to a physically
+interpretable **mix substitution** that preserves compressive strength.
 
 ## 1. Problem Statement
 
@@ -56,10 +58,12 @@ The pipeline implements five sequential stages:
    eight inputs and of the output.
 2. **Intrinsic-dimension discovery.** A latent-bottleneck autoencoder is
    trained for `k ∈ {1, 2, 3, 4}`. The encoder is a multilayer perceptron
-   with hidden widths `[64, 32]` and `Tanh` activations; the decoder is a
-   paired MLP of matching capacity. Each `k` is repeated over `n_restarts = 3`
-   random seeds and 600 epochs, and the latent dimension minimizing the
-   held-out reconstruction MSE is selected.
+   with hidden widths `[64, 32]` and `Tanh` activations operating on the
+   raw standardised inputs (`raw_input=True`, no `[X, X², log|X|]`
+   augmentation); the decoder is a paired MLP of matching capacity. Each
+   `k` is repeated over `n_restarts = 3` random seeds and 600 epochs, and
+   the latent dimension minimising the held-out reconstruction MSE is
+   selected.
 3. **Symmetry-type identification.** Three competing encoder families are
    trained against the Step&nbsp;2 decoder:
    - **Translational:** `z = W x`,
@@ -82,16 +86,16 @@ captured in `output_concrete_symmetry/run.log`.
 
 ### 4.1 Latent dimension
 
-The intrinsic latent dimension is `k = 3`. The held-out coefficient of
-determination is `R² = 0.892` at `k = 3`, with a near-degenerate plateau
-between `k = 1` and `k = 3`:
+The intrinsic latent dimension is `k = 2`. The held-out coefficient of
+determination peaks at `R² = 0.892` for `k = 2` and degrades slightly
+for both lower and higher `k`:
 
 | `k` | `R²_train` | `R²_test` | MSE |
 |---|---|---|---|
-| 1 | 0.970 | 0.892 | 0.0999 |
-| 2 | 0.970 | 0.862 | 0.1280 |
-| 3 | 0.973 | **0.892** | **0.0996** |
-| 4 | 0.972 | 0.881 | 0.1104 |
+| 1 | 0.952 | 0.879 | 0.1123 |
+| 2 | 0.953 | **0.892** | **0.0999** |
+| 3 | 0.959 | 0.885 | 0.1066 |
+| 4 | 0.957 | 0.875 | 0.1157 |
 
 ### 4.2 Symmetry type
 
@@ -99,27 +103,28 @@ Competitive training cleanly selects the translational candidate:
 
 | Symmetry candidate | Held-out MSE |
 |---|---|
-| **translational** | **0.1223** |
-| scaling | 0.4496 |
-| rotational | 0.5789 |
+| **translational** | **0.1514** |
+| scaling | 0.4993 |
+| rotational | 0.6206 |
 
 The translational candidate beats the second-best (scaling) candidate by a
-factor of **3.7&times;** in validation MSE, confirming that the governing
+factor of **3.3&times;** in validation MSE, confirming that the governing
 combination of inputs is additive rather than multiplicative.
 
 ### 4.3 Generators
 
-With `n = 8` inputs and `k = 3` latent directions, there are
-`n − k = 5` independent translational generators. The dominant components
+With `n = 8` inputs and `k = 2` latent directions, there are
+`n − k = 6` independent translational generators. The dominant components
 of each are listed below (only `|g_j| > 0.05` shown):
 
 | Generator | Dominant components | Physical reading |
 |---|---|---|
-| `g₁` | Water (+0.98), Fly Ash (+0.16), Slag (+0.09), Cement (+0.09) | Uniform water rescaling at fixed binder share |
-| `g₂` | Superplast. (+0.70), Fly Ash (−0.60), Fine Agg. (−0.30), Slag (+0.23) | Replace fly ash + fine aggregate with superplasticizer + slag |
-| `g₃` | Coarse Agg. (+0.99), Fly Ash (−0.13) | Replace fly ash with coarse aggregate |
-| `g₄` | Fine Agg. (+0.71), Fly Ash (−0.62), Superplast. (−0.29), Slag (+0.14) | Replace fly ash + superplasticizer with fine aggregate + slag |
-| `g₅` | Cement (+0.73), Slag (−0.58), Fly Ash (−0.29), Fine Agg. (−0.16) | Replace slag + fly ash with cement |
+| `g₁` | Fly Ash (+0.99), Cement (−0.08), Age (−0.06), Slag (−0.06) | Replace cement with fly ash at fixed strength |
+| `g₂` | Water (+0.85), Slag (+0.48), Superplast. (+0.18), Age (−0.08) | Co-vary water and slag while reducing age |
+| `g₃` | Superplast. (+0.80), Slag (−0.55), Water (+0.18), Cement (−0.07) | Replace slag/cement with superplasticizer + water |
+| `g₄` | Coarse Agg. (+0.96), Slag (+0.22), Age (−0.10), Water (−0.08) | Replace water/age with coarse aggregate + slag |
+| `g₅` | Fine Agg. (+0.93), Slag (+0.31), Superplast. (+0.13), Age (−0.12) | Replace water/age with fine aggregate + slag |
+| `g₆` | Cement (−0.79), Slag (+0.39), Superplast. (+0.27), Water (−0.24) | Replace cement + water with slag + superplasticizer |
 
 Each generator is a constant-strength direction in mix-design space:
 moving the composition along `g_i` (within physical limits) leaves the
@@ -151,12 +156,15 @@ Download the UCI Concrete Compressive Strength dataset
 ```bash
 python discover_symmetry.py \
     --data Concrete_Data.xls \
-    --encoder-hidden 64 32 \
     --seed 42 \
     --latent-epochs 600 \
     --sym-epochs 1500 \
     --n-restarts 3
 ```
+
+The script defaults to `--encoder-hidden 64 32` and `raw_input=True`
+(no `[X, X², log|X|]` augmentation at Step 2), so no extra flags are
+required.
 
 Output is written to `output_concrete_symmetry/`:
 
@@ -174,12 +182,14 @@ domain understanding that compressive strength is governed by
 *water-to-binder ratio* and *total binder mass*, both of which are linear
 combinations of the mix components. The multilayer encoder lifts the
 restrictive single-direction assumption of a linear encoder and resolves
-a three-dimensional latent manifold, while still preserving the
-translational character of the symmetry. The five extracted generators
-provide an interpretable, data-driven catalogue of strength-preserving
-mix substitutions that can guide constrained mix-design optimization
-(e.g. supplementary cementitious material substitution at fixed target
-strength).
+a two-dimensional latent manifold, while still preserving the
+translational character of the symmetry. Disabling the
+`[X, X², log|X|]` augmentation (`raw_input=True`) lets the MLP discover
+the correct nonlinear combinations on its own; the resulting six
+generators provide an interpretable, data-driven catalogue of
+strength-preserving mix substitutions that can guide constrained
+mix-design optimisation (e.g. supplementary cementitious material
+substitution at fixed target strength).
 
 ## 7. References
 
