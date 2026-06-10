@@ -1,0 +1,148 @@
+Loading keyhole data from dataset_keyhole.csv...
+  Loaded: ['etaP', 'Vs', 'r0', 'alpha', 'rho', 'cp', 'Tl-T0'] -> e*
+  Samples: 90
+  Ke range: [1.543, 37.74]
+  e* range: [0.2087, 12.7727]
+
+============================================================
+Step 0: Dimensional analysis (Buckingham-Pi reduction)
+============================================================
+  Dimension matrix shape: (4, 7)  (rows = ['Mass', 'Length', 'Time', 'Temperature'], cols = ['etaP', 'Vs', 'r0', 'alpha', 'rho', 'cp', 'Tl-T0'])
+  Rank: 4   Expected Pi groups: 3
+  Using pydimension.data_preprocessing.DataPreprocessor (CSV: dataset_keyhole.csv)
+=== Data Preprocessing ===
+✅ Loaded data from: dataset_keyhole.csv
+   Shape: (90, 15)
+   Columns: ['case', 'source', 'etaP', 'Vs', 'r0', 'alpha', 'rho', 'cp', 'Tv-T0', 'Lv', 'Tl-T0', 'Lm', 'e', 'Ke', 'e*']
+✅ Detected variables:
+   Input variables (7): ['etaP', 'Vs', 'r0', 'alpha', 'rho', 'cp', 'Tl-T0']
+   Output variables (1): ['e*']
+   e*: not in matrix, assuming dimensionless
+✅ Loaded dimension matrix from file
+✅ Normalized data
+   Shape: (90, 8)
+   Value range: [0.0163, 1.0000]
+
+=== Preprocessing Complete ===
+=== Dimensional Analysis ===
+   Input variables: ['etaP', 'Vs', 'r0', 'alpha', 'rho', 'cp', 'Tl-T0']
+   Output variable: e*
+   Active dimensions: ['Mass', 'Length', 'Time', 'Temperature']
+   Matrix shape: (4, 7)
+   Matrix rank: 4
+   Variables: 7
+   Expected null space dimension: 3
+
+=== Finding Null Space ===
+Dimension matrix shape: (4, 7)
+Null space shape: (7, 3)
+
+=== Simplifying Basis Vectors ===
+Simplified basis vectors shape: (7, 3)
+
+=== Created Dimensionless Variables ===
+Number of dimensionless groups: 3
+  π1 = Vs × r0 × alpha^(-1)
+  π2 = etaP × Vs^-3 × r0^-2 × rho^(-1)
+  π3 = Vs^2 × cp^(-1) × Tl-T0^(-1)
+
+=== Dimensional Analysis Complete ===
+  Basis vectors shape (repo): (7, 3)
+    π1 = Vs × r0 × alpha^(-1)
+    π2 = etaP × Vs^-3 × r0^-2 × rho^(-1)
+    π3 = Vs^2 × cp^(-1) × Tl-T0^(-1)
+  Known Ke exponents projected onto null-space basis: cos = +1.0000  (±1 means Ke lies in the Pi-group span)
+  Reduced candidates (pi_features) shape: (90, 3)  range: [0.000, 1.000]
+
+============================================================
+Step 1: Normalizing data
+============================================================
+  --pi-only: Step 2 input = 3 dimensionless features; Step 3 input = raw physical X (7 variables)
+  X_raw range: [0.000, 1.000]
+  X_pi  range: [0.000, 1.000]
+
+============================================================
+Step 2: Discovering intrinsic latent dimension
+============================================================
+  --pi-only: Step 2 encoder input = 3 dimensionless features (no [X, X², log|X|] augmentation)
+  Multilayer encoder hidden dims: [64, 32]
+  Multi-layer encoder: [64, 32]
+  raw_input=True: [X, X², log|X|] augmentation is disabled
+
+  Optimal latent dimension: 1
+    k=1: R2_train=0.9821, R2_test=0.9820, MSE=0.001108
+    k=2: R2_train=0.9853, R2_test=0.9795, MSE=0.001263
+    k=3: R2_train=0.9840, R2_test=0.9797, MSE=0.001247
+    k=4: R2_train=0.9840, R2_test=0.9794, MSE=0.001270
+
+============================================================
+Step 3: Identifying symmetry type
+============================================================
+  Running Step 3 on raw physical X (7 variables) so the translational/rotational/scaling encoders see
+  multiplicatively-meaningful quantities (avoids the log-of-log degeneracy of feeding pre-log-scaled Pi groups).
+
+  Detected symmetry: scaling
+    scaling        : 0.000982 <--
+    translational  : 0.006229
+    rotational     : 0.015462
+  Loss gap: 6.3x
+
+============================================================
+Step 4: Extracting Lie-algebra generators
+============================================================
+  Symmetry type: scaling
+  Generators: 6
+
+============================================================
+Step 5: Physical interpretation of generators
+============================================================
+  Each generator is a direction in log-space along which Ke is preserved.
+  Physically: simultaneous rescaling of variables that keeps the physics invariant.
+
+  Generator 1:
+    etaP x exp(+0.142*eps), Vs x exp(+0.986*eps), alpha x exp(+0.063*eps)
+    Meaning: increase Vs while increase etaP, increase alpha
+             to keep Ke (and e*) unchanged
+
+  Generator 2:
+    etaP x exp(+0.201*eps), r0 x exp(+0.972*eps), alpha x exp(+0.089*eps), rho x exp(+0.066*eps)
+    Meaning: increase r0 while increase etaP, increase alpha, increase rho
+             to keep Ke (and e*) unchanged
+
+  Generator 3:
+    etaP x exp(-0.628*eps), Vs x exp(+0.063*eps), r0 x exp(+0.089*eps), alpha x exp(+0.723*eps), rho x exp(-0.205*eps), cp x exp(+0.141*eps), Tl-T0 x exp(+0.096*eps)
+    Meaning: increase alpha while decrease etaP, increase Vs, increase r0, decrease rho, increase cp, increase Tl-T0
+             to keep Ke (and e*) unchanged
+
+  Generator 4:
+    etaP x exp(-0.464*eps), r0 x exp(+0.066*eps), alpha x exp(-0.205*eps), rho x exp(+0.849*eps), cp x exp(+0.104*eps), Tl-T0 x exp(+0.071*eps)
+    Meaning: increase rho while decrease etaP, increase r0, decrease alpha, increase cp, increase Tl-T0
+             to keep Ke (and e*) unchanged
+
+  Generator 5:
+    etaP x exp(+0.319*eps), alpha x exp(+0.141*eps), rho x exp(+0.104*eps), cp x exp(+0.928*eps)
+    Meaning: increase cp while increase etaP, increase alpha, increase rho
+             to keep Ke (and e*) unchanged
+
+  Generator 6:
+    etaP x exp(+0.218*eps), alpha x exp(+0.096*eps), rho x exp(+0.071*eps), Tl-T0 x exp(+0.967*eps)
+    Meaning: increase Tl-T0 while increase etaP, increase alpha, increase rho
+             to keep Ke (and e*) unchanged
+
+
+============================================================
+Creating visualizations
+============================================================
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/keyhole_symmetry/discover_symmetry.py:608: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  plt.tight_layout(rect=[0, 0, 1, 0.93])
+Pi candidates figure saved to output_keyhole_symmetry/keyhole_pi_candidates.png
+Figure saved to output_keyhole_symmetry/keyhole_symmetry_discovery.png
+
+============================================================
+COMPLETE
+============================================================
+  Symmetry: scaling
+  Generators: 6
+  These generators show how physical variables can be
+  simultaneously rescaled while preserving Ke and e*.
+

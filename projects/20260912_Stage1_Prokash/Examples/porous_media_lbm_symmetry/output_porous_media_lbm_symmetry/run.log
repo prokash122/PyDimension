@@ -1,4 +1,3 @@
-⚠️ scikit-learn not available. Some features may not work.
 Loading LBM porous media data from dataset_lbm_porous.csv...
   Loaded 144 converged LBM runs
   Variables: ['dP_L', 'v', 'mu', 'rho', 'd', 'phi']
@@ -84,8 +83,8 @@ Step 2: Discovering intrinsic latent dimension
   raw_input=True: [X, X², log|X|] augmentation is disabled
 
   Optimal latent dimension: 1
-    k=1: R2_train=0.9978, R2_test=0.9975, MSE=0.000096
-    k=2: R2_train=0.9980, R2_test=0.9977, MSE=0.000085
+    k=1: R2_train=0.9983, R2_test=0.9981, MSE=0.000074
+    k=2: R2_train=0.9984, R2_test=0.9982, MSE=0.000069
 
 ============================================================
 Step 3: Identifying symmetry type
@@ -93,10 +92,10 @@ Step 3: Identifying symmetry type
   Step 3 input: raw physical X (6 variables)
 
   Detected symmetry: scaling
-    scaling        : 0.000924 <--
-    translational  : 0.004599
-    rotational     : 0.006139
-  Loss gap: 5.0x
+    scaling        : 0.000543 <--
+    translational  : 0.002638
+    rotational     : 0.004735
+  Loss gap: 4.9x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
@@ -109,10 +108,10 @@ Step 4: Extracting Lie-algebra generators
 ============================================================
   Row 1 (scaling):
        dP_L        v       mu      rho        d      phi
-  raw :    -0.0289  -0.2108  +0.0526  -0.1051  -0.1635  -0.5441
-  L2-n:    -0.0467  -0.3411  +0.0851  -0.1701  -0.2646  -0.8805
-  cos<row, known Re_p exponents> = -0.4304
-  cos<row, known f    exponents> = +0.2045
+  raw :    -0.0453  +0.2113  -0.0894  +0.0210  +0.0405  +0.3492
+  L2-n:    -0.1071  +0.4998  -0.2114  +0.0497  +0.0959  +0.8260
+  cos<row, known Re_p exponents> = +0.4285
+  cos<row, known f    exponents> = -0.4009
 
 ============================================================
 Step 5: Physical interpretation of generators
@@ -123,28 +122,26 @@ Step 5: Physical interpretation of generators
   invariant (Darcy/Forchheimer regime preserved).
 
   Generator 1:
-    dP_L x exp(-0.341*eps), v x exp(+0.889*eps), rho x exp(-0.055*eps), d x exp(-0.086*eps), phi x exp(-0.287*eps)
-    Meaning: increase v while decrease dP_L, decrease rho, decrease d, decrease phi
+    dP_L x exp(+0.500*eps), v x exp(+0.774*eps), mu x exp(+0.095*eps), phi x exp(-0.373*eps)
+    Meaning: increase v while increase dP_L, increase mu, decrease phi
              to keep friction factor f invariant
 
   Generator 2:
-    dP_L x exp(+0.085*eps), mu x exp(+0.993*eps), phi x exp(+0.072*eps)
-    Meaning: increase mu while increase dP_L, increase phi
+    dP_L x exp(-0.211*eps), v x exp(+0.095*eps), mu x exp(+0.960*eps), phi x exp(+0.158*eps)
+    Meaning: increase mu while decrease dP_L, increase v, increase phi
              to keep friction factor f invariant
 
   Generator 3:
-    dP_L x exp(-0.170*eps), v x exp(-0.055*eps), rho x exp(+0.972*eps), phi x exp(-0.143*eps)
-    Meaning: increase rho while decrease dP_L, decrease v, decrease phi
-             to keep friction factor f invariant
+    rho x exp(+0.998*eps)
 
   Generator 4:
-    dP_L x exp(-0.265*eps), v x exp(-0.086*eps), d x exp(+0.933*eps), phi x exp(-0.223*eps)
-    Meaning: increase d while decrease dP_L, decrease v, decrease phi
+    dP_L x exp(+0.096*eps), d x exp(+0.992*eps), phi x exp(-0.072*eps)
+    Meaning: increase d while increase dP_L, decrease phi
              to keep friction factor f invariant
 
   Generator 5:
-    dP_L x exp(-0.881*eps), v x exp(-0.287*eps), mu x exp(+0.072*eps), rho x exp(-0.143*eps), d x exp(-0.223*eps), phi x exp(+0.259*eps)
-    Meaning: decrease dP_L while decrease v, increase mu, decrease rho, decrease d, increase phi
+    dP_L x exp(+0.826*eps), v x exp(-0.373*eps), mu x exp(+0.158*eps), d x exp(-0.072*eps), phi x exp(+0.384*eps)
+    Meaning: increase dP_L while decrease v, increase mu, decrease d, increase phi
              to keep friction factor f invariant
 
 

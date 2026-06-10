@@ -141,9 +141,9 @@ different input transform before the shared decoder from Step 2:
 **Actual results:**
 
 ```
-scaling        : 0.000981  ← winner
-translational  : 0.006193
-rotational     : 0.016732
+scaling        : 0.000982  ← winner
+translational  : 0.006229
+rotational     : 0.015462
 Loss gap: 6.3×
 ```
 
@@ -175,16 +175,16 @@ Each generator `g` is a 7-vector: simultaneously rescaling variable `i` by
 
 | Generator | Trade-off | Physical meaning |
 |---|---|---|
-| 1 | increase `Vs`, increase `etaP`, decrease `r0` | Faster scan + more power + smaller beam — preserves the energy density balance |
-| 2 | increase `r0`, increase `etaP`, decrease `Vs`, decrease `Tl-T0` | Larger beam + more power + slower scan + lower superheat |
-| 3 | increase `alpha`, decrease `etaP` | Higher thermal diffusivity drains heat faster; less laser power needed |
-| 4 | increase `rho`, decrease `etaP` | Higher-density metal absorbs more energy; less laser power needed |
-| 5 | `cp` is free (≈ 0 encoder weight) | `cp` does not vary independently across the dataset |
-| 6 | increase `Tl-T0`, increase `etaP`, decrease `r0` | Higher superheat requires more focused power |
+| 1 | increase `Vs` (+0.99), increase `etaP` (+0.14) | Faster scan + slightly more power preserves the energy-density balance |
+| 2 | increase `r0` (+0.97), increase `etaP` (+0.20) | Larger beam radius compensated by more laser power |
+| 3 | increase `alpha` (+0.72), decrease `etaP` (−0.63) | Higher thermal diffusivity drains heat faster; less laser power needed |
+| 4 | increase `rho` (+0.85), decrease `etaP` (−0.46) | Higher-density metal absorbs more energy; less laser power needed |
+| 5 | increase `cp` (+0.93), increase `etaP` (+0.32) | Higher specific heat compensated by more laser power |
+| 6 | increase `Tl-T0` (+0.97), increase `etaP` (+0.22) | Higher superheat absorbed by more laser power |
 
-Generator 5 (`cp` free) is the pipeline's honest statement: specific heat
-capacity does not vary independently in this dataset, so its exponent cannot
-be resolved from data alone.
+With seven variables and `k* = 1`, the six generators span the entire
+six-dimensional null space of `W`: any combination of these directions
+keeps the keyhole eccentricity unchanged.
 
 ---
 
@@ -234,8 +234,8 @@ Default training budget: `--latent-epochs 600`, `--sym-epochs 1500`,
 | Test R² | **0.9820** (train and test nearly identical — no overfitting) |
 | Symmetry type | **Scaling** — 6.3× loss gap over translational |
 | Generators | 6 directions (7 variables − 1 latent dimension) |
-| Constrained generators | etaP-Vs, etaP-r0, alpha-etaP, rho-etaP, Tl-T0-etaP |
-| Free generator | cp (no independent variation in dataset) |
+| Constrained generators | etaP-Vs, etaP-r0, alpha-etaP, rho-etaP, cp-etaP, Tl-T0-etaP |
+| Free generators | none (six generators span the full 6-D null space) |
 
 ---
 

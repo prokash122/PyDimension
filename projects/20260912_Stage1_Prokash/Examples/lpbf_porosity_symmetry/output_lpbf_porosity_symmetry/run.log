@@ -1,4 +1,3 @@
-  ⚠️ Could not import pydimension.data_preprocessing (No module named 'seaborn'); falling back to inline DA implementation.
 Loading LPBF porosity data from dataset_lpbf.csv...
   Loaded: ['P', 'V', 'A', 'rho', 'k', 'Lv', 'dT', 'gamma (from source)', 'Tb (from source)'] -> Pore
   Unique materials: ['Al2024', 'Al6061', 'Cu', 'SS304', 'Ti64']
@@ -12,13 +11,52 @@ Step 0: Dimensional analysis (Buckingham-Pi reduction)
 ============================================================
   Dimension matrix shape: (4, 9)  (rows = ['Mass', 'Length', 'Time', 'Temperature'], cols = ['P', 'V', 'A', 'rho', 'k', 'Lv', 'dT', 'gamma', 'Tb'])
   Rank: 4   Expected Pi groups: 5
-  Falling back to inline DA (pydimension not importable)
-  Basis vectors shape: (9, 5)
-    Pi1 = A
-    Pi2 = V^2 · Lv^-1
-    Pi3 = P · V^3 · rho · k^-2 · dT^-2
-    Pi4 = P · V · rho · gamma^-2
-    Pi5 = P · V^3 · rho · k^-2 · Tb^-2
+  Using pydimension.data_preprocessing.DataPreprocessor (enriched CSV: output_lpbf_porosity_symmetry/_da_repo/dataset_lpbf_enriched.csv)
+=== Data Preprocessing ===
+✅ Loaded data from: output_lpbf_porosity_symmetry/_da_repo/dataset_lpbf_enriched.csv
+   Shape: (232, 13)
+   Columns: ['case', 'source', 'P', 'V', 'A', 'rho', 'k', 'Lv', 'dT', 'Pi', 'Pore', 'gamma', 'Tb']
+✅ Detected variables:
+   Input variables (9): ['P', 'V', 'A', 'rho', 'k', 'Lv', 'dT', 'gamma', 'Tb']
+   Output variables (1): ['Pore']
+   Pore: not in matrix, assuming dimensionless
+✅ Loaded dimension matrix from file
+✅ Normalized data
+   Shape: (232, 10)
+   Value range: [0.0000, 1.0000]
+
+=== Preprocessing Complete ===
+=== Dimensional Analysis ===
+   Input variables: ['P', 'V', 'A', 'rho', 'k', 'Lv', 'dT', 'gamma', 'Tb']
+   Output variable: Pore
+   Active dimensions: ['Mass', 'Length', 'Time', 'Temperature']
+   Matrix shape: (4, 9)
+   Matrix rank: 4
+   Variables: 9
+   Expected null space dimension: 5
+
+=== Finding Null Space ===
+Dimension matrix shape: (4, 9)
+Null space shape: (9, 5)
+
+=== Simplifying Basis Vectors ===
+Simplified basis vectors shape: (9, 5)
+
+=== Created Dimensionless Variables ===
+Number of dimensionless groups: 5
+  π1 = A
+  π2 = V^2 × Lv^(-1)
+  π3 = P × V^3 × rho × k^-2 × dT^-2
+  π4 = P × V × rho × gamma^-2
+  π5 = P × V^3 × rho × k^-2 × Tb^-2
+
+=== Dimensional Analysis Complete ===
+  Basis vectors shape (repo): (9, 5)
+    π1 = A
+    π2 = V^2 × Lv^(-1)
+    π3 = P × V^3 × rho × k^-2 × dT^-2
+    π4 = P × V × rho × gamma^-2
+    π5 = P × V^3 × rho × k^-2 × Tb^-2
   Known Pi exponents projected onto null-space basis: cos = +1.0000  (±1 means the notebook Pi lies in the Pi-group span)
   Reduced candidates (pi_features) shape: (232, 6)  range: [0.000, 1.000]
   Feature list: ['Pi1 (DA)', 'Pi2 (DA)', 'Pi3 (DA)', 'Pi4 (DA)', 'Pi5 (DA)', 'log10(P_recoil/P_Laplace)']
@@ -51,10 +89,10 @@ Step 3: Identifying symmetry type
   multiplicatively-meaningful quantities (avoids the log-of-log degeneracy of feeding pre-log-scaled Pi groups).
 
   Detected symmetry: scaling
-    scaling        : 0.013958 <--
-    translational  : 0.029352
-    rotational     : 0.037601
-  Loss gap: 2.1x
+    scaling        : 0.016656 <--
+    translational  : 0.022629
+    rotational     : 0.029275
+  Loss gap: 1.4x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
@@ -67,14 +105,14 @@ Step 4: Extracting Lie-algebra generators
 ============================================================
   Row 1 (scaling):
           P        V        A      rho        k       Lv       dT    gamma       Tb
-  raw :    -0.1305  +0.4854  +0.0077  -0.0927  +0.1643  +0.0081  +0.1178  -0.4414  -0.1527
-  L2-n:    -0.1809  +0.6728  +0.0106  -0.1285  +0.2278  +0.0113  +0.1633  -0.6119  -0.2117
-  cos<row, known-Pi-exponents> = -0.1101  (±1 means perfect alignment)
+  raw :    +0.1374  -0.1193  +0.1573  -0.0796  +0.0061  -0.2453  -0.0738  -0.1210  +0.1151
+  L2-n:    +0.3460  -0.3004  +0.3960  -0.2003  +0.0153  -0.6177  -0.1858  -0.3047  +0.2897
+  cos<row, known-Pi-exponents> = -0.0098  (±1 means perfect alignment)
   Row 2 (scaling):
           P        V        A      rho        k       Lv       dT    gamma       Tb
-  raw :    +0.5240  +0.1493  +0.0442  -0.0221  -0.0622  +0.0150  -0.2558  -0.0918  +0.2625
-  L2-n:    +0.7845  +0.2236  +0.0662  -0.0330  -0.0931  +0.0225  -0.3830  -0.1374  +0.3930
-  cos<row, known-Pi-exponents> = +0.5591  (±1 means perfect alignment)
+  raw :    -0.4568  -0.2398  -0.2489  +0.3183  -0.1166  +0.0777  +0.3065  +0.1239  -0.2155
+  L2-n:    -0.5873  -0.3083  -0.3201  +0.4093  -0.1500  +0.0999  +0.3941  +0.1593  -0.2771
+  cos<row, known-Pi-exponents> = -0.3314  (±1 means perfect alignment)
 
 ============================================================
 Step 5: Physical interpretation of generators
@@ -84,36 +122,38 @@ Step 5: Physical interpretation of generators
   normalised enthalpy Pi (and therefore the pore fraction) invariant.
 
   Generator 1:
-    P x exp(-0.052*eps), A x exp(+0.997*eps)
-    Meaning: increase A while decrease P
+    P x exp(-0.382*eps), V x exp(+0.116*eps), A x exp(+0.887*eps), rho x exp(+0.052*eps), Lv x exp(+0.185*eps), gamma x exp(+0.089*eps), Tb x exp(-0.082*eps)
+    Meaning: increase A while decrease P, increase V, increase rho, increase Lv, increase gamma, decrease Tb
              to keep Pi (and pore fraction) unchanged
 
   Generator 2:
-    V x exp(+0.139*eps), rho x exp(+0.988*eps), gamma x exp(-0.054*eps)
-    Meaning: increase rho while increase V, decrease gamma
+    P x exp(+0.332*eps), V x exp(+0.215*eps), A x exp(+0.092*eps), rho x exp(+0.901*eps), Lv x exp(-0.060*eps), dT x exp(-0.095*eps), gamma x exp(-0.053*eps), Tb x exp(+0.077*eps)
+    Meaning: increase rho while increase P, increase V, increase A, decrease Lv, decrease dT, decrease gamma, increase Tb
              to keep Pi (and pore fraction) unchanged
 
   Generator 3:
-    P x exp(+0.167*eps), V x exp(-0.167*eps), k x exp(+0.965*eps), gamma x exp(+0.111*eps)
-    Meaning: increase k while increase P, decrease V, increase gamma
+    P x exp(-0.092*eps), V x exp(-0.148*eps), k x exp(+0.982*eps)
+    Meaning: increase k while decrease P, decrease V
              to keep Pi (and pore fraction) unchanged
 
   Generator 4:
-    Lv x exp(+1.000*eps)
+    P x exp(+0.372*eps), V x exp(-0.624*eps), A x exp(+0.119*eps), Lv x exp(+0.658*eps), gamma x exp(-0.126*eps), Tb x exp(+0.070*eps)
+    Meaning: increase Lv while increase P, decrease V, increase A, decrease gamma, increase Tb
+             to keep Pi (and pore fraction) unchanged
 
   Generator 5:
-    P x exp(+0.388*eps), k x exp(-0.064*eps), dT x exp(+0.905*eps), gamma x exp(+0.111*eps), Tb x exp(+0.107*eps)
-    Meaning: increase dT while increase P, decrease k, increase gamma, increase Tb
+    P x exp(+0.316*eps), V x exp(+0.216*eps), A x exp(+0.088*eps), rho x exp(-0.096*eps), Lv x exp(-0.054*eps), dT x exp(+0.908*eps), Tb x exp(+0.073*eps)
+    Meaning: increase dT while increase P, increase V, increase A, decrease rho, decrease Lv, increase Tb
              to keep Pi (and pore fraction) unchanged
 
   Generator 6:
-    P x exp(-0.121*eps), V x exp(+0.650*eps), rho x exp(-0.056*eps), dT x exp(-0.073*eps), gamma x exp(+0.740*eps), Tb x exp(+0.060*eps)
-    Meaning: increase gamma while decrease P, increase V, decrease rho, decrease dT, increase Tb
+    P x exp(+0.245*eps), V x exp(-0.186*eps), A x exp(+0.074*eps), Lv x exp(-0.154*eps), gamma x exp(+0.934*eps), Tb x exp(+0.050*eps)
+    Meaning: increase gamma while increase P, decrease V, increase A, decrease Lv, increase Tb
              to keep Pi (and pore fraction) unchanged
 
   Generator 7:
-    P x exp(-0.415*eps), k x exp(+0.070*eps), dT x exp(+0.095*eps), gamma x exp(-0.133*eps), Tb x exp(+0.892*eps)
-    Meaning: increase Tb while decrease P, increase k, increase dT, decrease gamma
+    P x exp(-0.304*eps), A x exp(-0.089*eps), rho x exp(+0.050*eps), Lv x exp(+0.130*eps), gamma x exp(+0.066*eps), Tb x exp(+0.934*eps)
+    Meaning: increase Tb while decrease P, decrease A, increase rho, increase Lv, increase gamma
              to keep Pi (and pore fraction) unchanged
 
 

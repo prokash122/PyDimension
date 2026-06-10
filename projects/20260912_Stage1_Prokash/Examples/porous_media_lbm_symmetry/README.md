@@ -198,7 +198,7 @@ Step 0 is driven by `pydimension.data_preprocessing.DataPreprocessor`.
 | Known `f` exponents in Pi span | **cos = +1.0000 ✓** |
 | Known `Re_p` exponents in Pi span | **cos = +1.0000 ✓** |
 | Latent dimension `k*` | **1** (R² ≈ 0.997 at k=1) |
-| Symmetry type | **Scaling ✓** (MSE 0.000924) — winner by **5.0× margin** over translational (0.00460) and rotational (0.00614) |
+| Symmetry type | **Scaling ✓** (MSE 0.000543) — winner by **4.9× margin** over translational (0.00264) and rotational (0.00474) |
 | Generators | 5 directions in 6-D log-space — Darcy invariance, length-scale rescaling, fluid-swap, plus the under-constrained ρ direction |
 
 **Stable physics (Step 0):** The Buckingham-Pi reduction is fully
@@ -226,7 +226,7 @@ term `1.75·(1−φ)/φ³` becomes important.
 
 | Seed | Winner | scaling MSE | trans MSE | rot MSE | gap |
 |---|---|---|---|---|---|
-| 42  | **scaling** | **0.000924** | 0.004599 | 0.006139 | 5.0× |
+| 42  | **scaling** | **0.000543** | 0.002638 | 0.004735 | 4.9× |
 | 0   | **scaling** | **0.003283** | 0.009857 | 0.010836 | 3.0× |
 | 1   | **scaling** | **0.003573** | 0.007249 | 0.009900 | 2.0× |
 | 2   | **scaling** | **0.002314** | 0.005995 | 0.012743 | 2.6× |

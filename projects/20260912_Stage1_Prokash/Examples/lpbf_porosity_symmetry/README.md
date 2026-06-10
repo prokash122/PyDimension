@@ -174,14 +174,14 @@ rotational.
 **Actual results:**
 
 ```
-scaling        : 0.013958  ← winner
-translational  : 0.029352
-rotational     : 0.037601
-Loss gap: 2.1×
+scaling        : 0.016656  ← winner
+translational  : 0.022629
+rotational     : 0.029275
+Loss gap: 1.4×
 ```
 
 **Scaling wins**, confirming the power-law dimensional structure of LPBF
-porosity. The 2.1× gap is smaller than in the keyhole example (6.3×) because:
+porosity. The 1.4× gap is smaller than in the keyhole example (6.3×) because:
 - 5 material-property variables take only 5 discrete values (one per alloy),
   limiting how much scaling information the encoder can extract from them.
 - The two-latent-dimension (`k*=2`) structure makes the encoder less
@@ -200,8 +200,8 @@ is invariant.
 
 ```
          P        V        A      rho        k       Lv       dT    gamma       Tb
-Row 1: -0.181  +0.673  +0.011  -0.129  +0.228  +0.011  +0.163  -0.612  -0.212
-Row 2: +0.785  +0.224  +0.066  -0.033  -0.093  +0.023  -0.383  -0.137  +0.393
+Row 1: +0.346  -0.300  +0.396  -0.200  +0.015  -0.618  -0.186  -0.305  +0.290
+Row 2: -0.587  -0.308  -0.320  +0.409  -0.150  +0.100  +0.394  +0.159  -0.277
 ```
 
 With `k* = 2` there are `9 − 2 = 7` null-space generators.
@@ -215,11 +215,11 @@ With `k* = 2` there are `9 − 2 = 7` null-space generators.
 | Generator | Dominant variable | Trade-off | Physical meaning |
 |---|---|---|---|
 | 1 | A | increase A, decrease P | Absorptivity–power trade-off: more absorptive material needs less laser power |
-| 2 | rho | increase rho, increase V, decrease γ | Dense metal + faster scan + lower surface tension → same melt pool |
-| 3 | k | increase k, increase P, decrease V | Conductive metal needs more laser power and slower scan |
-| 4 | Lv | increase Lv (alone) | Near-free: Lv has ≈0 encoder weight (only 5 discrete values across alloys) |
+| 2 | rho | increase ρ, increase P, increase V | Dense metal + higher P + faster scan → constant Pi |
+| 3 | k | increase k, decrease P, decrease V | Conductive metal compensates lower P and V at fixed melt pool |
+| 4 | Lv | increase Lv, decrease V, increase P | Larger latent heat compensated by slower scan and more power |
 | 5 | dT | increase dT, increase P | Superheat trade-off (limited by 5-alloy confounding) |
-| 6 | gamma | increase γ, increase V, decrease P | Surface-tension/scan-speed compensation for laser power |
+| 6 | gamma | increase γ, increase P | Surface tension–power compensation |
 | 7 | Tb | increase Tb, decrease P | Boiling-temperature trade-off (limited by 5-alloy confounding) |
 
 **Constrained vs free generators:**
@@ -303,7 +303,7 @@ axis is needed to distinguish keyhole porosity from lack-of-fusion porosity.
 | Known Pi in null-space | cos = +1.0000 ✓ |
 | Latent dimension k* | **2** — two coordinates needed for pore fraction |
 | Test R² | **0.771** (vs ~0.446 from raw Pi formula) |
-| Symmetry type | **Scaling** — 2.1× loss gap (weaker than keyhole due to 5-alloy confounding) |
+| Symmetry type | **Scaling** — 1.4× loss gap (weaker than keyhole due to 5-alloy confounding) |
 | Generators | 7 directions (9 variables − 2 latent dimensions) |
 | Constrained generators | A–P, rho–V–k, P–V–A trade-offs (process parameters) |
 | Free generators | Lv, gamma, dT, Tb (material-only, only 5 discrete values) |
