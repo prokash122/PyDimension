@@ -51,8 +51,10 @@ in physical units.
 
 When a dimensional analysis is performed upstream, the corresponding
 dimensionless candidates `Π` are normalised by the same procedure and
-either (i) injected alongside the raw augmentation, or (ii) used as the
-sole encoder input in **Π-only mode** (Sec. 4.4).
+either (i) concatenated to the standardised raw inputs `X̃`, or
+(ii) used as the sole encoder input in **Π-only mode** (Sec. 4.4).
+In neither case is the legacy `[X, X², log|X|]` triple-feature
+augmentation applied — see Sec. 3.2.
 
 The Π *basis* — the integer exponents `α_{ij}` such that
 `Π_j = ∏_i x_i^{α_{ij}}` — is obtained from
@@ -98,23 +100,37 @@ For each candidate latent dimension `k ∈ {1, …, k_max}` (with
   256, for `n_epochs = 600`. The optimiser uses a cosine learning-rate
   schedule decaying to `lr/100`.
 
-### 3.2 Feature augmentation
+### 3.2 Encoder input (no augmentation)
 
-In the default ("non-Π-only") mode, the encoder consumes the
-**triple-feature augmentation**
+In every example reported in this paper, the Step&nbsp;2 encoder is run
+with `raw_input=True`: it consumes the standardised inputs directly,
+without the legacy `[X, X², log|X|]` triple-feature augmentation.
 
 ```
-ϕ_aug(X) = [ X,   X²,   log(|X|).clamp_min(0.1) ] ∈ ℝ^{N × 3n}
+ϕ(X) = X̃ ∈ ℝ^{N × n}             (when no Π features are supplied)
+ϕ(X) = [X̃, Π̃] ∈ ℝ^{N × (n+m)}     (when Π features are supplied)
+ϕ(X) = Π̃ ∈ ℝ^{N × m}              (Π-only mode)
 ```
 
-so a single linear encoder layer is expressive enough to represent any
-of the three candidate symmetries (translational `X`, rotational `X²`,
-scaling `log|X|`) and the joint MLP can further compose them. When
-dimensionless candidates `Π` are provided they are concatenated to the
-augmentation, yielding an `3n + m` input vector. In **Π-only mode** the
-augmentation is bypassed (`raw_input=True`) and the encoder consumes the
-normalised `Π` features directly — this is the mode used for the
-keyhole, LPBF-porosity and porous-media examples.
+The rationale is that a multilayer perceptron `[64, 32]` is already
+expressive enough to compose any quadratic, log, or cross-term
+combination the data requires; hand-crafting `[X, X², log|X|]` would
+inflate the encoder input dimension from `n` to `3n + m` without
+adding representational capacity, and would also bias the encoder
+towards the three Step&nbsp;3 candidate maps `ϕ_s` *before* the symmetry
+class has been identified. The augmentation is therefore retained in
+the library only as a fallback for the (non-default) **single-layer
+linear** encoder, where it would otherwise be impossible for the
+encoder to represent anything other than `X`.
+
+When pre-computed dimensionless candidates `Π` are supplied from an
+upstream Buckingham analysis, they are concatenated to `X̃`, except in
+**Π-only mode** where the encoder consumes the `Π` features alone
+(`pi_features=Π`, `raw_input=True`, raw `X` not passed). Π-only mode is
+the default for the keyhole, LPBF-porosity, and porous-media-LBM
+examples; in the LHC and concrete examples the encoder consumes only
+the raw standardised inputs (with the LHC adding its physics-specific
+inline Π candidates alongside).
 
 ### 3.3 Model selection
 
@@ -283,7 +299,7 @@ the held-out fit.
 | Step 2 decoder | MLP `[64, 64]` + linear, `Tanh` | `hidden_dim` |
 | Step 2 training | Adam, `lr=1e-3`, 600 epochs, cosine LR | `n_epochs`, `lr`, `batch_size` |
 | Step 2 restarts | 3 seeds, 20 % held out | `n_restarts`, `val_fraction` |
-| Step 2 features | `[X, X², log|X|]` (+ Π) by default | `raw_input`, `pi_features` |
+| Step 2 features | raw standardised `X̃` (+ Π when supplied); `raw_input=True` in every example | `raw_input`, `pi_features` |
 | Step 3 encoder | single linear layer per class, no bias | — |
 | Step 3 training | Adam, `lr=1e-3`, weight decay `1e-4`, 1500 epochs | same knobs as Step 2 |
 | Step 3 classes | translational / rotational / scaling | — |
@@ -297,12 +313,14 @@ directory is:
 ```bash
 python discover_symmetry.py \
     --data <input file> \
-    --encoder-hidden 64 32 \
     --seed 42 \
     --latent-epochs 600 \
     --sym-epochs 1500 \
     --n-restarts 3
 ```
+
+Every example script defaults to `--encoder-hidden 64 32` and to
+`raw_input=True`; no additional flags are required.
 
 Console transcripts are saved to `output_<name>/run.log` and summary
 figures to `output_<name>/<name>_symmetry_discovery.png`.
@@ -316,11 +334,16 @@ per-example knobs differ only in:
 
 | Example | Step 2 features | Step 2 encoder | Notes |
 |---|---|---|---|
-| Concrete compressive strength | `[X, X², log\|X\|]` (no Π) | MLP `[64, 32]` | Pure additive (translational) discovery |
-| LHC dijets | raw 4-vector + 6 Π candidates (e.g. `cos Δφ`, `p_T` ratios) | MLP `[64, 32]` | Rotational SO(2) on `(p_{1x}, p_{1y}, p_{2x}, p_{2y})` |
-| Laser keyhole | `[X, X², log\|X\|]` + reduced Π set | MLP `[64, 32]` | Π-only by default; scaling symmetry |
-| LPBF porosity | `[X, X², log\|X\|]` + reduced Π set | MLP `[64, 32]` | Π-only by default; scaling symmetry |
-| Porous-media LBM | Π features only (`raw_input=True`) | MLP `[64, 32]` | Re-number collapse via scaling generators |
+| Concrete compressive strength | raw standardised `X̃` (8 inputs); `raw_input=True` | MLP `[64, 32]` | Pure additive (translational) discovery |
+| LHC dijets | raw 4-vector + 6 inline Π candidates (e.g. `cos Δφ`, `p_T` ratios); `raw_input=True` | MLP `[64, 32]` | Rotational SO(2) on `(p_{1x}, p_{1y}, p_{2x}, p_{2y})` |
+| Laser keyhole | Π features only (Π-only mode, `raw_input=True`) | MLP `[64, 32]` | Scaling symmetry |
+| LPBF porosity | Π features only (Π-only mode, `raw_input=True`) | MLP `[64, 32]` | Scaling symmetry |
+| Porous-media LBM | Π features only (`log_{10} Re`, `φ`; `raw_input=True`) | MLP `[64, 32]` | Re-number collapse via scaling generators |
+
+No example uses the legacy `[X, X², log|X|]` triple-feature augmentation
+at Step 2. The augmentation is still available in the library through
+the `raw_input=False` code path and is intended for ablations that use
+a single-layer linear encoder.
 
 In every case, **Step 3 runs on the raw physical `X` (standard-scaled
 only)** so that the per-class feature maps `ϕ_s` operate in their
