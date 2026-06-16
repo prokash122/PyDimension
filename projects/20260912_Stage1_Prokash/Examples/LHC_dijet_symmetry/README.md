@@ -66,7 +66,11 @@ python discover_symmetry.py --data lhc_dijet_data.pt --encoder-hidden 64 32
 ## Output
 
 Results are saved to `output_lhc_symmetry/`:
-- `lhc_symmetry_discovery.png` — 6-panel summary figure
+- `lhc_symmetry_discovery.png` — 6-panel summary figure. The two orbit
+  panels plot the extracted generators separately: generator 1 (jet 1
+  rotation) in the `(p1x, p1y)` panel, generator 2 (jet 2 rotation) in
+  the `(p2x, p2y)` panel. Each generator leaves the other jet fixed, so
+  each is shown in the plane it acts on.
 - `discovery_summary.txt` — text summary of all results
 
 ## Expected Results
