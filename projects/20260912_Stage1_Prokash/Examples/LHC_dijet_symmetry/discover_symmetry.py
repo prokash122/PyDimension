@@ -612,10 +612,21 @@ def plot_results(X: np.ndarray, y: np.ndarray, results: dict, output_dir: str):
     ax.legend(fontsize=9)
 
     # --- (1,2) Discovered orbit in (p2x, p2y) plane ---
+    # Use generators[1] here (jet-2 rotation): it leaves jet 1 fixed and
+    # traces a circle in (p2x, p2y).  generators[0] only rotates jet 1, so
+    # in the jet-2 plane it would collapse to a single point.
     ax = axes[1, 2]
     ax.scatter(X[:, 2], X[:, 3], c="lightgray", s=4, alpha=0.3)
 
-    if generators and len(orb_orig[0]) >= 4:
+    if len(generators) >= 2:
+        g2 = generators[1]
+        orb2 = generator_orbit(x_start, g2, n_steps, eps, winner_type)
+        orb2_orig = scaler_X.inverse_transform(orb2)
+        ax.plot(orb2_orig[:, 2], orb2_orig[:, 3], color=orbit_colors[1],
+                lw=2, label="discovered orbit (gen 2)")
+        ax.scatter([orb2_orig[0, 2]], [orb2_orig[0, 3]], color=orbit_colors[1],
+                   s=60, zorder=5, marker="*")
+    elif generators:
         ax.plot(orb_orig[:, 2], orb_orig[:, 3], color=orbit_colors[1],
                 lw=2, label="discovered orbit")
         ax.scatter([orb_orig[0, 2]], [orb_orig[0, 3]], color=orbit_colors[1],
