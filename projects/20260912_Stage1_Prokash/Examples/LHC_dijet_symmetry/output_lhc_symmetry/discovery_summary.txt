@@ -6,17 +6,17 @@ Features: (p1x, p1y, p2x, p2y)
 Output: dijet transverse mass m_jj_T
 
 Optimal latent dimension: 1
-  k=1: R2=0.9964
-  k=2: R2=0.9986
-  k=3: R2=0.9990
-  k=4: R2=0.9991
+  k=1: R2_train=0.9998, R2_test=0.9998
+  k=2: R2_train=1.0000, R2_test=0.9999
+  k=3: R2_train=0.9997, R2_test=0.9996
+  k=4: R2_train=0.9999, R2_test=0.9998
 
 Discovered symmetry: rotational
-  rotational: MSE=0.005315
-  scaling: MSE=0.537293
-  translational: MSE=0.766814
+  rotational: MSE=0.005325
+  scaling: MSE=0.537007
+  translational: MSE=0.767593
 
-Encoder coefficients: [0.32087246 0.32245958 0.4557916  0.4510363 ]
+Encoder coefficients: [-0.33566603 -0.3373274  -0.4766437  -0.4716769 ]
 Number of generators: 2
   Generator 1:
     [0.0, -1.0, 0.0, 0.0]
