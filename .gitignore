@@ -3,6 +3,10 @@ output/
 output_*/
 *.csv
 
+# Prepared data tensors and run logs (regenerated locally)
+*.pt
+run.log
+
 # Images directory (for Hugging Face Spaces compatibility)
 images/
 *.png
