@@ -157,24 +157,51 @@ KNOWN_PI_EXPONENTS = np.array([1.0, 1.0, 1.0, 1.0, -2.0, 1.0, -2.0, 0.0, 0.0])
 # of projects/20260912_Stage1_Prokash/Examples/4_plot_3d-ZGAN(1).ipynb.
 # ──────────────────────────────────────────────────────────────────────────────
 PRESSURE_PROPS = {
-    # dHv [J/mol], T_boil [K], gamma [N/m]
-    "Ti64":   dict(dHv=422000.0, Tb=3560.0, gamma=1.65),
-    "SS304":  dict(dHv=341000.0, Tb=3090.0, gamma=1.80),
-    "Al2024": dict(dHv=294000.0, Tb=2792.0, gamma=0.90),
-    "Al6061": dict(dHv=294000.0, Tb=2792.0, gamma=0.90),
-    "Cu":     dict(dHv=305000.0, Tb=2835.0, gamma=1.30),
+    # dHv [J/mol], T_boil [K], gamma [N/m], Tm [K] (melting point),
+    # eta [Pa·s] (dynamic viscosity of melt near liquidus),
+    # Cp  [J/(kg·K)] (specific heat of melt near liquidus)
+    "Ti64":   dict(dHv=422000.0, Tb=3560.0, gamma=1.65,
+                   Tm=1923.0, eta=3.25e-3, Cp=700.0),
+    "SS304":  dict(dHv=341000.0, Tb=3090.0, gamma=1.80,
+                   Tm=1700.0, eta=6.50e-3, Cp=750.0),
+    "Al2024": dict(dHv=294000.0, Tb=2792.0, gamma=0.90,
+                   Tm=916.0,  eta=1.30e-3, Cp=1180.0),
+    "Al6061": dict(dHv=294000.0, Tb=2792.0, gamma=0.90,
+                   Tm=925.0,  eta=1.30e-3, Cp=1180.0),
+    "Cu":     dict(dHv=305000.0, Tb=2835.0, gamma=1.30,
+                   Tm=1358.0, eta=4.00e-3, Cp=510.0),
 }
 # Physical constants used in the Clausius–Clapeyron form of P_recoil
 P_ATM            = 101325.0      # Pa
 R_GAS            = 8.314         # J/(mol·K)
 R_KEYHOLE        = 35e-6         # m   (d_char/2 with d_char = 70 µm)
 T_SURFACE_FACTOR = 1.05          # T_s = 1.05 · T_boil (notebook default)
+T_AMBIENT        = 298.0         # K   (room temperature, used in Pe_vap)
 
 
 def compute_pi(X: np.ndarray) -> np.ndarray:
     """Compute the notebook's normalised-enthalpy Pi from the 9-column X."""
     P, V, A, rho, k, Lv, dT = (X[:, i] for i in range(7))
     return (Lv * rho * A * P * V) / (k ** 2 * dT ** 2)
+
+
+def compute_pe_vap(X: np.ndarray, Tm: np.ndarray,
+                   T_ambient: float = T_AMBIENT) -> np.ndarray:
+    """Vaporisation Peclet number per row (manuscript formula).
+
+        Pe_vap = (Lv · rho · A · P · V) / (k^2 · (Tb − Tm) · (Tm − T0))
+
+    Inputs: X columns = (P, V, A, rho, k, Lv, dT, gamma, Tb) where
+    dT = (Tb − Tm) is the boil-melt superheat already in the dataset.
+    Tm is supplied per row (material-dependent) and T0 defaults to 298 K.
+    """
+    P, V, A, rho, k, Lv, dT = (X[:, i] for i in range(7))
+    return (Lv * rho * A * P * V) / (k ** 2 * dT * (Tm - T_ambient))
+
+
+def compute_prandtl(eta: np.ndarray, Cp: np.ndarray, k: np.ndarray) -> np.ndarray:
+    """Thermal Prandtl number Pr = η · Cp / k (per row)."""
+    return eta * Cp / k
 
 
 def compute_pressure_ratio(Tb: np.ndarray, gamma: np.ndarray, dHv: np.ndarray) -> np.ndarray:
@@ -394,7 +421,8 @@ def load_csv_data(csv_path: str) -> dict:
     if output_col is None:
         raise ValueError(f"Could not find output column (Pore/porosity) in: {header}")
 
-    X_list, y_list, mat_list, dHv_list = [], [], [], []
+    X_list, y_list, mat_list = [], [], []
+    dHv_list, Tm_list, eta_list, Cp_list = [], [], [], []
     for r in rows:
         try:
             mat = r[source_col].strip()
@@ -408,16 +436,23 @@ def load_csv_data(csv_path: str) -> dict:
             y_list.append(float(r[output_col]))
             mat_list.append(mat)
             dHv_list.append(props["dHv"])
+            Tm_list.append(props["Tm"])
+            eta_list.append(props["eta"])
+            Cp_list.append(props["Cp"])
         except (ValueError, IndexError):
             continue
     X = np.array(X_list)
     y = np.array(y_list)
     dHv = np.array(dHv_list)
+    Tm  = np.array(Tm_list)
+    eta = np.array(eta_list)
+    Cp  = np.array(Cp_list)
     materials = np.array(mat_list)
     print(f"  Loaded: {CSV_VARS + ['gamma (from source)', 'Tb (from source)']} -> "
           f"{header[output_col].strip()}")
     print(f"  Unique materials: {sorted(set(mat_list))}")
-    return {"X": X, "y": y, "materials": materials, "dHv": dHv}
+    return {"X": X, "y": y, "materials": materials,
+            "dHv": dHv, "Tm": Tm, "eta": eta, "Cp": Cp}
 
 
 def load_data(args):
@@ -448,35 +483,52 @@ def load_data(args):
     y         = data["y"]
     materials = data["materials"]
     dHv       = data["dHv"]
+    Tm        = data["Tm"]
+    eta       = data["eta"]
+    Cp        = data["Cp"]
 
     Pi = compute_pi(X)
     # Columns 7, 8 are gamma, Tb
     PR = compute_pressure_ratio(Tb=X[:, 8], gamma=X[:, 7], dHv=dHv)
+    # Manuscript formulas (T_b - T_m)(T_m - T_0) and η·Cp/k
+    Pe_vap     = compute_pe_vap(X, Tm)
+    Pr_thermal = compute_prandtl(eta, Cp, X[:, 4])   # X[:,4] = k
 
     # Drop rows with non-positive / non-finite Pi or PR (log10 will be taken later)
-    mask = np.isfinite(Pi) & (Pi > 0) & np.isfinite(PR) & (PR > 0)
+    mask = (np.isfinite(Pi) & (Pi > 0)
+            & np.isfinite(PR) & (PR > 0)
+            & np.isfinite(Pe_vap) & (Pe_vap > 0)
+            & np.isfinite(Pr_thermal) & (Pr_thermal > 0))
     dropped = (~mask).sum()
     if dropped:
-        print(f"  Dropping {dropped} rows with non-positive Pi/PR")
-        X, y, Pi, PR, materials = X[mask], y[mask], Pi[mask], PR[mask], materials[mask]
+        print(f"  Dropping {dropped} rows with non-positive Pi/PR/Pe_vap/Pr")
+        X, y, Pi, PR, Pe_vap, Pr_thermal, materials = (
+            X[mask], y[mask], Pi[mask], PR[mask],
+            Pe_vap[mask], Pr_thermal[mask], materials[mask],
+        )
 
     y = np.clip(y, 0.0, 1.0)
 
     print(f"  Samples: {X.shape[0]}")
-    print(f"  Pi range: [{Pi.min():.4g}, {Pi.max():.4g}]")
-    print(f"  PR (P_recoil/P_Laplace) range: [{PR.min():.4g}, {PR.max():.4g}]")
-    print(f"  Pore range: [{y.min():.4f}, {y.max():.4f}]")
+    print(f"  Pi range:     [{Pi.min():.4g}, {Pi.max():.4g}]")
+    print(f"  PR range:     [{PR.min():.4g}, {PR.max():.4g}]   (P_recoil/P_Laplace)")
+    print(f"  Pe_vap range: [{Pe_vap.min():.4g}, {Pe_vap.max():.4g}]   "
+          f"(Lv·ρ·A·P·V)/(k²·(Tb-Tm)·(Tm-T0))")
+    print(f"  Pr range:     [{Pr_thermal.min():.4g}, {Pr_thermal.max():.4g}]   "
+          f"(η·Cp/k, thermal Prandtl)")
+    print(f"  Pore range:   [{y.min():.4f}, {y.max():.4f}]")
     print()
-    return X, y, Pi, PR, materials
+    return X, y, Pi, PR, Pe_vap, Pr_thermal, materials
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Pipeline
 # ──────────────────────────────────────────────────────────────────────────────
 
-def run_pipeline(X, y, Pi, PR, materials, args):
+def run_pipeline(X, y, Pi, PR, Pe_vap, Pr_thermal, materials, args):
     """Run Stage1 symmetry discovery on the LPBF physical variables."""
-    results = {"Pi": Pi, "PR": PR, "X_raw": X, "materials": materials}
+    results = {"Pi": Pi, "PR": PR, "Pe_vap": Pe_vap, "Pr_thermal": Pr_thermal,
+               "X_raw": X, "materials": materials}
 
     # --- Stage 0: Dimensional analysis → reduced Pi candidates ---
     print("=" * 60)
@@ -631,18 +683,70 @@ def run_pipeline(X, y, Pi, PR, materials, args):
         print(f"    k={k}: R2_train={r2_tr:.4f}, R2_test={m['R2']:.4f}, MSE={m['MSE']:.6f}")
     print()
 
+    # --- Diagnostic: do the discovered latent dims encode Pe_vap and Pr? ---
+    # If a manuscript-defined Pi (Pe_vap or thermal Prandtl) is *not* a linear
+    # combination of the trained latent coordinates z, augment Step 3's input
+    # with it so the single-layer symmetry encoder can pick it up.
+    print("=" * 60)
+    print("Step 2b: Checking whether z encodes Pe_vap and Pr")
+    print("=" * 60)
+    sys.stdout.flush()
+    best_enc = res_latent["best_encoder"]
+    with torch.no_grad():
+        z_all = best_enc(
+            torch.tensor(X_norm_step2, dtype=torch.float32)
+        ).cpu().numpy()
+    from sklearn.linear_model import LinearRegression
+    log_pe = np.log10(Pe_vap)
+    log_pr = np.log10(Pr_thermal)
+    r2_pe = LinearRegression().fit(z_all, log_pe).score(z_all, log_pe)
+    r2_pr = LinearRegression().fit(z_all, log_pr).score(z_all, log_pr)
+    R2_DISCOVERED = 0.80
+    print(f"  z (shape {z_all.shape}) -> log10(Pe_vap): R2 = {r2_pe:.4f}  "
+          f"{'(discovered)' if r2_pe >= R2_DISCOVERED else '(NOT in latent span)'}")
+    print(f"  z (shape {z_all.shape}) -> log10(Pr):     R2 = {r2_pr:.4f}  "
+          f"{'(discovered)' if r2_pr >= R2_DISCOVERED else '(NOT in latent span)'}")
+    results["z_step2"]   = z_all
+    results["r2_pe_vap"] = r2_pe
+    results["r2_pr"]     = r2_pr
+
+    # Build Step 3 input: physical X + any missing manuscript Pi (min-max
+    # scaled to [0, 1] so it matches the existing column normalisation).
+    extra_cols, extra_names = [], []
+    if r2_pe < R2_DISCOVERED:
+        extra_cols.append(Pe_vap.reshape(-1, 1))
+        extra_names.append("Pe_vap")
+    if r2_pr < R2_DISCOVERED:
+        extra_cols.append(Pr_thermal.reshape(-1, 1))
+        extra_names.append("Pr")
+    if extra_cols:
+        extras = np.hstack(extra_cols)
+        mn = extras.min(axis=0, keepdims=True)
+        mx = extras.max(axis=0, keepdims=True)
+        extras_norm = (extras - mn) / np.where(mx - mn > 1e-12, mx - mn, 1.0)
+        X_step3 = np.hstack([X_norm_raw, extras_norm])
+        names_step3 = list(VARIABLE_NAMES) + extra_names
+        print(f"  → Augmenting Step 3 input with: {extra_names}")
+    else:
+        X_step3 = X_norm_raw
+        names_step3 = list(VARIABLE_NAMES)
+        print(f"  → Both Pe_vap and Pr already in the latent span; "
+              f"Step 3 runs on raw physical X only.")
+    results["feature_names_step3"] = names_step3
+    print()
+
     # --- Identify symmetry type ---
     print("=" * 60)
     print("Step 3: Identifying symmetry type")
     print("=" * 60)
     sys.stdout.flush()
     if pi_only:
-        print(f"  Running Step 3 on raw physical X ({X_norm_raw.shape[1]} variables) "
-              f"so the translational/rotational/scaling encoders see")
+        print(f"  Running Step 3 on physical X ({X_step3.shape[1]} variables: "
+              f"{names_step3}) so the translational/rotational/scaling encoders see")
         print(f"  multiplicatively-meaningful quantities (avoids the log-of-log "
               f"degeneracy of feeding pre-log-scaled Pi groups).")
     res_sym = identify_symmetry(
-        X_norm_raw, y_norm, n_latent=n_latent, decoder=res_latent["best_decoder"],
+        X_step3, y_norm, n_latent=n_latent, decoder=res_latent["best_decoder"],
         n_epochs=args.sym_epochs, n_restarts=args.n_restarts, seed=args.seed,
     )
     results["symmetry"] = res_sym
@@ -671,10 +775,10 @@ def run_pipeline(X, y, Pi, PR, materials, args):
     print()
 
     # --- Report the winning encoder's weight vector ---
-    # Step 3 always runs on physical X, so the encoder's columns map 1:1 to
-    # VARIABLE_NAMES regardless of --pi-only.  For scaling, z = W · log|X|.
+    # Step 3 runs on physical X, possibly augmented with Pe_vap and/or Pr
+    # (when Step 2's latent z did not span them).  For scaling, z = W · log|X|.
     W = winner_encoder.weight_matrix  # (n_latent, n_inputs)
-    names_for_W = VARIABLE_NAMES
+    names_for_W = names_step3
     print("=" * 60)
     print("  Winning encoder weight vector(s)")
     print("=" * 60)
@@ -690,9 +794,11 @@ def run_pipeline(X, y, Pi, PR, materials, args):
         print(header)
         print(f"  raw :{raw}")
         print(f"  L2-n:{normed}")
-        # Compare direction against known Pi exponents.
-        ref = KNOWN_PI_EXPONENTS
-        ref_n = ref / np.linalg.norm(ref)
+        # Compare direction against known Pi exponents (defined on the 9
+        # physical vars only — pad with zeros for any extra Pe_vap / Pr cols).
+        ref = np.zeros(len(names_for_W))
+        ref[: len(KNOWN_PI_EXPONENTS)] = KNOWN_PI_EXPONENTS
+        ref_n = ref / (np.linalg.norm(ref) + 1e-12)
         cos = float(np.dot(row_n, ref_n))
         print(f"  cos<row, known-Pi-exponents> = {cos:+.4f}  "
               f"(±1 means perfect alignment)")
@@ -709,12 +815,12 @@ def run_pipeline(X, y, Pi, PR, materials, args):
         for i, g in enumerate(generators):
             if g.ndim == 1:
                 parts = []
-                for j, name in enumerate(VARIABLE_NAMES):
+                for j, name in enumerate(names_step3):
                     if abs(g[j]) > 0.05:
                         parts.append(f"{name} x exp({g[j]:+.3f}*eps)")
                 print(f"  Generator {i+1}:")
                 print(f"    {', '.join(parts)}")
-                _interpret_generator(g, i + 1)
+                _interpret_generator(g, i + 1, names_step3)
                 print()
     elif winner_type == "rotational" and generators:
         for i, g in enumerate(generators):
@@ -723,20 +829,20 @@ def run_pipeline(X, y, Pi, PR, materials, args):
     else:
         for i, g in enumerate(generators):
             if g.ndim == 1:
-                parts = [f"{name}:{g[j]:+.3f}" for j, name in enumerate(VARIABLE_NAMES) if abs(g[j]) > 0.05]
+                parts = [f"{name}:{g[j]:+.3f}" for j, name in enumerate(names_step3) if abs(g[j]) > 0.05]
                 print(f"  Generator {i+1}: [{', '.join(parts)}]")
     print()
 
     return results
 
 
-def _interpret_generator(g, idx):
+def _interpret_generator(g, idx, names):
     """Give a physical interpretation of a scaling generator."""
     abs_g = np.abs(g)
     dominant = np.argmax(abs_g)
-    name = VARIABLE_NAMES[dominant]
+    name = names[dominant]
 
-    coupled = [(VARIABLE_NAMES[j], g[j]) for j in range(len(g))
+    coupled = [(names[j], g[j]) for j in range(len(g))
                if j != dominant and abs(g[j]) > 0.05]
 
     if coupled:
@@ -999,8 +1105,8 @@ def main():
     args = parser.parse_args()
     args.pi_only = not args.no_pi_only
 
-    X, y, Pi, PR, materials = load_data(args)
-    results = run_pipeline(X, y, Pi, PR, materials, args)
+    X, y, Pi, PR, Pe_vap, Pr_thermal, materials = load_data(args)
+    results = run_pipeline(X, y, Pi, PR, Pe_vap, Pr_thermal, materials, args)
 
     print("=" * 60)
     print("Creating visualizations")
