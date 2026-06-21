@@ -175,6 +175,12 @@ see it directly.
 3. Anything with `R² < 0.80` (the *discovered* threshold) is flagged as
    **not in the latent span** and appended to `X_step3` (min-max scaled to
    match the column normalisation of the 9 physical vars).
+4. **The Step 2 latent `z` itself is also appended to `X_step3`** so that
+   the symmetry encoder sees the discovered intrinsic coordinate explicitly
+   alongside the raw variables and the injected Pi quantities. (The
+   nonlinear combination that Step 2 picked up cannot be reconstructed by
+   the single linear layer in Step 3, so handing it over directly lets
+   each symmetry-class encoder use it.)
 
 **Actual results:**
 
@@ -183,8 +189,8 @@ see it directly.
 | Pe_vap | 0.4651 | NOT in latent span → injected |
 | Pr     | 0.0592 | NOT in latent span → injected |
 
-→ Step 3 input grows from 9 to **11 features**:
-`[P, V, A, rho, k, Lv, dT, gamma, Tb, Pe_vap, Pr]`.
+→ Step 3 input grows from 9 to **12 features**:
+`[P, V, A, rho, k, Lv, dT, gamma, Tb, Pe_vap, Pr, z1_step2]`.
 
 ---
 
@@ -193,9 +199,9 @@ see it directly.
 **Goal:** Determine whether the invariance is scaling, translational, or
 rotational.
 
-**Input:** `X_step3` — the 9 raw physical variables plus any Pi quantity
-that Step 2b flagged as missing from the latent span (here: `Pe_vap`, `Pr`
-→ 11 columns).
+**Input:** `X_step3` — the 9 raw physical variables, plus any Pi quantity
+that Step 2b flagged as missing from the latent span (here: `Pe_vap`, `Pr`),
+plus the Step 2 latent `z` itself (here: `z1_step2`) → **12 columns**.
 
 > Raw physical X is always used here (not the Pi features from Step 2)
 > because the three competing encoders apply transforms `X`, `X²`, `log|X|`
@@ -211,20 +217,22 @@ that Step 2b flagged as missing from the latent span (here: `Pe_vap`, `Pr`
 | Translational | `z = W · X` | Additive / affine symmetry |
 | Rotational | `z = W · X²` | Quadratic / Euclidean symmetry |
 
-**Actual results (with Pe_vap and Pr injected):**
+**Actual results (with Pe_vap, Pr, and z injected):**
 
 ```
-scaling        : 0.020119  ← winner
-translational  : 0.037629
-rotational     : 0.050798
-Loss gap: 1.9×
+scaling        : 0.019426  ← winner
+translational  : 0.031442
+rotational     : 0.031557
+Loss gap: 1.6×
 ```
 
 **Scaling wins**, confirming the power-law dimensional structure of LPBF
-porosity. The 1.9× gap is still narrower than the keyhole example's 6.3×
-because the 5 material-property variables take only 5 discrete values (one
-per alloy), limiting how much scaling information the encoder can extract
-from them.
+porosity. Injecting the Step 2 latent `z` lowered every class's MSE — but
+helped translational and rotational *more* than scaling, because `z` is a
+nonlinear MLP output that those linear encoders couldn't reconstruct from
+raw X. The headline gap shrinks from 1.9× to **1.6×** as a result. The
+remaining ranking still puts scaling first, and the 5-alloy confounding
+keeps it narrower than the keyhole example's 6.3×.
 
 ---
 
@@ -233,41 +241,42 @@ from them.
 **Goal:** Extract directions in log-variable-space along which pore fraction
 is invariant.
 
-**Input:** Winning encoder weight matrix `W` (shape `1 × 11` — the 9
-physical variables plus `Pe_vap` and `Pr`).
+**Input:** Winning encoder weight matrix `W` (shape `1 × 12` — the 9
+physical variables plus `Pe_vap`, `Pr`, and `z1_step2`).
 
 **Encoder weight row (L2-normalised):**
 
 ```
-         P        V        A      rho        k       Lv       dT    gamma       Tb   Pe_vap       Pr
-Row 1: +0.598  +0.383  -0.140  -0.355  -0.290  -0.209  -0.036  +0.443  -0.142  +0.071  -0.021
+         P        V        A      rho        k       Lv       dT    gamma       Tb   Pe_vap       Pr  z1_step2
+Row 1: -0.628  -0.422  +0.244  -0.068  +0.272  -0.052  -0.116  -0.435  +0.181  +0.062  -0.109  +0.187
 ```
 
 Cosine with the known normalised-enthalpy exponents
-`[1, 1, 1, 1, −2, 1, −2, 0, 0, 0, 0]` is reported in the run log; the
-discovered direction lies in the same span as the textbook formula even
-when sign and magnitude differ row-to-row.
+`[1, 1, 1, 1, −2, 1, −2, 0, 0, 0, 0, 0]` is **−0.34** (same span, opposite
+sign; the discovered axis stays in the textbook direction but the encoder
+has additional freedom from the injected columns).
 
-With `k* = 1` there are `11 − 1 = 10` null-space generators.
+With `k* = 1` there are `12 − 1 = 11` null-space generators.
 
 ---
 
 ### Step 5 — Physical Interpretation
 
-**Actual generators (11-D Step 3 input, 1 latent → 10 generators):**
+**Actual generators (12-D Step 3 input, 1 latent → 11 generators):**
 
 | Generator | Dominant variable | Trade-off | Physical meaning |
 |---|---|---|---|
 | 1 | V | increase V, decrease P, decrease γ | Speed–power trade-off |
 | 2 | A | increase A, increase P | Absorptivity–power compensation |
-| 3 | rho | increase ρ, increase P | Density–power trade-off |
+| 3 | rho | increase ρ, decrease P | Density–power trade-off |
 | 4 | k | increase k, increase P | Conductive metal absorbs higher P |
-| 5 | Lv | increase Lv, increase P | Latent-heat trade-off |
-| 6 | dT | increase dT alone | Pure superheat axis |
+| 5 | Lv | increase Lv, decrease P | Latent-heat trade-off |
+| 6 | dT | increase dT, decrease P | Superheat trade-off |
 | 7 | gamma | increase γ, decrease P, decrease V | Surface-tension trade-off |
 | 8 | Tb | increase Tb, increase P | Boiling-temperature trade-off |
-| 9 | Pe_vap | increase Pe_vap, decrease P | Vaporisation-Péclet trade-off (Step 2b injection) |
-| 10 | Pr | increase Pr alone | Pure Pr axis (Step 2b injection) |
+| 9 | Pe_vap | increase Pe_vap, increase P | Vaporisation-Péclet trade-off (Step 2b injection) |
+| 10 | Pr | increase Pr, decrease P | Thermal-Prandtl trade-off (Step 2b injection) |
+| 11 | z1_step2 | increase z, increase P | Step 2 latent injection — orthogonal to the porosity-controlling axis |
 
 **Constrained vs free generators:**
 
@@ -283,9 +292,11 @@ With `k* = 1` there are `11 − 1 = 10` null-space generators.
   thermophysical properties.*
 
 - **Injected (Step 2b):** Generators 9–10 are the directions along which
-  `Pe_vap` and `Pr` can be varied while pore fraction stays constant. `Pe_vap`
-  appears as an almost-pure axis (the per-row formula sits in a direction
-  orthogonal to the discovered latent); `Pr` couples weakly to `P`.
+  `Pe_vap` and `Pr` can be varied while pore fraction stays constant.
+  Generator 11 is the direction along which the Step 2 latent `z` itself
+  can be varied; the encoder learns to leave it (almost) alone, confirming
+  `z` carries information that is already aligned with the porosity-controlling
+  axis and doesn't need to enter the linear scaling combination.
 
 ---
 
@@ -339,12 +350,13 @@ Default training budget: `--latent-epochs 600`, `--sym-epochs 1500`,
 | Latent dimension k* | **1** — a single coordinate suffices for pore fraction |
 | Test R² | **0.777** (vs ~0.446 from raw Pi formula) |
 | Pe_vap / Pr in latent span? | R² = 0.47 / 0.06 → **both injected into Step 3** |
-| Step 3 input dimension | **11** (9 physical + Pe_vap + Pr) |
-| Symmetry type | **Scaling** — **1.9× loss gap** |
-| Generators | 10 directions (11 variables − 1 latent dimension) |
-| Constrained generators | V–P–Lv–γ, A–P, ρ–P, k–P trade-offs (process parameters) |
+| Step 2 latent injected into Step 3 | **yes** (`z1_step2` as a 12th column) |
+| Step 3 input dimension | **12** (9 physical + Pe_vap + Pr + z) |
+| Symmetry type | **Scaling** — **1.6× loss gap** (narrower than 1.9× without z, since z helps every class) |
+| Generators | 11 directions (12 variables − 1 latent dimension) |
+| Constrained generators | V–P–γ, A–P, ρ–P, k–P trade-offs (process parameters) |
 | Free generators | Lv, gamma, dT, Tb (material-only, only 5 discrete values) |
-| Injected generators | Pe_vap (pure axis), Pr–P (Step 2b-augmented directions) |
+| Injected generators | Pe_vap, Pr, and z (Step 2b-augmented directions) |
 
 ---
 

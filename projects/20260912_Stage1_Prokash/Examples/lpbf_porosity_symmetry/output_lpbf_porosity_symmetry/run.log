@@ -88,34 +88,34 @@ Step 2b: Checking whether z encodes Pe_vap and Pr
 ============================================================
   z (shape (232, 1)) -> log10(Pe_vap): R2 = 0.4651  (NOT in latent span)
   z (shape (232, 1)) -> log10(Pr):     R2 = 0.0592  (NOT in latent span)
-  → Augmenting Step 3 input with: ['Pe_vap', 'Pr']
+  → Augmenting Step 3 input with: ['Pe_vap', 'Pr', 'z1_step2']
 
 ============================================================
 Step 3: Identifying symmetry type
 ============================================================
-  Running Step 3 on physical X (11 variables: ['P', 'V', 'A', 'rho', 'k', 'Lv', 'dT', 'gamma', 'Tb', 'Pe_vap', 'Pr']) so the translational/rotational/scaling encoders see
+  Running Step 3 on physical X (12 variables: ['P', 'V', 'A', 'rho', 'k', 'Lv', 'dT', 'gamma', 'Tb', 'Pe_vap', 'Pr', 'z1_step2']) so the translational/rotational/scaling encoders see
   multiplicatively-meaningful quantities (avoids the log-of-log degeneracy of feeding pre-log-scaled Pi groups).
 
   Detected symmetry: scaling
-    scaling        : 0.020119 <--
-    translational  : 0.037629
-    rotational     : 0.050798
-  Loss gap: 1.9x
+    scaling        : 0.019426 <--
+    translational  : 0.031442
+    rotational     : 0.031557
+  Loss gap: 1.6x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
 ============================================================
   Symmetry type: scaling
-  Generators: 10
+  Generators: 11
 
 ============================================================
   Winning encoder weight vector(s)
 ============================================================
   Row 1 (scaling):
-          P        V        A      rho        k       Lv       dT    gamma       Tb   Pe_vap       Pr
-  raw :    +0.4394  +0.2817  -0.1027  -0.2609  -0.2133  -0.1537  -0.0264  +0.3255  -0.1046  +0.0524  -0.0151
-  L2-n:    +0.5976  +0.3831  -0.1397  -0.3547  -0.2901  -0.2090  -0.0359  +0.4427  -0.1422  +0.0712  -0.0206
-  cos<row, known-Pi-exponents> = +0.2577  (±1 means perfect alignment)
+           P         V         A       rho         k        Lv        dT     gamma        Tb    Pe_vap        Pr  z1_step2
+  raw :     -0.4145   -0.2785   +0.1606   -0.0445   +0.1795   -0.0345   -0.0763   -0.2866   +0.1194   +0.0409   -0.0721   +0.1234
+  L2-n:     -0.6285   -0.4224   +0.2436   -0.0675   +0.2722   -0.0523   -0.1157   -0.4346   +0.1811   +0.0621   -0.1094   +0.1871
+  cos<row, known-Pi-exponents> = -0.3440  (±1 means perfect alignment)
 
 ============================================================
 Step 5: Physical interpretation of generators
@@ -125,56 +125,65 @@ Step 5: Physical interpretation of generators
   normalised enthalpy Pi (and therefore the pore fraction) invariant.
 
   Generator 1:
-    P x exp(-0.383*eps), V x exp(+0.908*eps), rho x exp(+0.085*eps), k x exp(+0.070*eps), Lv x exp(+0.050*eps), gamma x exp(-0.106*eps)
-    Meaning: increase V while decrease P, increase rho, increase k, increase Lv, decrease gamma
+    P x exp(-0.422*eps), V x exp(+0.890*eps), A x exp(+0.063*eps), k x exp(+0.071*eps), gamma x exp(-0.113*eps)
+    Meaning: increase V while decrease P, increase A, increase k, decrease gamma
              to keep Pi (and pore fraction) unchanged
 
   Generator 2:
-    P x exp(+0.140*eps), A x exp(+0.988*eps)
-    Meaning: increase A while increase P
+    P x exp(+0.244*eps), V x exp(+0.063*eps), A x exp(+0.964*eps), gamma x exp(+0.065*eps)
+    Meaning: increase A while increase P, increase V, increase gamma
              to keep Pi (and pore fraction) unchanged
 
   Generator 3:
-    P x exp(+0.355*eps), V x exp(+0.085*eps), rho x exp(+0.921*eps), k x exp(-0.064*eps), gamma x exp(+0.098*eps)
-    Meaning: increase rho while increase P, increase V, decrease k, increase gamma
+    P x exp(-0.067*eps), rho x exp(+0.997*eps)
+    Meaning: increase rho while decrease P
              to keep Pi (and pore fraction) unchanged
 
   Generator 4:
-    P x exp(+0.290*eps), V x exp(+0.070*eps), rho x exp(-0.064*eps), k x exp(+0.947*eps), gamma x exp(+0.080*eps)
-    Meaning: increase k while increase P, increase V, decrease rho, increase gamma
+    P x exp(+0.272*eps), V x exp(+0.071*eps), k x exp(+0.954*eps), gamma x exp(+0.073*eps)
+    Meaning: increase k while increase P, increase V, increase gamma
              to keep Pi (and pore fraction) unchanged
 
   Generator 5:
-    P x exp(+0.209*eps), V x exp(+0.050*eps), Lv x exp(+0.973*eps), gamma x exp(+0.058*eps)
-    Meaning: increase Lv while increase P, increase V, increase gamma
+    P x exp(-0.052*eps), Lv x exp(+0.998*eps)
+    Meaning: increase Lv while decrease P
              to keep Pi (and pore fraction) unchanged
 
   Generator 6:
-    dT x exp(+0.999*eps)
+    P x exp(-0.116*eps), dT x exp(+0.992*eps)
+    Meaning: increase dT while decrease P
+             to keep Pi (and pore fraction) unchanged
 
   Generator 7:
-    P x exp(-0.443*eps), V x exp(-0.106*eps), rho x exp(+0.098*eps), k x exp(+0.080*eps), Lv x exp(+0.058*eps), gamma x exp(+0.877*eps)
-    Meaning: increase gamma while decrease P, decrease V, increase rho, increase k, increase Lv
+    P x exp(-0.435*eps), V x exp(-0.113*eps), A x exp(+0.065*eps), k x exp(+0.073*eps), gamma x exp(+0.884*eps)
+    Meaning: increase gamma while decrease P, decrease V, increase A, increase k
              to keep Pi (and pore fraction) unchanged
 
   Generator 8:
-    P x exp(+0.142*eps), Tb x exp(+0.987*eps)
+    P x exp(+0.181*eps), Tb x exp(+0.980*eps)
     Meaning: increase Tb while increase P
              to keep Pi (and pore fraction) unchanged
 
   Generator 9:
-    P x exp(-0.071*eps), Pe_vap x exp(+0.997*eps)
-    Meaning: increase Pe_vap while decrease P
+    P x exp(+0.062*eps), Pe_vap x exp(+0.998*eps)
+    Meaning: increase Pe_vap while increase P
              to keep Pi (and pore fraction) unchanged
 
   Generator 10:
-    Pr x exp(+1.000*eps)
+    P x exp(-0.109*eps), Pr x exp(+0.993*eps)
+    Meaning: increase Pr while decrease P
+             to keep Pi (and pore fraction) unchanged
+
+  Generator 11:
+    P x exp(+0.187*eps), z1_step2 x exp(+0.979*eps)
+    Meaning: increase z1_step2 while increase P
+             to keep Pi (and pore fraction) unchanged
 
 
 ============================================================
 Creating visualizations
 ============================================================
-/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry/discover_symmetry.py:904: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry/discover_symmetry.py:908: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   plt.tight_layout(rect=[0, 0, 1, 0.93])
 Pi candidates figure saved to output_lpbf_porosity_symmetry/lpbf_pi_candidates.png
 Figure saved to output_lpbf_porosity_symmetry/lpbf_porosity_symmetry_discovery.png
@@ -183,7 +192,7 @@ Figure saved to output_lpbf_porosity_symmetry/lpbf_porosity_symmetry_discovery.p
 COMPLETE
 ============================================================
   Symmetry: scaling
-  Generators: 10
+  Generators: 11
   These generators show how P, V, A, rho, k, Lv, dT, γ, Tb can be
   simultaneously rescaled while preserving the normalised enthalpy Pi
   — and therefore the LPBF pore fraction.

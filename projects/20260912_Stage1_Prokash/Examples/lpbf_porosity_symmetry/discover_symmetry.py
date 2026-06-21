@@ -682,19 +682,23 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     if r2_pr < R2_DISCOVERED:
         extra_cols.append(Pr_thermal.reshape(-1, 1))
         extra_names.append("Pr")
-    if extra_cols:
-        extras = np.hstack(extra_cols)
-        mn = extras.min(axis=0, keepdims=True)
-        mx = extras.max(axis=0, keepdims=True)
-        extras_norm = (extras - mn) / np.where(mx - mn > 1e-12, mx - mn, 1.0)
-        X_step3 = np.hstack([X_norm_raw, extras_norm])
-        names_step3 = list(VARIABLE_NAMES) + extra_names
-        print(f"  → Augmenting Step 3 input with: {extra_names}")
-    else:
-        X_step3 = X_norm_raw
-        names_step3 = list(VARIABLE_NAMES)
-        print(f"  → Both Pe_vap and Pr already in the latent span; "
-              f"Step 3 runs on raw physical X only.")
+
+    # Always inject the Step 2 latent z (k* columns) alongside Pe_vap/Pr so
+    # the Step 3 symmetry encoder sees the discovered intrinsic coordinate
+    # explicitly.  Scaling/translational/rotational encoders apply X, X²,
+    # log|X| to every column, so z must be positive after normalisation —
+    # min-max to [0, 1] makes log|z| well-defined.
+    z_cols = z_all if z_all.ndim == 2 else z_all.reshape(-1, 1)
+    extra_cols.append(z_cols)
+    extra_names.extend([f"z{i+1}_step2" for i in range(z_cols.shape[1])])
+
+    extras = np.hstack(extra_cols)
+    mn = extras.min(axis=0, keepdims=True)
+    mx = extras.max(axis=0, keepdims=True)
+    extras_norm = (extras - mn) / np.where(mx - mn > 1e-12, mx - mn, 1.0)
+    X_step3 = np.hstack([X_norm_raw, extras_norm])
+    names_step3 = list(VARIABLE_NAMES) + extra_names
+    print(f"  → Augmenting Step 3 input with: {extra_names}")
     results["feature_names_step3"] = names_step3
     print()
 
