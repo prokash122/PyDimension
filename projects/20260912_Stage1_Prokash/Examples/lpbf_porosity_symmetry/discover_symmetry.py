@@ -125,9 +125,9 @@ import torch.multiprocessing as _tmp
 _tmp.cpu_count = lambda: 0
 
 VARIABLE_NAMES = ["P", "V", "A", "rho", "k", "Lv", "dT", "gamma", "Tb",
-                  "Tb_minus_Tm", "Tm_minus_T0"]
+                  "Tm_minus_T0"]
 VARIABLE_UNITS = ["W", "m/s", "-", "kg/m³", "W/(m·K)", "J/kg", "K", "N/m", "K",
-                  "K", "K"]
+                  "K"]
 
 # Dimension matrix, rows = (Mass, Length, Time, Temperature), cols = VARIABLE_NAMES.
 #   P            [W]       = kg · m² · s⁻³          →  ( 1,  2, -3,  0)
@@ -136,24 +136,23 @@ VARIABLE_UNITS = ["W", "m/s", "-", "kg/m³", "W/(m·K)", "J/kg", "K", "N/m", "K"
 #   rho          [kg/m³]                              →  ( 1, -3,  0,  0)
 #   k            [W/(m·K)] = kg · m · s⁻³ · K⁻¹       →  ( 1,  1, -3, -1)
 #   Lv           [J/kg]    = m² · s⁻²                 →  ( 0,  2, -2,  0)
-#   dT           [K]                                  →  ( 0,  0,  0,  1)
+#   dT           [K]       (= Tb − Tm; the boil-melt superheat)  →  ( 0,  0,  0,  1)
 #   gamma        [N/m]     = kg · s⁻²                 →  ( 1,  0, -2,  0)
 #   Tb           [K]                                  →  ( 0,  0,  0,  1)
-#   Tb_minus_Tm  [K]       (= dT — kept as a separate column on request)
 #   Tm_minus_T0  [K]       (the missing factor of Pe_vap)
 DIMENSION_MATRIX = np.array([
-    # P  V  A  rho  k  Lv  dT  gamma  Tb  Tb-Tm  Tm-T0
-    [ 1, 0, 0,  1,  1,  0,  0,   1,   0,   0,     0],   # Mass
-    [ 2, 1, 0, -3,  1,  2,  0,   0,   0,   0,     0],   # Length
-    [-3,-1, 0,  0, -3, -2,  0,  -2,   0,   0,     0],   # Time
-    [ 0, 0, 0,  0, -1,  0,  1,   0,   1,   1,     1],   # Temperature
+    # P  V  A  rho  k  Lv  dT  gamma  Tb  Tm-T0
+    [ 1, 0, 0,  1,  1,  0,  0,   1,   0,    0],   # Mass
+    [ 2, 1, 0, -3,  1,  2,  0,   0,   0,    0],   # Length
+    [-3,-1, 0,  0, -3, -2,  0,  -2,   0,    0],   # Time
+    [ 0, 0, 0,  0, -1,  0,  1,   0,   1,    1],   # Temperature
 ], dtype=float)
 DIMENSION_NAMES = ["Mass", "Length", "Time", "Temperature"]
 
-# Pi (normalised enthalpy) known exponents, now over 11 variables.
-# (Lv·rho·A·P·V) / (k^2·dT^2) — γ, Tb, Tb-Tm and Tm-T0 have zero exponent here.
-#                              P    V    A    rho    k    Lv   dT   γ    Tb  Tb-Tm Tm-T0
-KNOWN_PI_EXPONENTS = np.array([1.0, 1.0, 1.0, 1.0, -2.0, 1.0, -2.0, 0.0, 0.0, 0.0, 0.0])
+# Pi (normalised enthalpy) known exponents, now over 10 variables.
+# (Lv·rho·A·P·V) / (k^2·dT^2) — γ, Tb and Tm-T0 have zero exponent here.
+#                              P    V    A    rho    k    Lv   dT   γ    Tb  Tm-T0
+KNOWN_PI_EXPONENTS = np.array([1.0, 1.0, 1.0, 1.0, -2.0, 1.0, -2.0, 0.0, 0.0, 0.0])
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Per-material thermophysical properties used to evaluate Pe_vap and Pr
@@ -285,7 +284,8 @@ def format_pi_expression(basis_col: np.ndarray, names) -> str:
 
 def _enrich_lpbf_csv(src_path: str, dst_path: str) -> str:
     """Copy the dataset and append the extra per-row columns required for
-    the 11-variable analysis: γ, Tb, Tb_minus_Tm, Tm_minus_T0.
+    the 10-variable analysis: γ, Tb, Tm_minus_T0.  ((Tb − Tm) is already
+    in the dataset as dT and is not duplicated.)
 
     DataPreprocessor reads variables straight from CSV columns, so any
     quantity that appears in VARIABLE_NAMES must exist as a column here.
@@ -300,12 +300,6 @@ def _enrich_lpbf_csv(src_path: str, dst_path: str) -> str:
                 props = PRESSURE_PROPS[mat]
                 r["gamma"]       = props["gamma"]
                 r["Tb"]          = props["Tb"]
-                # dT in the dataset is already (Tb - Tm); we still write
-                # an explicit Tb_minus_Tm column so VARIABLE_NAMES lines up.
-                try:
-                    r["Tb_minus_Tm"] = float(r["dT"])
-                except (KeyError, TypeError, ValueError):
-                    r["Tb_minus_Tm"] = props["Tb"] - props["Tm"]
                 r["Tm_minus_T0"] = props["Tm"] - T_AMBIENT
                 rows.append(r)
     if not rows:
@@ -422,16 +416,10 @@ def load_csv_data(csv_path: str) -> dict:
                 continue
             props = PRESSURE_PROPS[mat]
             row_vals = [float(r[c]) for c in input_cols]
-            # Columns 8..10:  gamma, Tb, Tb_minus_Tm, Tm_minus_T0.
-            # Tb_minus_Tm equals dT for these rows (dT is reported as the
-            # boil-melt superheat by the dataset) but is supplied as an
-            # independent column on request.
-            dT_row      = float(r[input_cols[CSV_VARS.index("dT")]])
-            Tb_minus_Tm = dT_row
+            # Columns 8..9:  gamma, Tb, Tm_minus_T0.  (Tb − Tm is already
+            # in the dataset as dT, so we don't duplicate it.)
             Tm_minus_T0 = props["Tm"] - T_AMBIENT
-            row_vals.extend([
-                props["gamma"], props["Tb"], Tb_minus_Tm, Tm_minus_T0,
-            ])
+            row_vals.extend([props["gamma"], props["Tb"], Tm_minus_T0])
             X_list.append(row_vals)
             y_list.append(float(r[output_col]))
             mat_list.append(mat)

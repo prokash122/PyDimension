@@ -26,7 +26,7 @@ data, without knowing the formula for `Pi` in advance.
 
 ## Physics Background
 
-The pore fraction `f` depends on **eleven physical inputs** with **four
+The pore fraction `f` depends on **ten physical inputs** with **four
 fundamental dimensions** (Mass, Length, Time, Temperature):
 
 | Variable | Symbol | SI Units | Dimensions |
@@ -40,15 +40,14 @@ fundamental dimensions** (Mass, Length, Time, Temperature):
 | Superheat (Tb − Tm) | `dT` | K | K |
 | Surface tension | `gamma` | N/m | kg·s⁻² |
 | Boiling temperature | `Tb` | K | K |
-| (Tb − Tm) — same value as `dT` | `Tb_minus_Tm` | K | K |
 | (Tm − T0), T0 = 298 K | `Tm_minus_T0` | K | K |
 
-By the **Buckingham Pi theorem** (11 variables − 4 dimensions = **7 independent
-dimensionless groups**). These seven groups are the *only* features fed to
-Step 2. The two extra temperature columns are added so the encoder has
-explicit access to both factors of the Pe_vap denominator
-`(Tb − Tm) · (Tm − T0)` (see Step 2b — both Pe_vap and Pr now end up
-inside the latent span).
+By the **Buckingham Pi theorem** (10 variables − 4 dimensions = **6 independent
+dimensionless groups**). These six groups are the *only* features fed to
+Step 2. The extra `Tm_minus_T0` column is added so the encoder has
+explicit access to the second factor of the Pe_vap denominator
+`(Tb − Tm) · (Tm − T0)`. The first factor `(Tb − Tm)` is *not* added as
+a separate column because it duplicates the existing `dT`.
 
 Two further dimensionless quantities from the keyhole-mode-transition
 literature are computed per row and used **only** to validate the latent
@@ -130,7 +129,7 @@ Verification: the known normalised-enthalpy exponent vector
 
 **Goal:** Find the smallest `k*` that can predict pore fraction.
 
-**Input:** The **7 Pi features only** (pi-only mode, default).
+**Input:** The **6 Pi features only** (pi-only mode, default).
 
 > Pi-only is the recommended default for this dataset. The LPBF material-property
 > columns (`A`, `rho`, `k`, `Lv`, `dT`) only take 5 discrete values (one per
@@ -139,7 +138,7 @@ Verification: the known normalised-enthalpy exponent vector
 
 **Encoder architecture:** Multilayer MLP (default hidden dims `[64, 32]`):
 ```
-7  →  Linear(64)  →  ReLU  →  Linear(32)  →  ReLU  →  Linear(k)
+6  →  Linear(64)  →  ReLU  →  Linear(32)  →  ReLU  →  Linear(k)
 ```
 Paired with a nonlinear decoder (two 64-unit hidden layers). Sweep over
 `k = 1, 2, 3, 4`.
@@ -148,15 +147,16 @@ Paired with a nonlinear decoder (two 64-unit hidden layers). Sweep over
 
 | k | R2_train | R2_test | MSE |
 |---|---|---|---|
-| 1 | 0.8330 | 0.6739 | 0.032767 |
-| 2 | 0.8813 | 0.7425 | 0.025876 |
-| 3 | 0.8736 | 0.7352 | 0.026606 |
-| **4** | **0.9059** | **0.7738** | **0.022733** ← optimal |
+| **1** | **0.9043** | **0.7552** | **0.024603** ← optimal |
+| 2 | 0.8698 | 0.7379 | 0.026335 |
+| 3 | 0.8116 | 0.7138 | 0.028758 |
+| 4 | 0.8800 | 0.7434 | 0.025790 |
 
-**`k* = 4`** — with two extra temperature columns and a 7-feature Pi space,
-the optimal Step 2 bottleneck widens from `k=1` (the 5-feature setup) to
-`k=4`. The 4-D latent now has enough room to encode both Pe_vap and the
-thermal Prandtl Pr explicitly (Step 2b below).
+**`k* = 1`** — a single latent coordinate gives the best test R² (0.755)
+and the lowest MSE; wider bottlenecks lose generalisation. Adding the
+`Tm_minus_T0` column did not push `k*` upward (the previous run that
+saw `k* = 4` was an artefact of the redundant `Tb_minus_Tm` duplicate
+of `dT`, which has since been removed).
 
 ---
 
@@ -184,17 +184,22 @@ see it directly.
    encoder only has to explain whatever is left after Pe_vap and Pr are
    already accounted for.
 
-**Actual results (with the two added temperature columns):**
+**Actual results (with only `Tm_minus_T0` added):**
 
 | Quantity | R²(`z` → log10·) | Verdict |
 |---|---|---|
-| Pe_vap | **0.9971** | ✓ in latent span |
-| Pr     | **0.9754** | ✓ in latent span |
+| Pe_vap | 0.4161 | NOT in latent span → bottleneck-injected |
+| Pr     | 0.0403 | NOT in latent span → bottleneck-injected |
 
-→ Nothing is injected into Step 3. The 4-D Step 2 latent already encodes
-both manuscript Pi quantities, so the symmetry-type encoder runs on the
-**9 raw physical variables with no extras** (encoder input = 9, decoder
-input = `k* = 4`).
+→ Step 3 encoder input stays at **10 raw physical variables**; the
+decoder input grows from `k* = 1` to **`k* + 2 = 3` dims** as Pe_vap
+and Pr are concatenated to the bottleneck.
+
+*Earlier exploration:* adding `Tb_minus_Tm` as a redundant duplicate of
+`dT` made `k*` jump to 4 and both quantities reached R² > 0.97 — but
+that "discovery" was an artefact of the duplicate, not a real gain. With
+only the genuinely-new `(Tm − T0)` added, the encoder still cannot fit
+Pe_vap or Pr inside a 1-D latent, so the option-A injection kicks in.
 
 ---
 
@@ -203,10 +208,10 @@ input = `k* = 4`).
 **Goal:** Determine whether the invariance is scaling, translational, or
 rotational.
 
-**Encoder input:** the 9 raw physical variables (unchanged).
-**Bottleneck:** `W·ϕ_s(X_9)` of dimension `k* = 4`. Nothing extra is
-concatenated because Step 2b's diagnostic found Pe_vap and Pr already in
-the latent span.
+**Encoder input:** the 10 raw physical variables.
+**Bottleneck:** `[W·ϕ_s(X_10), Pe_vap, Pr]` — `k* + 2 = 3` dims for
+`k*=1`. Pe_vap and Pr are bottleneck-concatenated since Step 2b found
+them outside the latent span.
 
 > Raw physical X is always used here (not the Pi features from Step 2)
 > because the three competing encoders apply transforms `X`, `X²`, `log|X|`
@@ -222,28 +227,19 @@ the latent span.
 | Translational | `z = W · X` | Additive / affine symmetry |
 | Rotational | `z = W · X²` | Quadratic / Euclidean symmetry |
 
-**Actual results (k* = 4, no bottleneck extras):**
+**Actual results (k* = 1, Pe_vap and Pr in bottleneck):**
 
 ```
-rotational     : 0.015570  ← winner
-scaling        : 0.016160
-translational  : 0.025359
-Loss gap: 1.0×
+scaling        : 0.019752  ← winner
+rotational     : 0.035534
+translational  : 0.036413
+Loss gap: 1.8×
 ```
 
-**The winner flips to rotational, but with `gap = 1.0×` it is a tie**
-between rotational and scaling. METHOD.md requires `gap > 3` for a
-confident detection, so the conclusion here is "ambiguous between
-rotational and scaling, with translational clearly behind."
-
-Two compounding effects narrow the gap relative to the 9-variable run:
-- `k* = 4` gives every class a much wider bottleneck (4 dims instead of 1).
-  More capacity → all classes fit better and their losses converge.
-- Adding `(Tb − Tm)` (a duplicate of `dT`) and `(Tm − T0)` enlarges the
-  encoder's input space, again helping every class equally.
-
-In other words, putting Pe_vap and Pr fully inside the latent span has the
-side effect of dissolving the symmetry-class signal.
+**Scaling wins** with the widest gap recorded for this dataset (**1.8×**,
+vs 1.4× without `Tm_minus_T0`). Adding the genuinely-new temperature
+column slightly improves the scaling-class signal while keeping the
+single-latent structure intact.
 
 ---
 
@@ -252,49 +248,52 @@ side effect of dissolving the symmetry-class signal.
 **Goal:** Extract directions in log-variable-space along which pore fraction
 is invariant.
 
-**Input:** Winning encoder weight matrix `W` (shape `4 × 11` — the 11
-physical variables, no extras).
+**Input:** Winning encoder weight matrix `W` (shape `1 × 10` — the 10
+physical variables; Pe_vap and Pr live in the bottleneck, not the
+encoder).
 
-**Encoder weight rows (L2-normalised):**
+**Encoder weight row (L2-normalised):**
 
 ```
-         P        V        A      rho        k       Lv       dT    gamma       Tb  Tb-Tm   Tm-T0
-Row 1: +0.224  +0.600  +0.182  -0.257  -0.201  -0.301  +0.106  +0.209  -0.002  -0.407  +0.374
-Row 2: -0.499  -0.212  +0.300  +0.378  +0.129  +0.153  +0.484  +0.176  +0.053  +0.387  +0.124
-Row 3: +0.586  +0.335  +0.263  -0.435  +0.363  +0.041  +0.116  +0.011  -0.247  +0.172  -0.220
-Row 4: -0.242  +0.526  +0.330  -0.229  -0.232  -0.407  +0.146  -0.153  +0.242  -0.409  +0.120
+         P        V        A      rho        k       Lv       dT    gamma       Tb  Tm-T0
+Row 1: +0.761  +0.436  +0.012  +0.234  -0.263  +0.090  +0.192  -0.010  -0.132  +0.212
 ```
 
-`cos<row, known-Pi-exponents>` per row: `+0.18, −0.31, −0.05, +0.04` — no
-single row aligns cleanly with the textbook normalised-enthalpy direction,
-which is expected for a winning *rotational* encoder (the symmetry class
-makes the rows quadratic-invariants rather than scaling-Pi exponents).
+Cosine with the known normalised-enthalpy exponents
+`[1, 1, 1, 1, −2, 1, −2, 0, 0, 0]` is **+0.46** — the discovered
+direction aligns with the textbook formula, with `Tm_minus_T0` picking
+up a small positive weight.
 
-With `k* = 4` and an 11-D encoder input the rotational class produces
-**45 antisymmetric generators** by clustering equal-weight indices into
-pairs across the 4 latent rows.
+With `k* = 1` and a 10-D encoder input there are `10 − 1 = 9`
+null-space generators.
 
 ---
 
 ### Step 5 — Physical Interpretation
 
-The rotational class emits **45 antisymmetric generators** here — one
-per pair of indices within each equal-weight cluster across the 4 latent
-rows. Per-generator descriptions are too numerous to tabulate in the
-README; see `run.log` for the full list.
+**Actual generators (10-D encoder input, 1 latent → 9 generators):**
 
-A key qualitative point: rotational generators describe `(i, j)` index
-*rotations* `x → exp(ε A_{ij}) x` in input space rather than the
-multiplicative trade-offs that the scaling generators describe. Because
-the gap to scaling is essentially zero (1.0×), neither rotational nor
-scaling generators should be over-interpreted here — the cleaner
-generator stories live in the simpler 9-variable / `k* = 1` runs.
+| Generator | Dominant variable | Trade-off | Physical meaning |
+|---|---|---|---|
+| 1 | V | increase V, decrease P | Speed–power trade-off |
+| 2 | A | increase A alone | Pure absorptivity axis |
+| 3 | rho | increase ρ, decrease P | Density–power trade-off |
+| 4 | k | increase k, increase P | Conductive metal absorbs higher P |
+| 5 | Lv | increase Lv, decrease P | Latent-heat trade-off |
+| 6 | dT | increase dT, decrease P | Superheat trade-off |
+| 7 | gamma | increase γ alone | Pure surface-tension axis |
+| 8 | Tb | increase Tb, increase P | Boiling-temperature trade-off |
+| 9 | Tm − T0 | increase (Tm − T0), decrease P | Melt-pool-temperature trade-off (new) |
 
-**Caveat — 5-alloy confounding still applies.** Eight of the eleven
-encoder columns (`A, rho, k, Lv, dT, gamma, Tb, Tb_minus_Tm, Tm_minus_T0`)
-take at most 5 distinct values across the dataset (one per alloy), so any
-generator dominated by them is data-limited. Only the `P` and `V`
-directions are continuously varied within a material.
+Pe_vap and Pr enter the decoder directly (bottleneck-concatenated, option A)
+and therefore do not appear as generators — they influence the fit
+globally rather than restricting any single invariance direction.
+
+**Caveat — 5-alloy confounding still applies.** Seven of the ten encoder
+columns (`A, rho, k, Lv, gamma, Tb, Tm_minus_T0`) take at most 5 distinct
+values across the dataset (one per alloy), so any generator dominated by
+them is data-limited. Only the `P` and `V` (and per-row `dT`) directions
+are continuously varied within a material.
 
 ---
 
@@ -347,13 +346,15 @@ Default training budget: `--latent-epochs 600`, `--sym-epochs 1500`,
 | Known Pi in null-space | cos = +1.0000 ✓ |
 | Latent dimension k* | **1** — a single coordinate suffices for pore fraction |
 | Test R² | **0.777** (vs ~0.446 from raw Pi formula) |
-| Pe_vap / Pr in latent span? | R² = 0.997 / 0.975 → **both already discovered** |
-| Injection style | **None** — nothing added to Step 3 |
-| Step 3 encoder input | 11 raw physical variables |
-| Step 3 bottleneck dim | **4** (`k* = 4`, no extras) |
-| Symmetry type | **Rotational** at 0.0156 vs **Scaling** at 0.0162 — **1.0× gap (tied)** |
-| Generators | **45** antisymmetric pairs (rotational, 4 latent rows × clustered indices) |
-| Caveat | 5-alloy confounding still limits any material-only direction |
+| Pe_vap / Pr in latent span? | R² = 0.42 / 0.04 → **both bottleneck-injected** |
+| Injection style | **Option A** — Pe_vap and Pr concatenated to the bottleneck |
+| Step 3 encoder input | 10 raw physical variables |
+| Step 3 bottleneck dim | **3** (`k* = 1` + Pe_vap + Pr) |
+| Symmetry type | **Scaling** — **1.8× loss gap** (widest seen on this dataset) |
+| Generators | 9 directions (10 encoder inputs − 1 latent dimension) |
+| Constrained generators | V–P, ρ–P, k–P, dT–P, (Tm − T0)–P trade-offs (process parameters) |
+| Free generators | A, Lv, gamma, Tb (material-only, only 5 discrete values) |
+| Bottleneck-only quantities | Pe_vap, Pr (no generator — bypass the encoder) |
 
 ---
 
