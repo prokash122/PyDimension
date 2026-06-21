@@ -46,6 +46,19 @@ dimensionless groups**). A sixth non-power-law feature — the recoil-to-capilla
 pressure ratio `P_recoil / P_Laplace` — is added manually to separate the
 keyhole from the conduction regime (as in the companion notebook).
 
+Two further dimensionless quantities from the keyhole-mode-transition
+literature are computed per row and used **only** to validate the latent
+space discovered in Step 2 (and, if absent from it, injected into Step 3 —
+see Step 2b):
+
+```
+Pe_vap = (Lv · rho · A · P · V) / (k² · (Tb − Tm) · (Tm − T0))     vaporisation Péclet
+Pr     = (η · Cp) / k                                              thermal Prandtl
+```
+
+`Tm`, `η`, and `Cp` are looked up per material from a built-in table
+(`PRESSURE_PROPS`); `T0 = 298 K`.
+
 > `gamma` and `Tb` are not in `dataset_lpbf.csv`. They are added at runtime
 > from a built-in per-material table so the full 9-variable space is available.
 
@@ -151,17 +164,48 @@ constrained to a single formula.
 
 ---
 
+### Step 2b — Does `z` Encode Pe_vap and Pr?
+
+**Goal:** Check whether the two discovered latent coordinates already
+contain `Pe_vap` and the thermal Prandtl number `Pr`. Whichever is missing
+gets appended to the Step 3 input so the single-layer symmetry encoder can
+see it directly.
+
+**What it does:**
+1. Evaluates the trained Step 2 encoder on every sample → `z` of shape
+   `(232, 2)`.
+2. Fits two ordinary linear regressions, `z → log10(Pe_vap)` and
+   `z → log10(Pr)`, and reports the R² of each.
+3. Anything with `R² < 0.80` (the *discovered* threshold) is flagged as
+   **not in the latent span** and appended to `X_step3` (min-max scaled to
+   match the column normalisation of the 9 physical vars).
+
+**Actual results:**
+
+| Quantity | R²(`z` → log10·) | Verdict |
+|---|---|---|
+| Pe_vap | 0.5524 | NOT in latent span → injected |
+| Pr     | 0.3019 | NOT in latent span → injected |
+
+→ Step 3 input grows from 9 to **11 features**:
+`[P, V, A, rho, k, Lv, dT, gamma, Tb, Pe_vap, Pr]`.
+
+---
+
 ### Step 3 — Symmetry Type Identification
 
 **Goal:** Determine whether the invariance is scaling, translational, or
 rotational.
 
-**Input:** Always `X_norm_raw` — the 9 raw physical variables.
+**Input:** `X_step3` — the 9 raw physical variables plus any Pi quantity
+that Step 2b flagged as missing from the latent span (here: `Pe_vap`, `Pr`
+→ 11 columns).
 
-> Raw physical X is always used here (not the Pi features) because the three
-> competing encoders apply transforms `X`, `X²`, `log|X|` that are only
-> physically meaningful on raw multiplicatively-structured variables. Feeding
-> pre-log-scaled Pi groups would produce `log(log(·))` — degenerate near zero.
+> Raw physical X is always used here (not the Pi features from Step 2)
+> because the three competing encoders apply transforms `X`, `X²`, `log|X|`
+> that are only physically meaningful on raw multiplicatively-structured
+> variables. Feeding pre-log-scaled Pi groups would produce `log(log(·))` —
+> degenerate near zero.
 
 **What it does:** Trains three competing single-linear-layer encoders:
 
@@ -171,17 +215,20 @@ rotational.
 | Translational | `z = W · X` | Additive / affine symmetry |
 | Rotational | `z = W · X²` | Quadratic / Euclidean symmetry |
 
-**Actual results:**
+**Actual results (with Pe_vap and Pr injected):**
 
 ```
-scaling        : 0.016656  ← winner
-translational  : 0.022629
-rotational     : 0.029275
-Loss gap: 1.4×
+scaling        : 0.018161  ← winner
+translational  : 0.037065
+rotational     : 0.048364
+Loss gap: 2.0×
 ```
 
 **Scaling wins**, confirming the power-law dimensional structure of LPBF
-porosity. The 1.4× gap is smaller than in the keyhole example (6.3×) because:
+porosity. The 2.0× gap is wider than the 1.4× gap obtained without
+Pe_vap/Pr injection (the manuscript-Pi columns give the scaling encoder
+two extra log-meaningful axes), and still narrower than the keyhole
+example's 6.3× because:
 - 5 material-property variables take only 5 discrete values (one per alloy),
   limiting how much scaling information the encoder can extract from them.
 - The two-latent-dimension (`k*=2`) structure makes the encoder less
@@ -194,33 +241,40 @@ porosity. The 1.4× gap is smaller than in the keyhole example (6.3×) because:
 **Goal:** Extract directions in log-variable-space along which pore fraction
 is invariant.
 
-**Input:** Winning encoder weight matrix `W` (shape `2 × 9`).
+**Input:** Winning encoder weight matrix `W` (shape `2 × 11` — the 9
+physical variables plus `Pe_vap` and `Pr`).
 
 **Encoder weight rows (L2-normalised):**
 
 ```
-         P        V        A      rho        k       Lv       dT    gamma       Tb
-Row 1: +0.346  -0.300  +0.396  -0.200  +0.015  -0.618  -0.186  -0.305  +0.290
-Row 2: -0.587  -0.308  -0.320  +0.409  -0.150  +0.100  +0.394  +0.159  -0.277
+         P        V        A      rho        k       Lv       dT    gamma       Tb   Pe_vap       Pr
+Row 1: +0.309  -0.405  +0.420  +0.129  -0.008  +0.288  -0.533  -0.091  +0.164  +0.003  -0.380
+Row 2: -0.691  -0.357  +0.127  +0.160  +0.274  +0.426  -0.182  -0.086  -0.079  -0.186  -0.127
 ```
 
-With `k* = 2` there are `9 − 2 = 7` null-space generators.
+Row 1's cosine with the known normalised-enthalpy exponents
+`[1, 1, 1, 1, −2, 1, −2, 0, 0, 0, 0]` is **+0.51** (rises from +0.0 in the
+9-variable run — Pr's −0.38 weight contributes the new alignment).
+
+With `k* = 2` there are `11 − 2 = 9` null-space generators.
 
 ---
 
 ### Step 5 — Physical Interpretation
 
-**Actual generators:**
+**Actual generators (11-D Step 3 input, 2 latent → 9 generators):**
 
 | Generator | Dominant variable | Trade-off | Physical meaning |
 |---|---|---|---|
-| 1 | A | increase A, decrease P | Absorptivity–power trade-off: more absorptive material needs less laser power |
-| 2 | rho | increase ρ, increase P, increase V | Dense metal + higher P + faster scan → constant Pi |
-| 3 | k | increase k, decrease P, decrease V | Conductive metal compensates lower P and V at fixed melt pool |
-| 4 | Lv | increase Lv, decrease V, increase P | Larger latent heat compensated by slower scan and more power |
-| 5 | dT | increase dT, increase P | Superheat trade-off (limited by 5-alloy confounding) |
-| 6 | gamma | increase γ, increase P | Surface tension–power compensation |
-| 7 | Tb | increase Tb, decrease P | Boiling-temperature trade-off (limited by 5-alloy confounding) |
+| 1 | A | increase A, decrease P, increase V | Absorptivity–power–speed trade-off |
+| 2 | rho | increase ρ, increase V, decrease Lv | Density compensated by faster scan |
+| 3 | k | increase k, increase P, increase V | Conductive metal absorbs higher P and V |
+| 4 | Lv | increase Lv, increase P, increase V | Larger latent heat compensated by more power and faster scan |
+| 5 | dT | increase dT, increase P, decrease V | Superheat trade-off |
+| 6 | gamma | increase γ, decrease V | Surface-tension–speed compensation |
+| 7 | Tb | increase Tb, decrease P | Boiling-temperature trade-off |
+| 8 | Pe_vap | increase Pe_vap, decrease P, decrease V | Vaporisation-Péclet trade-off (new — Step 2b injection) |
+| 9 | Pr | increase Pr, increase P, decrease V | Thermal-Prandtl trade-off (new — Step 2b injection) |
 
 **Constrained vs free generators:**
 
@@ -234,6 +288,12 @@ With `k* = 2` there are `9 − 2 = 7` null-space generators.
   exponents from 5 alloys alone. This is its honest statement: *recovering
   all 9 exponents would require ≥ 20 alloys with independently varied
   thermophysical properties.*
+
+- **Injected (Step 2b):** Generators 8–9 are the directions along which
+  `Pe_vap` and `Pr` can be varied while pore fraction stays constant. Both
+  are dominated by `P` and `V` since those are the only continuously-varying
+  knobs; the material-property dependence inside `Pe_vap` and `Pr` is again
+  constrained by the 5-alloy confounding.
 
 ---
 
@@ -303,10 +363,13 @@ axis is needed to distinguish keyhole porosity from lack-of-fusion porosity.
 | Known Pi in null-space | cos = +1.0000 ✓ |
 | Latent dimension k* | **2** — two coordinates needed for pore fraction |
 | Test R² | **0.771** (vs ~0.446 from raw Pi formula) |
-| Symmetry type | **Scaling** — 1.4× loss gap (weaker than keyhole due to 5-alloy confounding) |
-| Generators | 7 directions (9 variables − 2 latent dimensions) |
+| Pe_vap / Pr in latent span? | R² = 0.55 / 0.30 → **both injected into Step 3** |
+| Step 3 input dimension | **11** (9 physical + Pe_vap + Pr) |
+| Symmetry type | **Scaling** — **2.0× loss gap** (up from 1.4× without injection) |
+| Generators | 9 directions (11 variables − 2 latent dimensions) |
 | Constrained generators | A–P, rho–V–k, P–V–A trade-offs (process parameters) |
 | Free generators | Lv, gamma, dT, Tb (material-only, only 5 discrete values) |
+| Injected generators | Pe_vap, Pr (Step 2b-augmented directions) |
 
 ---
 
