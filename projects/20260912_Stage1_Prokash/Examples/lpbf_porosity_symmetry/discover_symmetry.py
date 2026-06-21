@@ -496,6 +496,125 @@ def load_data(args):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Step 3 variant: concatenated-bottleneck identification
+# ──────────────────────────────────────────────────────────────────────────────
+
+def identify_symmetry_with_bottleneck_extras(
+    X: np.ndarray,
+    y: np.ndarray,
+    bottleneck_extras: np.ndarray,
+    n_latent: int,
+    n_epochs: int = 1500,
+    n_restarts: int = 3,
+    seed: int = 0,
+    lr: float = 1e-3,
+    weight_decay: float = 1e-4,
+    batch_size: int = 256,
+    hidden_dim: int = 64,
+    val_fraction: float = 0.2,
+    device: str = "auto",
+) -> dict:
+    """Variant of identify_symmetry with extras concatenated post-encoder.
+
+    For each symmetry class s, the encoder still applies the single linear
+    layer  z_s = W_s · ϕ_s(X_enc)  to the raw physical input X_enc only.
+    The decoder, however, sees the concatenated vector
+        [z_s, bottleneck_extras]   (dim = n_latent + bottleneck_extras.shape[1])
+    so the Pi quantities supplied in ``bottleneck_extras`` are given to the
+    decoder for free, bypassing ϕ_s.
+    """
+    from symmetry_discovery.encoders import SymmetryEncoder
+    import torch.nn as nn
+
+    if device == "auto":
+        dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        dev = torch.device(device)
+
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    n_samples, n_inputs = X.shape
+    n_extra = bottleneck_extras.shape[1] if bottleneck_extras.size else 0
+    dec_in  = n_latent + n_extra
+
+    n_val   = int(n_samples * val_fraction)
+    idx     = np.random.permutation(n_samples)
+    val_idx, tr_idx = idx[:n_val], idx[n_val:]
+
+    X_tr_t   = torch.tensor(X[tr_idx],   dtype=torch.float32).to(dev)
+    y_tr_t   = torch.tensor(y[tr_idx],   dtype=torch.float32).unsqueeze(1).to(dev)
+    X_val_t  = torch.tensor(X[val_idx],  dtype=torch.float32).to(dev)
+    y_val_np = y[val_idx]
+    if n_extra:
+        E_tr_t  = torch.tensor(bottleneck_extras[tr_idx],  dtype=torch.float32).to(dev)
+        E_val_t = torch.tensor(bottleneck_extras[val_idx], dtype=torch.float32).to(dev)
+    else:
+        E_tr_t  = torch.empty((X_tr_t.shape[0],  0), device=dev)
+        E_val_t = torch.empty((X_val_t.shape[0], 0), device=dev)
+
+    def _make_dec():
+        return nn.Sequential(
+            nn.Linear(dec_in, hidden_dim), nn.Tanh(),
+            nn.Linear(hidden_dim, hidden_dim), nn.Tanh(),
+            nn.Linear(hidden_dim, 1),
+        )
+
+    sym_types = ("translational", "rotational", "scaling")
+    best_losses, best_encs, best_decs = {}, {}, {}
+
+    for sym_type in sym_types:
+        best_loss, best_enc, best_dec = np.inf, None, None
+        for restart in range(n_restarts):
+            torch.manual_seed(seed + hash(sym_type) % 1000 + restart * 37)
+            enc = SymmetryEncoder(sym_type, n_inputs, n_latent).to(dev)
+            dec = _make_dec().to(dev)
+            opt = torch.optim.Adam(
+                list(enc.parameters()) + list(dec.parameters()),
+                lr=lr, weight_decay=weight_decay,
+            )
+            sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+                opt, T_max=n_epochs, eta_min=lr * 0.01
+            )
+            loss_fn = nn.MSELoss()
+
+            enc.train(); dec.train()
+            n_tr = X_tr_t.shape[0]
+            for _ in range(n_epochs):
+                perm = torch.randperm(n_tr, device=dev)
+                for start in range(0, n_tr, batch_size):
+                    b = perm[start:start + batch_size]
+                    opt.zero_grad()
+                    z = enc(X_tr_t[b])
+                    bottleneck = torch.cat([z, E_tr_t[b]], dim=1) if n_extra else z
+                    loss_fn(dec(bottleneck), y_tr_t[b]).backward()
+                    opt.step()
+                sched.step()
+
+            enc.eval(); dec.eval()
+            with torch.no_grad():
+                z_v = enc(X_val_t)
+                bv  = torch.cat([z_v, E_val_t], dim=1) if n_extra else z_v
+                pred = dec(bv).squeeze(1).cpu().numpy()
+            val_loss = float(np.mean((y_val_np - pred) ** 2))
+            if val_loss < best_loss:
+                best_loss, best_enc, best_dec = val_loss, enc, dec
+
+        best_losses[sym_type] = best_loss
+        best_encs[sym_type]   = best_enc
+        best_decs[sym_type]   = best_dec
+
+    winner = min(best_losses, key=lambda t: best_losses[t])
+    return {
+        "symmetry_type": winner,
+        "coefficients":  best_encs[winner].coefficients,
+        "losses":        best_losses,
+        "encoders":      best_encs,
+        "decoders":      best_decs,
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Pipeline
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -673,33 +792,34 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     results["r2_pe_vap"] = r2_pe
     results["r2_pr"]     = r2_pr
 
-    # Build Step 3 input: physical X + any missing manuscript Pi (min-max
-    # scaled to [0, 1] so it matches the existing column normalisation).
-    extra_cols, extra_names = [], []
+    # Option A: Pe_vap and Pr enter the Step 3 *bottleneck* rather than the
+    # encoder input.  The symmetry-class encoder still acts only on the 9
+    # raw physical variables (z = W · ϕ_s(X_9)); Pe_vap and Pr are min-max
+    # scaled and concatenated to the encoder's output before the decoder
+    # sees them.  Effective bottleneck dim = n_latent + 2 = 3 (for k*=1).
+    bottleneck_cols, bottleneck_names = [], []
     if r2_pe < R2_DISCOVERED:
-        extra_cols.append(Pe_vap.reshape(-1, 1))
-        extra_names.append("Pe_vap")
+        bottleneck_cols.append(Pe_vap.reshape(-1, 1))
+        bottleneck_names.append("Pe_vap")
     if r2_pr < R2_DISCOVERED:
-        extra_cols.append(Pr_thermal.reshape(-1, 1))
-        extra_names.append("Pr")
+        bottleneck_cols.append(Pr_thermal.reshape(-1, 1))
+        bottleneck_names.append("Pr")
 
-    # Always inject the Step 2 latent z (k* columns) alongside Pe_vap/Pr so
-    # the Step 3 symmetry encoder sees the discovered intrinsic coordinate
-    # explicitly.  Scaling/translational/rotational encoders apply X, X²,
-    # log|X| to every column, so z must be positive after normalisation —
-    # min-max to [0, 1] makes log|z| well-defined.
-    z_cols = z_all if z_all.ndim == 2 else z_all.reshape(-1, 1)
-    extra_cols.append(z_cols)
-    extra_names.extend([f"z{i+1}_step2" for i in range(z_cols.shape[1])])
-
-    extras = np.hstack(extra_cols)
-    mn = extras.min(axis=0, keepdims=True)
-    mx = extras.max(axis=0, keepdims=True)
-    extras_norm = (extras - mn) / np.where(mx - mn > 1e-12, mx - mn, 1.0)
-    X_step3 = np.hstack([X_norm_raw, extras_norm])
-    names_step3 = list(VARIABLE_NAMES) + extra_names
-    print(f"  → Augmenting Step 3 input with: {extra_names}")
+    if bottleneck_cols:
+        bottleneck_extras = np.hstack(bottleneck_cols)
+        mn = bottleneck_extras.min(axis=0, keepdims=True)
+        mx = bottleneck_extras.max(axis=0, keepdims=True)
+        bottleneck_extras = (bottleneck_extras - mn) / np.where(
+            mx - mn > 1e-12, mx - mn, 1.0
+        )
+        print(f"  → Bottleneck-injecting (skips encoder): {bottleneck_names}")
+    else:
+        bottleneck_extras = np.zeros((X_norm_raw.shape[0], 0), dtype=np.float32)
+        print(f"  → Pe_vap and Pr already in latent span; "
+              f"nothing injected into the Step 3 bottleneck.")
+    names_step3 = list(VARIABLE_NAMES)
     results["feature_names_step3"] = names_step3
+    results["bottleneck_extras_names"] = bottleneck_names
     print()
 
     # --- Identify symmetry type ---
@@ -708,13 +828,18 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     print("=" * 60)
     sys.stdout.flush()
     if pi_only:
-        print(f"  Running Step 3 on physical X ({X_step3.shape[1]} variables: "
-              f"{names_step3}) so the translational/rotational/scaling encoders see")
-        print(f"  multiplicatively-meaningful quantities (avoids the log-of-log "
-              f"degeneracy of feeding pre-log-scaled Pi groups).")
-    res_sym = identify_symmetry(
-        X_step3, y_norm, n_latent=n_latent, decoder=res_latent["best_decoder"],
-        n_epochs=args.sym_epochs, n_restarts=args.n_restarts, seed=args.seed,
+        print(f"  Encoder input: {X_norm_raw.shape[1]} raw physical variables "
+              f"({names_step3})")
+        print(f"  Bottleneck:    [W·ϕ_s(X) ({n_latent}), {bottleneck_names}]  → "
+              f"decoder sees {n_latent + len(bottleneck_names)} dims")
+    res_sym = identify_symmetry_with_bottleneck_extras(
+        X=X_norm_raw,
+        y=y_norm,
+        bottleneck_extras=bottleneck_extras,
+        n_latent=n_latent,
+        n_epochs=args.sym_epochs,
+        n_restarts=args.n_restarts,
+        seed=args.seed,
     )
     results["symmetry"] = res_sym
     print(f"\n  Detected symmetry: {res_sym['symmetry_type']}")
