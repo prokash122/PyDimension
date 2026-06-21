@@ -14,7 +14,7 @@ SS304, Ti64) at many (P, V) combinations can be collapsed onto a single
 logistic curve using the hand-picked "normalised enthalpy":
 
 ```
-Pi = (Lv · rho · A · P · V) / (k² · (Tb − Tm)²)
+Pi = (Lv · rho · A · P · V) / (k² · (Tb − Tm). (Tm-T0)
 ```
 
 This collapse is *evidence* of a scaling symmetry — but the notebook that
