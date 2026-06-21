@@ -578,18 +578,7 @@ def run_pipeline(X, y, Pi, PR, Pe_vap, Pr_thermal, materials, args):
     print(f"  Known Pi exponents projected onto null-space basis: cos = {recon_cos:+.4f}  "
           f"(±1 means the notebook Pi lies in the Pi-group span)")
     pi_features = compute_pi_features(X, pi_basis)
-
-    # --- Empirical extra feature: P_recoil / P_Laplace --------------------
-    # The notebook visualises pore fraction over (log10(Pi), log10(PR)).
-    # PR is a Clausius–Clapeyron expression — non-power-law — so it cannot
-    # be produced by Buckingham-Pi null-space reduction alone.  We inject
-    # it here as a precomputed feature: log10(PR) min-max scaled to [0, 1].
-    logPR = np.log10(np.maximum(PR, 1e-30))
-    logPR_scaled = (logPR - logPR.min()) / (logPR.max() - logPR.min() + 1e-12)
-    pi_features = np.hstack([pi_features, logPR_scaled.reshape(-1, 1)])
-    pi_feature_names = [f"Pi{i+1} (DA)" for i in range(pi_basis.shape[1])] + [
-        "log10(P_recoil/P_Laplace)"
-    ]
+    pi_feature_names = [f"Pi{i+1} (DA)" for i in range(pi_basis.shape[1])]
     results["pi_basis"] = pi_basis
     results["pi_features"] = pi_features
     results["pi_feature_names"] = pi_feature_names
