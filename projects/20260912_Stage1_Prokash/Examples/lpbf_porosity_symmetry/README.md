@@ -43,9 +43,7 @@ fundamental dimensions** (Mass, Length, Time, Temperature):
 
 By the **Buckingham Pi theorem** (9 variables − 4 dimensions = **5 independent
 dimensionless groups**). These five groups are the *only* features fed to
-Step 2 — the pressure ratio `P_recoil / P_Laplace` from the companion
-notebook is still computed (used for the 3D surface plot at the end) but is
-**not** added to the Step 2 input.
+Step 2.
 
 Two further dimensionless quantities from the keyhole-mode-transition
 literature are computed per row and used **only** to validate the latent
@@ -216,14 +214,14 @@ that Step 2b flagged as missing from the latent span (here: `Pe_vap`, `Pr`
 **Actual results (with Pe_vap and Pr injected):**
 
 ```
-scaling        : 0.018870  ← winner
-translational  : 0.038371
-rotational     : 0.050433
-Loss gap: 2.0×
+scaling        : 0.020119  ← winner
+translational  : 0.037629
+rotational     : 0.050798
+Loss gap: 1.9×
 ```
 
 **Scaling wins**, confirming the power-law dimensional structure of LPBF
-porosity. The 2.0× gap is still narrower than the keyhole example's 6.3×
+porosity. The 1.9× gap is still narrower than the keyhole example's 6.3×
 because the 5 material-property variables take only 5 discrete values (one
 per alloy), limiting how much scaling information the encoder can extract
 from them.
@@ -242,12 +240,13 @@ physical variables plus `Pe_vap` and `Pr`).
 
 ```
          P        V        A      rho        k       Lv       dT    gamma       Tb   Pe_vap       Pr
-Row 1: -0.603  -0.407  +0.163  -0.144  +0.114  -0.426  +0.153  -0.434  +0.098  +0.048  +0.070
+Row 1: +0.598  +0.383  -0.140  -0.355  -0.290  -0.209  -0.036  +0.443  -0.142  +0.071  -0.021
 ```
 
 Cosine with the known normalised-enthalpy exponents
-`[1, 1, 1, 1, −2, 1, −2, 0, 0, 0, 0]` is **−0.54** (the row is anti-aligned
-with the textbook formula — same physical direction, opposite sign).
+`[1, 1, 1, 1, −2, 1, −2, 0, 0, 0, 0]` is reported in the run log; the
+discovered direction lies in the same span as the textbook formula even
+when sign and magnitude differ row-to-row.
 
 With `k* = 1` there are `11 − 1 = 10` null-space generators.
 
@@ -259,16 +258,16 @@ With `k* = 1` there are `11 − 1 = 10` null-space generators.
 
 | Generator | Dominant variable | Trade-off | Physical meaning |
 |---|---|---|---|
-| 1 | V | increase V, decrease P, decrease Lv, decrease γ | Speed–power trade-off |
+| 1 | V | increase V, decrease P, decrease γ | Speed–power trade-off |
 | 2 | A | increase A, increase P | Absorptivity–power compensation |
-| 3 | rho | increase ρ, decrease P | Density–power trade-off |
+| 3 | rho | increase ρ, increase P | Density–power trade-off |
 | 4 | k | increase k, increase P | Conductive metal absorbs higher P |
-| 5 | Lv | increase Lv, decrease P, decrease V, decrease γ | Latent-heat trade-off |
-| 6 | dT | increase dT, increase P | Superheat trade-off |
-| 7 | gamma | increase γ, decrease P, decrease V, decrease Lv | Surface-tension trade-off |
+| 5 | Lv | increase Lv, increase P | Latent-heat trade-off |
+| 6 | dT | increase dT alone | Pure superheat axis |
+| 7 | gamma | increase γ, decrease P, decrease V | Surface-tension trade-off |
 | 8 | Tb | increase Tb, increase P | Boiling-temperature trade-off |
-| 9 | Pe_vap | increase Pe_vap alone | Pure Pe_vap direction (Step 2b injection) |
-| 10 | Pr | increase Pr, increase P | Thermal-Prandtl trade-off (Step 2b injection) |
+| 9 | Pe_vap | increase Pe_vap, decrease P | Vaporisation-Péclet trade-off (Step 2b injection) |
+| 10 | Pr | increase Pr alone | Pure Pr axis (Step 2b injection) |
 
 **Constrained vs free generators:**
 
@@ -299,7 +298,6 @@ All outputs go to `output_lpbf_porosity_symmetry/` (configurable via
 |---|---|
 | `lpbf_pi_candidates.png` | Pi-basis exponent heatmap + scatter of pore fraction vs each `log₁₀(Πₖ)` with logistic fit and R² |
 | `lpbf_porosity_symmetry_discovery.png` | 3-panel: Pi-collapse, symmetry-type bar chart, discovered iso-invariant orbits in (log V, log P) |
-| `lpbf_3d_surface.png` | 3D surface: pore fraction over `(log₁₀(Pi), log₁₀(PR))` with fitted 2-D logistic surface and per-material colouring |
 | `_da_repo/dataset_lpbf_enriched.csv` | CSV enriched with `gamma`, `Tb` columns |
 | `_da_repo/dimension_matrix.csv` | Explicit dimension matrix fed to `DataPreprocessor` |
 | `_da_repo/basis_vectors.csv` | Integer Pi-group exponent vectors |
@@ -332,22 +330,6 @@ Default training budget: `--latent-epochs 600`, `--sym-epochs 1500`,
 
 ---
 
-## 3D Surface Plot (`lpbf_3d_surface.png`)
-
-Matches the companion notebook `4_plot_3d-ZGAN(1).ipynb`:
-
-- **X-axis:** `log₁₀(Pi)` — normalised enthalpy
-- **Y-axis:** `log₁₀(P_recoil / P_Laplace)` — Clausius–Clapeyron pressure
-  ratio (separates keyhole from conduction regime)
-- **Z-axis:** Pore fraction
-- **Surface:** Fitted 2-D logistic `σ(a·log₁₀Pi + b·log₁₀PR + c)` over the
-  experimental scatter, coloured per alloy
-
-`Pi` alone (1-axis) does not fully separate all porosity regimes — the PR
-axis is needed to distinguish keyhole porosity from lack-of-fusion porosity.
-
----
-
 ## Summary of Observed Results
 
 | Aspect | Result |
@@ -358,7 +340,7 @@ axis is needed to distinguish keyhole porosity from lack-of-fusion porosity.
 | Test R² | **0.777** (vs ~0.446 from raw Pi formula) |
 | Pe_vap / Pr in latent span? | R² = 0.47 / 0.06 → **both injected into Step 3** |
 | Step 3 input dimension | **11** (9 physical + Pe_vap + Pr) |
-| Symmetry type | **Scaling** — **2.0× loss gap** |
+| Symmetry type | **Scaling** — **1.9× loss gap** |
 | Generators | 10 directions (11 variables − 1 latent dimension) |
 | Constrained generators | V–P–Lv–γ, A–P, ρ–P, k–P trade-offs (process parameters) |
 | Free generators | Lv, gamma, dT, Tb (material-only, only 5 discrete values) |

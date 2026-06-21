@@ -152,31 +152,25 @@ DIMENSION_NAMES = ["Mass", "Length", "Time", "Temperature"]
 KNOWN_PI_EXPONENTS = np.array([1.0, 1.0, 1.0, 1.0, -2.0, 1.0, -2.0, 0.0, 0.0])
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Per-material thermophysical properties used by the notebook's
-# P_recoil / P_Laplace pressure ratio.  Copied verbatim from cell `db7b5b2e`
-# of projects/20260912_Stage1_Prokash/Examples/4_plot_3d-ZGAN(1).ipynb.
+# Per-material thermophysical properties used to evaluate Pe_vap and Pr
+# per row (and to supply the gamma, Tb columns missing from the CSV).
 # ──────────────────────────────────────────────────────────────────────────────
 PRESSURE_PROPS = {
-    # dHv [J/mol], T_boil [K], gamma [N/m], Tm [K] (melting point),
+    # T_boil [K], gamma [N/m], Tm [K] (melting point),
     # eta [Pa·s] (dynamic viscosity of melt near liquidus),
     # Cp  [J/(kg·K)] (specific heat of melt near liquidus)
-    "Ti64":   dict(dHv=422000.0, Tb=3560.0, gamma=1.65,
+    "Ti64":   dict(Tb=3560.0, gamma=1.65,
                    Tm=1923.0, eta=3.25e-3, Cp=700.0),
-    "SS304":  dict(dHv=341000.0, Tb=3090.0, gamma=1.80,
+    "SS304":  dict(Tb=3090.0, gamma=1.80,
                    Tm=1700.0, eta=6.50e-3, Cp=750.0),
-    "Al2024": dict(dHv=294000.0, Tb=2792.0, gamma=0.90,
+    "Al2024": dict(Tb=2792.0, gamma=0.90,
                    Tm=916.0,  eta=1.30e-3, Cp=1180.0),
-    "Al6061": dict(dHv=294000.0, Tb=2792.0, gamma=0.90,
+    "Al6061": dict(Tb=2792.0, gamma=0.90,
                    Tm=925.0,  eta=1.30e-3, Cp=1180.0),
-    "Cu":     dict(dHv=305000.0, Tb=2835.0, gamma=1.30,
+    "Cu":     dict(Tb=2835.0, gamma=1.30,
                    Tm=1358.0, eta=4.00e-3, Cp=510.0),
 }
-# Physical constants used in the Clausius–Clapeyron form of P_recoil
-P_ATM            = 101325.0      # Pa
-R_GAS            = 8.314         # J/(mol·K)
-R_KEYHOLE        = 35e-6         # m   (d_char/2 with d_char = 70 µm)
-T_SURFACE_FACTOR = 1.05          # T_s = 1.05 · T_boil (notebook default)
-T_AMBIENT        = 298.0         # K   (room temperature, used in Pe_vap)
+T_AMBIENT = 298.0   # K   (room temperature, used in Pe_vap)
 
 
 def compute_pi(X: np.ndarray) -> np.ndarray:
@@ -202,19 +196,6 @@ def compute_pe_vap(X: np.ndarray, Tm: np.ndarray,
 def compute_prandtl(eta: np.ndarray, Cp: np.ndarray, k: np.ndarray) -> np.ndarray:
     """Thermal Prandtl number Pr = η · Cp / k (per row)."""
     return eta * Cp / k
-
-
-def compute_pressure_ratio(Tb: np.ndarray, gamma: np.ndarray, dHv: np.ndarray) -> np.ndarray:
-    """P_recoil / P_Laplace from the notebook formula (non-power-law, per row).
-
-    The exponential is the Clausius–Clapeyron expression used by the
-    notebook's ``pressure_ratio()`` function in cell ``db7b5b2e`` of
-    ``4_plot_3d-ZGAN(1).ipynb``.
-    """
-    T_s = T_SURFACE_FACTOR * Tb
-    P_recoil  = 0.54 * P_ATM * np.exp((dHv / R_GAS) * (1.0 / Tb - 1.0 / T_s))
-    P_laplace = 2.0 * gamma * np.cos(0.0) / R_KEYHOLE
-    return P_recoil / P_laplace
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -388,10 +369,10 @@ def load_csv_data(csv_path: str) -> dict:
     """Load LPBF porosity data from CSV.
 
     Expected columns: source, P, V, A, rho, k, Lv, dT, Pore.  The
-    per-material γ (surface tension), Tb (boiling temperature), and
-    dHv (molar heat of vaporisation) are looked up from
-    :data:`PRESSURE_PROPS` using the ``source`` column, so X is returned
-    with 9 columns matching :data:`VARIABLE_NAMES`.
+    per-material γ (surface tension), Tb (boiling temperature), Tm
+    (melting point), η (viscosity), and Cp (specific heat) are looked up
+    from :data:`PRESSURE_PROPS` using the ``source`` column, so X is
+    returned with 9 columns matching :data:`VARIABLE_NAMES`.
     """
     import csv
     CSV_VARS = ["P", "V", "A", "rho", "k", "Lv", "dT"]  # columns in the file
@@ -422,7 +403,7 @@ def load_csv_data(csv_path: str) -> dict:
         raise ValueError(f"Could not find output column (Pore/porosity) in: {header}")
 
     X_list, y_list, mat_list = [], [], []
-    dHv_list, Tm_list, eta_list, Cp_list = [], [], [], []
+    Tm_list, eta_list, Cp_list = [], [], []
     for r in rows:
         try:
             mat = r[source_col].strip()
@@ -435,7 +416,6 @@ def load_csv_data(csv_path: str) -> dict:
             X_list.append(row_vals)
             y_list.append(float(r[output_col]))
             mat_list.append(mat)
-            dHv_list.append(props["dHv"])
             Tm_list.append(props["Tm"])
             eta_list.append(props["eta"])
             Cp_list.append(props["Cp"])
@@ -443,7 +423,6 @@ def load_csv_data(csv_path: str) -> dict:
             continue
     X = np.array(X_list)
     y = np.array(y_list)
-    dHv = np.array(dHv_list)
     Tm  = np.array(Tm_list)
     eta = np.array(eta_list)
     Cp  = np.array(Cp_list)
@@ -452,19 +431,20 @@ def load_csv_data(csv_path: str) -> dict:
           f"{header[output_col].strip()}")
     print(f"  Unique materials: {sorted(set(mat_list))}")
     return {"X": X, "y": y, "materials": materials,
-            "dHv": dHv, "Tm": Tm, "eta": eta, "Cp": Cp}
+            "Tm": Tm, "eta": eta, "Cp": Cp}
 
 
 def load_data(args):
-    """Load data from CSV, compute Pi and P_recoil/P_Laplace.
+    """Load data from CSV, compute Pi, Pe_vap, Pr.
 
     Returns
     -------
     X          : (n, 9)      physical inputs (P, V, A, rho, k, Lv, dT, γ, Tb)
     y          : (n,)        pore fraction, clipped to [0, 1]
-    Pi         : (n,)        notebook's normalised enthalpy
-    PR         : (n,)        P_recoil / P_Laplace ratio (non-power-law feature)
-    materials  : (n,)        material name per row, for colouring the 3D plot
+    Pi         : (n,)        notebook's normalised enthalpy (reference)
+    Pe_vap     : (n,)        vaporisation Péclet (manuscript formula)
+    Pr_thermal : (n,)        thermal Prandtl η·Cp/k
+    materials  : (n,)        material name per row, for plot colouring
     """
     data_path = args.data
     if not os.path.exists(data_path):
@@ -482,28 +462,23 @@ def load_data(args):
     X         = data["X"]          # (n, 9)
     y         = data["y"]
     materials = data["materials"]
-    dHv       = data["dHv"]
     Tm        = data["Tm"]
     eta       = data["eta"]
     Cp        = data["Cp"]
 
     Pi = compute_pi(X)
-    # Columns 7, 8 are gamma, Tb
-    PR = compute_pressure_ratio(Tb=X[:, 8], gamma=X[:, 7], dHv=dHv)
     # Manuscript formulas (T_b - T_m)(T_m - T_0) and η·Cp/k
     Pe_vap     = compute_pe_vap(X, Tm)
     Pr_thermal = compute_prandtl(eta, Cp, X[:, 4])   # X[:,4] = k
 
-    # Drop rows with non-positive / non-finite Pi or PR (log10 will be taken later)
     mask = (np.isfinite(Pi) & (Pi > 0)
-            & np.isfinite(PR) & (PR > 0)
             & np.isfinite(Pe_vap) & (Pe_vap > 0)
             & np.isfinite(Pr_thermal) & (Pr_thermal > 0))
     dropped = (~mask).sum()
     if dropped:
-        print(f"  Dropping {dropped} rows with non-positive Pi/PR/Pe_vap/Pr")
-        X, y, Pi, PR, Pe_vap, Pr_thermal, materials = (
-            X[mask], y[mask], Pi[mask], PR[mask],
+        print(f"  Dropping {dropped} rows with non-positive Pi/Pe_vap/Pr")
+        X, y, Pi, Pe_vap, Pr_thermal, materials = (
+            X[mask], y[mask], Pi[mask],
             Pe_vap[mask], Pr_thermal[mask], materials[mask],
         )
 
@@ -511,23 +486,22 @@ def load_data(args):
 
     print(f"  Samples: {X.shape[0]}")
     print(f"  Pi range:     [{Pi.min():.4g}, {Pi.max():.4g}]")
-    print(f"  PR range:     [{PR.min():.4g}, {PR.max():.4g}]   (P_recoil/P_Laplace)")
     print(f"  Pe_vap range: [{Pe_vap.min():.4g}, {Pe_vap.max():.4g}]   "
           f"(Lv·ρ·A·P·V)/(k²·(Tb-Tm)·(Tm-T0))")
     print(f"  Pr range:     [{Pr_thermal.min():.4g}, {Pr_thermal.max():.4g}]   "
           f"(η·Cp/k, thermal Prandtl)")
     print(f"  Pore range:   [{y.min():.4f}, {y.max():.4f}]")
     print()
-    return X, y, Pi, PR, Pe_vap, Pr_thermal, materials
+    return X, y, Pi, Pe_vap, Pr_thermal, materials
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Pipeline
 # ──────────────────────────────────────────────────────────────────────────────
 
-def run_pipeline(X, y, Pi, PR, Pe_vap, Pr_thermal, materials, args):
+def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     """Run Stage1 symmetry discovery on the LPBF physical variables."""
-    results = {"Pi": Pi, "PR": PR, "Pe_vap": Pe_vap, "Pr_thermal": Pr_thermal,
+    results = {"Pi": Pi, "Pe_vap": Pe_vap, "Pr_thermal": Pr_thermal,
                "X_raw": X, "materials": materials}
 
     # --- Stage 0: Dimensional analysis → reduced Pi candidates ---
@@ -986,86 +960,6 @@ def plot_results(X, y, results, output_dir):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 3D surface plot (matches notebook 4_plot_3d-ZGAN.ipynb)
-# ──────────────────────────────────────────────────────────────────────────────
-
-def plot_3d_surface(Pi, PR, y, materials, output_dir):
-    """Recreate the notebook's 3D surface: Pore fraction over (log10(Pi), log10(PR)).
-
-    A per-material-coloured scatter of the experimental points is overlaid
-    on a fitted 2D logistic-sigmoid surface  ``1 / (1 + exp(-(a·u + b·v + c)))``
-    with ``u = log10(Pi)``, ``v = log10(PR)``.  This is the 3D generalisation
-    of the 1D logistic collapse shown in panel 1 of
-    :func:`plot_results`.
-    """
-    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  (registers 3d proj)
-    from scipy.optimize import curve_fit
-
-    os.makedirs(output_dir, exist_ok=True)
-    u = np.log10(np.maximum(Pi, 1e-30))
-    v = np.log10(np.maximum(PR, 1e-30))
-
-    def _sigmoid2d(UV, a, b, c):
-        uu, vv = UV
-        return 1.0 / (1.0 + np.exp(-(a * uu + b * vv + c)))
-
-    try:
-        popt, _ = curve_fit(_sigmoid2d, (u, v), y,
-                            p0=[2.0, 0.5, -2.0], maxfev=20000)
-        yhat = _sigmoid2d((u, v), *popt)
-        ss_res = np.sum((y - yhat) ** 2)
-        ss_tot = np.sum((y - y.mean()) ** 2)
-        r2 = 1 - ss_res / (ss_tot + 1e-12)
-        fit_ok = True
-    except Exception:
-        popt, r2, fit_ok = (0, 0, 0), float("nan"), False
-
-    fig = plt.figure(figsize=(11, 8))
-    ax = fig.add_subplot(111, projection="3d")
-    fig.suptitle("LPBF Porosity — 3D Collapse on (log₁₀Π, log₁₀(P_recoil/P_Laplace))",
-                 fontsize=13, fontweight="bold")
-
-    # Fitted surface
-    if fit_ok:
-        u_grid = np.linspace(u.min(), u.max(), 40)
-        v_grid = np.linspace(v.min(), v.max(), 40)
-        U, V = np.meshgrid(u_grid, v_grid)
-        Z = _sigmoid2d((U.ravel(), V.ravel()), *popt).reshape(U.shape)
-        ax.plot_surface(U, V, Z, cmap="viridis", alpha=0.45,
-                        linewidth=0, antialiased=True, edgecolor="none")
-
-    # Scatter, coloured per material
-    uniq_mats = sorted(set(materials.tolist()))
-    palette = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00",
-               "#a65628", "#f781bf"]
-    for i, mat in enumerate(uniq_mats):
-        m = (materials == mat)
-        ax.scatter(u[m], v[m], y[m],
-                   c=palette[i % len(palette)], s=28,
-                   label=f"{mat} (n={m.sum()})",
-                   edgecolors="black", linewidth=0.3, depthshade=True)
-
-    ax.set_xlabel(r"$\log_{10}\Pi$ — normalised enthalpy", fontsize=10, labelpad=6)
-    ax.set_ylabel(r"$\log_{10}(P_{recoil}/P_{Laplace})$", fontsize=10, labelpad=6)
-    ax.set_zlabel("Pore fraction", fontsize=10, labelpad=4)
-    if fit_ok:
-        a, b, c = popt
-        ax.set_title(
-            f"Logistic surface   σ(a·log₁₀Π + b·log₁₀PR + c)   "
-            f"a={a:+.2f}, b={b:+.2f}, c={c:+.2f}   R² = {r2:.3f}",
-            fontsize=11,
-        )
-    ax.legend(fontsize=9, loc="upper left", framealpha=0.9)
-    ax.view_init(elev=22, azim=-58)
-
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
-    out_path = os.path.join(output_dir, "lpbf_3d_surface.png")
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    print(f"3D surface figure saved to {out_path}")
-
-
-# ──────────────────────────────────────────────────────────────────────────────
 # Main
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -1094,15 +988,14 @@ def main():
     args = parser.parse_args()
     args.pi_only = not args.no_pi_only
 
-    X, y, Pi, PR, Pe_vap, Pr_thermal, materials = load_data(args)
-    results = run_pipeline(X, y, Pi, PR, Pe_vap, Pr_thermal, materials, args)
+    X, y, Pi, Pe_vap, Pr_thermal, materials = load_data(args)
+    results = run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args)
 
     print("=" * 60)
     print("Creating visualizations")
     print("=" * 60)
     plot_pi_candidates(X, y, results, args.output_dir)
     plot_results(X, y, results, args.output_dir)
-    plot_3d_surface(Pi, PR, y, materials, args.output_dir)
 
     print()
     print("=" * 60)
