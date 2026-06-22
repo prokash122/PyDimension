@@ -82,10 +82,10 @@ Step 3: Identifying symmetry type
   multiplicatively-meaningful quantities (avoids the log-of-log degeneracy of feeding pre-log-scaled Pi groups).
 
   Detected symmetry: scaling
-    scaling        : 0.000982 <--
-    translational  : 0.006229
-    rotational     : 0.015462
-  Loss gap: 6.3x
+    scaling        : 0.001053 <--
+    translational  : 0.006448
+    rotational     : 0.015701
+  Loss gap: 6.1x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
@@ -100,40 +100,40 @@ Step 5: Physical interpretation of generators
   Physically: simultaneous rescaling of variables that keeps the physics invariant.
 
   Generator 1:
-    etaP x exp(+0.142*eps), Vs x exp(+0.986*eps), alpha x exp(+0.063*eps)
-    Meaning: increase Vs while increase etaP, increase alpha
+    etaP x exp(+0.149*eps), Vs x exp(+0.984*eps), cp x exp(+0.055*eps)
+    Meaning: increase Vs while increase etaP, increase cp
              to keep Ke (and e*) unchanged
 
   Generator 2:
-    etaP x exp(+0.201*eps), r0 x exp(+0.972*eps), alpha x exp(+0.089*eps), rho x exp(+0.066*eps)
-    Meaning: increase r0 while increase etaP, increase alpha, increase rho
+    etaP x exp(+0.223*eps), r0 x exp(+0.965*eps), rho x exp(+0.070*eps), cp x exp(+0.082*eps), Tl-T0 x exp(+0.062*eps)
+    Meaning: increase r0 while increase etaP, increase rho, increase cp, increase Tl-T0
              to keep Ke (and e*) unchanged
 
   Generator 3:
-    etaP x exp(-0.628*eps), Vs x exp(+0.063*eps), r0 x exp(+0.089*eps), alpha x exp(+0.723*eps), rho x exp(-0.205*eps), cp x exp(+0.141*eps), Tl-T0 x exp(+0.096*eps)
-    Meaning: increase alpha while decrease etaP, increase Vs, increase r0, decrease rho, increase cp, increase Tl-T0
+    etaP x exp(-0.317*eps), alpha x exp(+0.930*eps), rho x exp(-0.100*eps), cp x exp(-0.116*eps), Tl-T0 x exp(-0.088*eps)
+    Meaning: increase alpha while decrease etaP, decrease rho, decrease cp, decrease Tl-T0
              to keep Ke (and e*) unchanged
 
   Generator 4:
-    etaP x exp(-0.464*eps), r0 x exp(+0.066*eps), alpha x exp(-0.205*eps), rho x exp(+0.849*eps), cp x exp(+0.104*eps), Tl-T0 x exp(+0.071*eps)
-    Meaning: increase rho while decrease etaP, increase r0, decrease alpha, increase cp, increase Tl-T0
+    etaP x exp(-0.452*eps), r0 x exp(+0.070*eps), alpha x exp(-0.100*eps), rho x exp(+0.858*eps), cp x exp(-0.166*eps), Tl-T0 x exp(-0.125*eps)
+    Meaning: increase rho while decrease etaP, increase r0, decrease alpha, decrease cp, decrease Tl-T0
              to keep Ke (and e*) unchanged
 
   Generator 5:
-    etaP x exp(+0.319*eps), alpha x exp(+0.141*eps), rho x exp(+0.104*eps), cp x exp(+0.928*eps)
-    Meaning: increase cp while increase etaP, increase alpha, increase rho
+    etaP x exp(-0.526*eps), Vs x exp(+0.055*eps), r0 x exp(+0.082*eps), alpha x exp(-0.116*eps), rho x exp(-0.166*eps), cp x exp(+0.807*eps), Tl-T0 x exp(-0.146*eps)
+    Meaning: increase cp while decrease etaP, increase Vs, increase r0, decrease alpha, decrease rho, decrease Tl-T0
              to keep Ke (and e*) unchanged
 
   Generator 6:
-    etaP x exp(+0.218*eps), alpha x exp(+0.096*eps), rho x exp(+0.071*eps), Tl-T0 x exp(+0.967*eps)
-    Meaning: increase Tl-T0 while increase etaP, increase alpha, increase rho
+    etaP x exp(-0.398*eps), r0 x exp(+0.062*eps), alpha x exp(-0.088*eps), rho x exp(-0.125*eps), cp x exp(-0.146*eps), Tl-T0 x exp(+0.889*eps)
+    Meaning: increase Tl-T0 while decrease etaP, increase r0, decrease alpha, decrease rho, decrease cp
              to keep Ke (and e*) unchanged
 
 
 ============================================================
 Creating visualizations
 ============================================================
-/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/keyhole_symmetry/discover_symmetry.py:608: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/keyhole_symmetry/discover_symmetry.py:554: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   plt.tight_layout(rect=[0, 0, 1, 0.93])
 Pi candidates figure saved to output_keyhole_symmetry/keyhole_pi_candidates.png
 Figure saved to output_keyhole_symmetry/keyhole_symmetry_discovery.png

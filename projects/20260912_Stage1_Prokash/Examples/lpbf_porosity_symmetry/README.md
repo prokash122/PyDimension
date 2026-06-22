@@ -92,7 +92,9 @@ Pr     = (η · Cp) / k                                              thermal Pra
    `_da_repo/dataset_lpbf_enriched.csv`.
 2. Calls `pydimension.data_preprocessing.DataPreprocessor` with an explicit
    `dimension_matrix.csv` (bypasses the unit-string parser which mishandles
-   `W/(m·K)`). Falls back to an inline scipy/SymPy implementation if needed.
+   `W/(m·K)`). This is the only Pi-basis path the script supports — the
+   import is hard-required, so a missing `seaborn` raises rather than
+   silently swapping in a fallback.
 
 **Actual output — 5 Pi groups discovered:**
 

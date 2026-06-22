@@ -97,28 +97,22 @@ except ImportError as e:
     print(f"projects/20260912_Stage1_Prokash/ into the same directory as this script.")
     sys.exit(1)
 
-# Try to import the repository's DataPreprocessor for dimensional analysis.
-# When available, this replaces the inline compute_pi_basis() so the example
-# uses the same Buckingham-Pi pipeline as the rest of pydimension.
-try:
-    # The pydimension package lives at the repo root.  Walk up until we find it.
-    _da_root = _here
-    while _da_root and not os.path.isdir(os.path.join(_da_root, "pydimension")):
-        nxt = os.path.dirname(_da_root)
-        if nxt == _da_root:
-            break
-        _da_root = nxt
-    if os.path.isdir(os.path.join(_da_root, "pydimension")):
-        sys.path.insert(0, _da_root)
-    from pydimension.data_preprocessing import (
-        DataPreprocessor,
-        DataPreprocessingConfig,
-    )
-    _REPO_DA_AVAILABLE = True
-except ImportError as _da_err:
-    print(f"  ⚠️ Could not import pydimension.data_preprocessing "
-          f"({_da_err}); falling back to inline DA implementation.")
-    _REPO_DA_AVAILABLE = False
+# Required: the repository's DataPreprocessor for dimensional analysis.
+# This is the only Pi-discovery path the script supports — install
+# pydimension (and its `seaborn` dependency) if the import below fails.
+# The pydimension package lives at the repo root; walk up until we find it.
+_da_root = _here
+while _da_root and not os.path.isdir(os.path.join(_da_root, "pydimension")):
+    nxt = os.path.dirname(_da_root)
+    if nxt == _da_root:
+        break
+    _da_root = nxt
+if os.path.isdir(os.path.join(_da_root, "pydimension")):
+    sys.path.insert(0, _da_root)
+from pydimension.data_preprocessing import (
+    DataPreprocessor,
+    DataPreprocessingConfig,
+)
 
 # Prevent silent multiprocessing crashes on Windows
 import torch.multiprocessing as _tmp
@@ -204,50 +198,9 @@ def compute_prandtl(eta: np.ndarray, Cp: np.ndarray, k: np.ndarray) -> np.ndarra
 # ──────────────────────────────────────────────────────────────────────────────
 # Dimensional analysis — Stage-0 reduction to dimensionless candidates
 # ──────────────────────────────────────────────────────────────────────────────
-
-def compute_pi_basis(dim_matrix: np.ndarray) -> np.ndarray:
-    """Null-space basis of the dimension matrix (the reduced Pi candidates).
-
-    Mirrors ``pydimension.data_preprocessing.preprocessor.DataPreprocessor``:
-    scipy gives a numerical null-space, SymPy (if available) is used to
-    recover a primitive integer basis.  The returned matrix has shape
-    (n_variables, n_pi_groups); column k gives the exponents of Pi_k.
-    """
-    from scipy.linalg import null_space
-    null_sp = null_space(dim_matrix)
-    if null_sp.shape[1] == 0:
-        raise ValueError("Dimension matrix has trivial null space — nothing to reduce.")
-
-    try:
-        from sympy import Matrix, ilcm, igcd
-    except ImportError:
-        return null_sp
-
-    M = Matrix(dim_matrix.astype(int).tolist())
-    ns = M.nullspace()
-    if not ns:
-        return null_sp
-
-    primitives = []
-    for v in ns:
-        denom = [x.as_numer_denom()[1] for x in v if x != 0]
-        scale = denom[0] if denom else 1
-        for d in denom[1:]:
-            scale = ilcm(scale, d)
-        w = v * scale
-        elems = [abs(int(x)) for x in w if x != 0]
-        g = elems[0] if elems else 1
-        for e in elems[1:]:
-            g = igcd(g, e)
-        if g > 1:
-            w = w // g
-        for x in w:
-            if x != 0:
-                if x < 0:
-                    w = -w
-                break
-        primitives.append(np.array([float(x) for x in w]))
-    return np.column_stack(primitives)
+# Pi-basis discovery is always done via
+# pydimension.data_preprocessing.DataPreprocessor (see
+# run_repo_dimensional_analysis).  No inline fallback path exists.
 
 
 def compute_pi_features(X_raw: np.ndarray, basis: np.ndarray) -> np.ndarray:
@@ -341,8 +294,6 @@ def run_repo_dimensional_analysis(csv_path: str, input_vars, output_var: str,
     Returns a dict with the basis vectors, dimensionless expressions, and
     the ``afterDA`` dataframe of Pi groups.
     """
-    if not _REPO_DA_AVAILABLE:
-        raise RuntimeError("pydimension.data_preprocessing is not importable")
     os.makedirs(output_dir, exist_ok=True)
     dim_csv = os.path.join(output_dir, "dimension_matrix.csv")
     _write_dimension_matrix_csv(dim_csv, input_vars, dim_matrix)
@@ -639,37 +590,28 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     rank = int(np.linalg.matrix_rank(DIMENSION_MATRIX))
     print(f"  Rank: {rank}   Expected Pi groups: {DIMENSION_MATRIX.shape[1] - rank}")
 
-    # Prefer the repo's DataPreprocessor pipeline.  We hand it the dataset
-    # CSV (enriched with γ, Tb columns) and an explicit dimension-matrix
-    # CSV so the result comes from pydimension's null-space + SymPy
-    # primitive-integer reduction, not from this script's inline copy.
-    if _REPO_DA_AVAILABLE and not getattr(args, "no_repo_da", False):
-        repo_out_dir = os.path.join(args.output_dir, "_da_repo")
-        enriched_csv = os.path.join(repo_out_dir, "dataset_lpbf_enriched.csv")
-        os.makedirs(repo_out_dir, exist_ok=True)
-        _enrich_lpbf_csv(args.data, enriched_csv)
-        print(f"  Using pydimension.data_preprocessing.DataPreprocessor "
-              f"(enriched CSV: {enriched_csv})")
-        repo_res = run_repo_dimensional_analysis(
-            csv_path=enriched_csv,
-            input_vars=VARIABLE_NAMES,
-            output_var="Pore",
-            dim_matrix=DIMENSION_MATRIX,
-            output_dir=repo_out_dir,
-        )
-        pi_basis = repo_res["basis_vectors"]
-        results["repo_da"] = repo_res
-        print(f"  Basis vectors shape (repo): {pi_basis.shape}")
-        for line in repo_res["expressions"]:
-            print(f"    {line}")
-    else:
-        if not _REPO_DA_AVAILABLE:
-            print(f"  Falling back to inline DA (pydimension not importable)")
-        pi_basis = compute_pi_basis(DIMENSION_MATRIX)
-        print(f"  Basis vectors shape: {pi_basis.shape}")
-        for i in range(pi_basis.shape[1]):
-            expr = format_pi_expression(pi_basis[:, i], VARIABLE_NAMES)
-            print(f"    Pi{i+1} = {expr}")
+    # Always use the repo's DataPreprocessor pipeline.  We hand it the
+    # dataset CSV (enriched with γ, Tb, Tm_minus_T0 columns) and an
+    # explicit dimension-matrix CSV so the result comes from pydimension's
+    # null-space + SymPy primitive-integer reduction.
+    repo_out_dir = os.path.join(args.output_dir, "_da_repo")
+    enriched_csv = os.path.join(repo_out_dir, "dataset_lpbf_enriched.csv")
+    os.makedirs(repo_out_dir, exist_ok=True)
+    _enrich_lpbf_csv(args.data, enriched_csv)
+    print(f"  Using pydimension.data_preprocessing.DataPreprocessor "
+          f"(enriched CSV: {enriched_csv})")
+    repo_res = run_repo_dimensional_analysis(
+        csv_path=enriched_csv,
+        input_vars=VARIABLE_NAMES,
+        output_var="Pore",
+        dim_matrix=DIMENSION_MATRIX,
+        output_dir=repo_out_dir,
+    )
+    pi_basis = repo_res["basis_vectors"]
+    results["repo_da"] = repo_res
+    print(f"  Basis vectors shape (repo): {pi_basis.shape}")
+    for line in repo_res["expressions"]:
+        print(f"    {line}")
     # Verify the known normalised-enthalpy Pi lies in the null-space span.
     coords, *_ = np.linalg.lstsq(pi_basis, KNOWN_PI_EXPONENTS, rcond=None)
     recon = pi_basis @ coords
@@ -1113,10 +1055,6 @@ def main():
     parser.add_argument("--no-pi-only", action="store_true",
                         help="Disable the default pi-only mode: feed [X, X², log|X|, Pi] "
                              "to the Step 2 encoder instead of Pi groups alone.")
-    parser.add_argument("--no-repo-da", action="store_true",
-                        help="Use the inline dimensional-analysis implementation instead of "
-                             "the repository's pydimension.data_preprocessing.DataPreprocessor "
-                             "pipeline.")
     parser.add_argument("--log-normalize", action="store_true",
                         help="Geometric-mean centre each column before scaling. This makes "
                              "the scaling encoder's internal log(X) act as centred log-physical "

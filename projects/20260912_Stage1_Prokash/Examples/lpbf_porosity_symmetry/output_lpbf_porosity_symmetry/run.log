@@ -99,10 +99,10 @@ Step 3: Identifying symmetry type
   Bottleneck:    [W·ϕ_s(X) (1), ['Pe_vap', 'Pr']]  → decoder sees 3 dims
 
   Detected symmetry: scaling
-    scaling        : 0.019752 <--
-    rotational     : 0.035534
-    translational  : 0.036413
-  Loss gap: 1.8x
+    scaling        : 0.020286 <--
+    translational  : 0.031613
+    rotational     : 0.035414
+  Loss gap: 1.6x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
@@ -115,9 +115,9 @@ Step 4: Extracting Lie-algebra generators
 ============================================================
   Row 1 (scaling):
               P            V            A          rho            k           Lv           dT        gamma           Tb  Tm_minus_T0
-  raw :        +0.5037      +0.2888      +0.0076      +0.1551      -0.1738      +0.0598      +0.1270      -0.0064      -0.0876      +0.1405
-  L2-n:        +0.7606      +0.4360      +0.0115      +0.2342      -0.2625      +0.0903      +0.1918      -0.0096      -0.1323      +0.2122
-  cos<row, known-Pi-exponents> = +0.4643  (±1 means perfect alignment)
+  raw :        -0.5756      -0.3280      -0.0579      +0.0322      -0.1330      -0.0296      -0.0377      +0.0694      -0.1382      -0.1779
+  L2-n:        -0.7991      -0.4553      -0.0803      +0.0447      -0.1847      -0.0410      -0.0524      +0.0963      -0.1919      -0.2470
+  cos<row, known-Pi-exponents> = -0.2377  (±1 means perfect alignment)
 
 ============================================================
 Step 5: Physical interpretation of generators
@@ -127,43 +127,43 @@ Step 5: Physical interpretation of generators
   normalised enthalpy Pi (and therefore the pore fraction) invariant.
 
   Generator 1:
-    P x exp(-0.436*eps), V x exp(+0.892*eps), rho x exp(-0.058*eps), k x exp(+0.065*eps), Tm_minus_T0 x exp(-0.053*eps)
-    Meaning: increase V while decrease P, decrease rho, increase k, decrease Tm_minus_T0
+    P x exp(-0.455*eps), V x exp(+0.885*eps), Tm_minus_T0 x exp(-0.063*eps)
+    Meaning: increase V while decrease P, decrease Tm_minus_T0
              to keep Pi (and pore fraction) unchanged
 
   Generator 2:
-    A x exp(+1.000*eps)
-
-  Generator 3:
-    P x exp(-0.234*eps), V x exp(-0.058*eps), rho x exp(+0.969*eps)
-    Meaning: increase rho while decrease P, decrease V
+    P x exp(-0.080*eps), A x exp(+0.996*eps)
+    Meaning: increase A while decrease P
              to keep Pi (and pore fraction) unchanged
 
+  Generator 3:
+    rho x exp(+0.999*eps)
+
   Generator 4:
-    P x exp(+0.262*eps), V x exp(+0.065*eps), k x exp(+0.961*eps)
-    Meaning: increase k while increase P, increase V
+    P x exp(-0.185*eps), k x exp(+0.981*eps)
+    Meaning: increase k while decrease P
              to keep Pi (and pore fraction) unchanged
 
   Generator 5:
-    P x exp(-0.090*eps), Lv x exp(+0.995*eps)
-    Meaning: increase Lv while decrease P
-             to keep Pi (and pore fraction) unchanged
+    Lv x exp(+0.999*eps)
 
   Generator 6:
-    P x exp(-0.192*eps), dT x exp(+0.979*eps)
+    P x exp(-0.052*eps), dT x exp(+0.998*eps)
     Meaning: increase dT while decrease P
              to keep Pi (and pore fraction) unchanged
 
   Generator 7:
-    gamma x exp(+1.000*eps)
+    P x exp(+0.096*eps), gamma x exp(+0.995*eps)
+    Meaning: increase gamma while increase P
+             to keep Pi (and pore fraction) unchanged
 
   Generator 8:
-    P x exp(+0.132*eps), Tb x exp(+0.990*eps)
-    Meaning: increase Tb while increase P
+    P x exp(-0.192*eps), Tb x exp(+0.980*eps)
+    Meaning: increase Tb while decrease P
              to keep Pi (and pore fraction) unchanged
 
   Generator 9:
-    P x exp(-0.212*eps), V x exp(-0.053*eps), Tm_minus_T0 x exp(+0.974*eps)
+    P x exp(-0.247*eps), V x exp(-0.063*eps), Tm_minus_T0 x exp(+0.966*eps)
     Meaning: increase Tm_minus_T0 while decrease P, decrease V
              to keep Pi (and pore fraction) unchanged
 
@@ -171,7 +171,7 @@ Step 5: Physical interpretation of generators
 ============================================================
 Creating visualizations
 ============================================================
-/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry/discover_symmetry.py:1040: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry/discover_symmetry.py:982: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   plt.tight_layout(rect=[0, 0, 1, 0.93])
 Pi candidates figure saved to output_lpbf_porosity_symmetry/lpbf_pi_candidates.png
 Figure saved to output_lpbf_porosity_symmetry/lpbf_porosity_symmetry_discovery.png

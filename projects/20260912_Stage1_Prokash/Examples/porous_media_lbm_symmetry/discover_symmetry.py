@@ -79,27 +79,21 @@ except ImportError as e:
     print(f"ERROR: Could not import Stage1 modules: {e}")
     sys.exit(1)
 
-# Try to import the repository's DataPreprocessor for Buckingham-Pi reduction.
-# When available, this replaces the inline compute_pi_basis() so the example
-# uses the same dimensional-analysis pipeline as the rest of pydimension.
-try:
-    _da_root = _here
-    while _da_root and not os.path.isdir(os.path.join(_da_root, "pydimension")):
-        nxt = os.path.dirname(_da_root)
-        if nxt == _da_root:
-            break
-        _da_root = nxt
-    if os.path.isdir(os.path.join(_da_root, "pydimension")):
-        sys.path.insert(0, _da_root)
-    from pydimension.data_preprocessing import (
-        DataPreprocessor,
-        DataPreprocessingConfig,
-    )
-    _REPO_DA_AVAILABLE = True
-except ImportError as _da_err:
-    print(f"  ⚠️ Could not import pydimension.data_preprocessing "
-          f"({_da_err}); falling back to inline DA implementation.")
-    _REPO_DA_AVAILABLE = False
+# Required: the repository's DataPreprocessor for Buckingham-Pi reduction.
+# Install pydimension (and its `seaborn` dependency) if the import below
+# fails — this is the only Pi-discovery path the script supports.
+_da_root = _here
+while _da_root and not os.path.isdir(os.path.join(_da_root, "pydimension")):
+    nxt = os.path.dirname(_da_root)
+    if nxt == _da_root:
+        break
+    _da_root = nxt
+if os.path.isdir(os.path.join(_da_root, "pydimension")):
+    sys.path.insert(0, _da_root)
+from pydimension.data_preprocessing import (
+    DataPreprocessor,
+    DataPreprocessingConfig,
+)
 
 import torch.multiprocessing as _tmp
 _tmp.cpu_count = lambda: 0
@@ -133,43 +127,9 @@ KNOWN_RE_EXPONENTS = np.array([ 0.0,  1.0, -1.0,  1.0,  1.0, 0.0])
 # Dimensional analysis — Stage-0 reduction
 # ──────────────────────────────────────────────────────────────────────────────
 
-def compute_pi_basis(dim_matrix: np.ndarray) -> np.ndarray:
-    """Null-space basis of the dimension matrix, simplified to primitive integers."""
-    from scipy.linalg import null_space
-    null_sp = null_space(dim_matrix)
-    if null_sp.shape[1] == 0:
-        raise ValueError("Dimension matrix has trivial null space.")
-
-    try:
-        from sympy import Matrix, ilcm, igcd
-    except ImportError:
-        return null_sp
-
-    M = Matrix(dim_matrix.astype(int).tolist())
-    ns = M.nullspace()
-    if not ns:
-        return null_sp
-
-    primitives = []
-    for v in ns:
-        denom = [x.as_numer_denom()[1] for x in v if x != 0]
-        scale = denom[0] if denom else 1
-        for d in denom[1:]:
-            scale = ilcm(scale, d)
-        w = v * scale
-        elems = [abs(int(x)) for x in w if x != 0]
-        g = elems[0] if elems else 1
-        for e in elems[1:]:
-            g = igcd(g, e)
-        if g > 1:
-            w = w // g
-        for x in w:
-            if x != 0:
-                if x < 0:
-                    w = -w
-                break
-        primitives.append(np.array([float(x) for x in w]))
-    return np.column_stack(primitives)
+# Pi-basis discovery is always done via
+# pydimension.data_preprocessing.DataPreprocessor (see
+# run_repo_dimensional_analysis).  No inline fallback path exists.
 
 
 def format_pi_expression(basis_col: np.ndarray, names) -> str:
@@ -220,8 +180,6 @@ def run_repo_dimensional_analysis(csv_path: str, input_vars, output_var: str,
     Returns a dict with the basis vectors, dimensionless expressions, and
     the ``afterDA`` dataframe of Pi groups.
     """
-    if not _REPO_DA_AVAILABLE:
-        raise RuntimeError("pydimension.data_preprocessing is not importable")
     os.makedirs(output_dir, exist_ok=True)
     dim_csv = os.path.join(output_dir, "dimension_matrix.csv")
     _write_dimension_matrix_csv(dim_csv, input_vars, dim_matrix)
@@ -330,32 +288,20 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
     print(f"  Rank: {rank}   Expected Pi groups: "
           f"{DIMENSION_MATRIX.shape[1] - rank}")
 
-    pi_basis = None
-    pi_expressions = None
-    if _REPO_DA_AVAILABLE and not getattr(args, "no_repo_da", False):
-        repo_out_dir = os.path.join(args.output_dir, "_da_repo")
-        try:
-            print(f"  Using pydimension.data_preprocessing.DataPreprocessor "
-                  f"(output → {repo_out_dir})")
-            repo_res = run_repo_dimensional_analysis(
-                csv_path=args.data,
-                input_vars=VARIABLE_NAMES,
-                output_var="f",
-                dim_matrix=DIMENSION_MATRIX,
-                output_dir=repo_out_dir,
-            )
-            pi_basis = repo_res["basis_vectors"]
-            pi_expressions = repo_res["expressions"]
-            results["da_repo"] = repo_res
-        except Exception as e:
-            print(f"  ⚠️ DataPreprocessor pipeline failed ({e}); "
-                  f"falling back to inline compute_pi_basis().")
-            traceback.print_exc()
-            pi_basis = None
-
-    if pi_basis is None:
-        pi_basis = compute_pi_basis(DIMENSION_MATRIX)
-        print(f"  Using inline compute_pi_basis() (scipy null-space + SymPy)")
+    # Always use the repo's DataPreprocessor pipeline.
+    repo_out_dir = os.path.join(args.output_dir, "_da_repo")
+    print(f"  Using pydimension.data_preprocessing.DataPreprocessor "
+          f"(output → {repo_out_dir})")
+    repo_res = run_repo_dimensional_analysis(
+        csv_path=args.data,
+        input_vars=VARIABLE_NAMES,
+        output_var="f",
+        dim_matrix=DIMENSION_MATRIX,
+        output_dir=repo_out_dir,
+    )
+    pi_basis = repo_res["basis_vectors"]
+    pi_expressions = repo_res["expressions"]
+    results["da_repo"] = repo_res
 
     print(f"  Basis vectors shape: {pi_basis.shape}")
     for i in range(pi_basis.shape[1]):
@@ -781,9 +727,6 @@ def main():
                         default="output_porous_media_lbm_symmetry")
     parser.add_argument("--encoder-hidden", type=int, nargs="+",
                         default=[64, 32])
-    parser.add_argument("--no-repo-da", action="store_true",
-                        help="Skip pydimension.data_preprocessing.DataPreprocessor "
-                             "and use the inline compute_pi_basis() fallback.")
     parser.add_argument("--log-normalize", dest="log_normalize",
                         action="store_true", default=True,
                         help="Geometric-mean centre each column and skip the "

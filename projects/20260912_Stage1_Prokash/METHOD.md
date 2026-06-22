@@ -67,14 +67,12 @@ to primitive integer exponent vectors via SymPy, and returns
 `basis_vectors`. The committed run logs report
 `Using pydimension.data_preprocessing.DataPreprocessor (...)` as the
 first dimensional-analysis line in each case, providing a one-line
-audit trail that the library was actually exercised. An inline
-`scipy.linalg.null_space` + SymPy integer-simplification fallback
-exists in every script and is mathematically equivalent to the
-library's basis-extraction step; it is only invoked when
-`pydimension.data_preprocessing` cannot be loaded (the package imports
-`seaborn` at module load, so minimal environments without `seaborn`
-will silently take the fallback path — installing `seaborn` is
-sufficient to guarantee the canonical PyDimension path).
+audit trail that the library was actually exercised. The scripts now
+**hard-require** `pydimension.data_preprocessing` — there is no inline
+fallback. If the import fails (e.g. the package's `seaborn` dependency
+is missing) the script will raise at top level rather than silently use
+a different Pi-basis path; install `seaborn` (and any other missing
+PyDimension deps) to run.
 
 The per-sample numerical values of the Π features are then evaluated
 in-script as `Π_j(x) = ∏_i x_i^{α_{ij}}` (or, where the physics
