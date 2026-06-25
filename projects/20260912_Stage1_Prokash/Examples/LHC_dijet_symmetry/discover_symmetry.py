@@ -88,6 +88,17 @@ except (AttributeError, ImportError):
     pass
 import matplotlib.pyplot as plt
 
+plt.rcParams.update({
+    "font.size":             13,
+    "axes.titlesize":        16,
+    "axes.labelsize":        15,
+    "xtick.labelsize":       13,
+    "ytick.labelsize":       13,
+    "legend.fontsize":       13,
+    "legend.title_fontsize": 14,
+    "figure.titlesize":      19,
+})
+
 try:
     from preprocessing.normalize import normalize_data
     from intrinsic_coordinate.discovery import discover_latent_dimension
@@ -199,8 +210,7 @@ def extract_linear_encoder_weights(
     encoder_wrapper,
     n_inputs: int = 4,
     input_names=None,
-    pi_names=None,
-):
+    pi_names=None):
     """
     Pull the (n_latent × n_aug) weight matrix out of a single-layer linear
     encoder and split it by feature group.
@@ -219,7 +229,7 @@ def extract_linear_encoder_weights(
         return None
 
     W = enc.weight.detach().cpu().numpy()  # (n_latent, n_aug)
-    b = enc.bias.detach().cpu().numpy()    # (n_latent,)
+    b = enc.bias.detach().cpu().numpy()    # (n_latent)
     n_latent, n_aug = W.shape
     n_pi = n_aug - 3 * n_inputs
 
@@ -397,8 +407,7 @@ def run_pipeline(X: np.ndarray, y: np.ndarray, args) -> dict:
         n_epochs=args.latent_epochs,
         n_restarts=args.n_restarts,
         seed=args.seed,
-        **enc_kwargs,
-    )
+        **enc_kwargs)
     n_latent = res_latent["optimal_n_latent"]
     results["latent"] = res_latent
     print(f"  [device used: {res_latent.get('device', 'unknown')}]")
@@ -424,8 +433,7 @@ def run_pipeline(X: np.ndarray, y: np.ndarray, args) -> dict:
         n_latent=n_latent,
         n_epochs=args.sym_epochs,
         n_restarts=args.n_restarts,
-        seed=args.seed,
-    )
+        seed=args.seed)
     results["symmetry"] = res_sym
     print(f"\n  Detected symmetry: {res_sym['symmetry_type']}")
     print(f"  Validation losses:")
@@ -525,7 +533,7 @@ def plot_results(X: np.ndarray, y: np.ndarray, results: dict, output_dir: str):
     os.makedirs(output_dir, exist_ok=True)
 
     fig, axes = plt.subplots(2, 3, figsize=(18, 11))
-    fig.suptitle("LHC Dijet Symmetry Discovery", fontsize=16, fontweight="bold")
+    fig.suptitle("LHC Dijet Symmetry Discovery", fontweight="bold")
 
     # --- (0,0) Input space: p1x vs p1y coloured by m_jj ---
     ax = axes[0, 0]
@@ -557,7 +565,7 @@ def plot_results(X: np.ndarray, y: np.ndarray, results: dict, output_dir: str):
     ax.set_xlabel("Latent dimension $k$")
     ax.set_ylabel("$R^2$")
     ax.set_title("Intrinsic Dimension Discovery")
-    ax.legend(fontsize=9)
+    ax.legend()
     ax.set_ylim(-0.05, 1.05)
 
     # --- (1,0) Symmetry type losses ---
@@ -567,11 +575,12 @@ def plot_results(X: np.ndarray, y: np.ndarray, results: dict, output_dir: str):
     losses = [sym_res["losses"][t] for t in types]
     colors = ["#55A868" if t == sym_res["symmetry_type"] else "#DD8452" for t in types]
     bars = ax.bar(types, losses, color=colors, edgecolor="black", lw=1)
+    ax.set_ylim(0, 1)
     ax.set_ylabel("Validation MSE")
     ax.set_title(f"Symmetry Identification (winner: {sym_res['symmetry_type']})")
     for bar, loss in zip(bars, losses):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
-                f"{loss:.4f}", ha="center", va="bottom", fontsize=9)
+                f"{loss:.4f}", ha="center", va="bottom")
 
     # --- (1,1) Discovered orbit in (p1x, p1y) plane ---
     ax = axes[1, 1]
@@ -609,7 +618,7 @@ def plot_results(X: np.ndarray, y: np.ndarray, results: dict, output_dir: str):
     ax.set_ylabel("$p_{1y}$ [GeV]")
     ax.set_title("Discovered Orbit (Jet 1 plane)")
     ax.set_aspect("equal")
-    ax.legend(fontsize=9)
+    ax.legend()
 
     # --- (1,2) Discovered orbit in (p2x, p2y) plane ---
     # Use generators[1] here (jet-2 rotation): it leaves jet 1 fixed and
@@ -636,7 +645,7 @@ def plot_results(X: np.ndarray, y: np.ndarray, results: dict, output_dir: str):
     ax.set_ylabel("$p_{2y}$ [GeV]")
     ax.set_title("Discovered Orbit (Jet 2 plane)")
     ax.set_aspect("equal")
-    ax.legend(fontsize=9)
+    ax.legend()
 
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     plot_path = os.path.join(output_dir, "lhc_symmetry_discovery.png")
@@ -679,8 +688,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Discover symmetry in LHC dijet events",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
-    )
+        epilog=__doc__)
     parser.add_argument("--data", default="lhc_dijet_data.pt",
                         help="Path to prepared data tensor (.pt file)")
     parser.add_argument("--seed", type=int, default=42,
