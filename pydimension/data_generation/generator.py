@@ -639,10 +639,10 @@ class DataGenerator:
         ax.plot(pi_sorted, p_star_theory, 'r-', linewidth=2, label=theory_label)
         
         # Use plain-text "pi1" to avoid mathtext parsing issues
-        ax.set_xlabel('First Dimensionless Group (pi1)', fontsize=16, fontweight='bold')
-        ax.set_ylabel('Dimensionless Output (p*)', fontsize=16, fontweight='bold')
-        ax.set_title('Dimensionless Output vs First Dimensionless Group', fontsize=18, fontweight='bold')
-        ax.legend(fontsize=14)
+        ax.set_xlabel('First Dimensionless Group (pi1)', fontsize=11, fontweight='bold')
+        ax.set_ylabel('Dimensionless Output (p*)', fontsize=11, fontweight='bold')
+        ax.set_title('Dimensionless Output vs First Dimensionless Group', fontsize=12, fontweight='bold')
+        ax.legend(fontsize=9)
         ax.grid(True, alpha=0.3)
         
         fig.tight_layout()

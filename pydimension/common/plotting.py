@@ -14,17 +14,7 @@ import seaborn as sns
 def setup_style():
     """Apply the default PyDimension plot style."""
     sns.set_style("whitegrid")
-    plt.rcParams.update({
-        "figure.dpi":             100,
-        "font.size":              14,
-        "axes.titlesize":         18,
-        "axes.labelsize":         16,
-        "xtick.labelsize":        14,
-        "ytick.labelsize":        14,
-        "legend.fontsize":        14,
-        "legend.title_fontsize":  15,
-        "figure.titlesize":       20,
-    })
+    plt.rcParams["figure.dpi"] = 100
 
 
 def save_figure(

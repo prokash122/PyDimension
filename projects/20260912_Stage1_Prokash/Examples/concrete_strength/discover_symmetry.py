@@ -58,6 +58,17 @@ except (AttributeError, ImportError):
     pass
 import matplotlib.pyplot as plt
 
+plt.rcParams.update({
+    "font.size":             14,
+    "axes.titlesize":        18,
+    "axes.labelsize":        16,
+    "xtick.labelsize":       14,
+    "ytick.labelsize":       14,
+    "legend.fontsize":       14,
+    "legend.title_fontsize": 15,
+    "figure.titlesize":      20,
+})
+
 try:
     from preprocessing.normalize import normalize_data
     from intrinsic_coordinate.discovery import discover_latent_dimension
