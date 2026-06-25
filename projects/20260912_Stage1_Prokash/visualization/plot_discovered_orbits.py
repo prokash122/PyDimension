@@ -33,14 +33,14 @@ import matplotlib.gridspec as gridspec
 from scipy.linalg import expm
 
 plt.rcParams.update({
-    "font.size":             18,
-    "axes.titlesize":        22,
+    "font.size":             20,
+    "axes.titlesize":        20,
     "axes.labelsize":        20,
-    "xtick.labelsize":       18,
-    "ytick.labelsize":       18,
-    "legend.fontsize":       18,
-    "legend.title_fontsize": 19,
-    "figure.titlesize":      25,
+    "xtick.labelsize":       20,
+    "ytick.labelsize":       20,
+    "legend.fontsize":       20,
+    "legend.title_fontsize": 20,
+    "figure.titlesize":      20,
 })
 
 from data_generation.translational import generate_translational_data
