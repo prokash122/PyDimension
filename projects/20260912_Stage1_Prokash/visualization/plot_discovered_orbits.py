@@ -97,8 +97,7 @@ for sym, data in zip(sym_types, datasets):
         X, y,
         n_latent=t3["optimal_n_latent"],
         decoder=t3["best_decoder"],
-        n_epochs=1500, n_restarts=3, seed=0,
-    )
+        n_epochs=1500, n_restarts=3, seed=0)
     enc  = t4["encoders"][sym]
     gens = extract_generators(sym, enc)
 
@@ -140,7 +139,7 @@ def _true_orbit_rot(data, d0=0, d1=2):
     r = c[d0]*x_{d0}^2 + c[d1]*x_{d1}^2 = const traces a circle (c[d0]==c[d1]).
     Other dimensions are held at their median values (contribute a constant to r).
     """
-    c   = np.array(data["coefficients"])   # shape (n_inputs,)
+    c   = np.array(data["coefficients"])   # shape (n_inputs)
     X   = data["X"]
     # Radius in the projected 2-D subspace: r_sub = c[d0]*x_{d0}^2 + c[d1]*x_{d1}^2
     # We take the median of r_sub directly (not median(total) - median(other),
@@ -229,8 +228,7 @@ def _multi_orbits(sym, data, n_starts=4):
 # ──────────────────────────────────────────────────────────────────────────────
 fig = plt.figure(figsize=(15, 13))
 fig.suptitle("Post-Discovery Orbit Visualization\n"
-             "(solid = discovered orbit, dashed = ground truth)",
-             fontsize=26, fontweight="bold", y=0.99)
+             "(solid = discovered orbit, dashed = ground truth)", fontweight="bold", y=0.99)
 
 gs = gridspec.GridSpec(3, 3, figure=fig, hspace=0.50, wspace=0.38)
 
@@ -273,15 +271,15 @@ for col, (sym, data, title, base_color) in enumerate(
         ax0.plot(dx, dy_, color=base_color, lw=2.0,
                  label="discovered orbit", zorder=4)
 
-    ax0.set_title(title, fontsize=20, fontweight="bold")
+    ax0.set_title(title, fontweight="bold")
     xl = (rf"$\log x_{{{d0+1}}}$" if is_scale else f"$x_{{{d0+1}}}$")
     yl = (rf"$\log x_{{{d1+1}}}$" if is_scale else f"$x_{{{d1+1}}}$")
-    ax0.set_xlabel(xl, fontsize=19)
-    ax0.set_ylabel(yl, fontsize=19)
-    ax0.legend(fontsize=12, loc="upper right")
+    ax0.set_xlabel(xl)
+    ax0.set_ylabel(yl)
+    ax0.legend(loc="upper right")
     if col == 0:
         ax0.annotate(row_labels[0], xy=(-0.38, 0.5), xycoords="axes fraction",
-                     rotation=90, va="center", fontsize=18, color="gray")
+                     rotation=90, va="center", color="gray")
 
     # ── Row 1: discovered latent vs y ────────────────────────────────────
     ax1 = fig.add_subplot(gs[1, col])
@@ -289,13 +287,13 @@ for col, (sym, data, title, base_color) in enumerate(
     ax1.scatter(lat, y, c=base_color, s=8, alpha=0.4, linewidths=0)
     ax1.plot(lat[sort_idx], data["y_clean"][sort_idx],
              color="black", lw=1.5, label="$y_{clean}$", zorder=5)
-    ax1.set_xlabel("discovered latent $z$", fontsize=19)
-    ax1.set_ylabel("$y$", fontsize=19)
-    ax1.set_title("Discovered Latent → Output", fontsize=19)
-    ax1.legend(fontsize=15)
+    ax1.set_xlabel("discovered latent $z$")
+    ax1.set_ylabel("$y$")
+    ax1.set_title("Discovered Latent → Output")
+    ax1.legend()
     if col == 0:
         ax1.annotate(row_labels[1], xy=(-0.38, 0.5), xycoords="axes fraction",
-                     rotation=90, va="center", fontsize=18, color="gray")
+                     rotation=90, va="center", color="gray")
 
     # ── Row 2: multiple discovered orbits ────────────────────────────────
     ax2 = fig.add_subplot(gs[2, col])
@@ -310,13 +308,13 @@ for col, (sym, data, title, base_color) in enumerate(
             ax2.scatter([ox[0]], [oy_[0]], color=start_colors[k],
                         s=50, zorder=5, marker="o")
 
-    ax2.set_xlabel(xl, fontsize=19)
-    ax2.set_ylabel(yl, fontsize=19)
-    ax2.set_title("Discovered Orbits (4 starts)", fontsize=19)
-    ax2.legend(fontsize=12, loc="upper right")
+    ax2.set_xlabel(xl)
+    ax2.set_ylabel(yl)
+    ax2.set_title("Discovered Orbits (4 starts)")
+    ax2.legend(loc="upper right")
     if col == 0:
         ax2.annotate(row_labels[2], xy=(-0.38, 0.5), xycoords="axes fraction",
-                     rotation=90, va="center", fontsize=18, color="gray")
+                     rotation=90, va="center", color="gray")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
