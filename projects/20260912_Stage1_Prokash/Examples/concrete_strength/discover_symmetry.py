@@ -58,6 +58,17 @@ except (AttributeError, ImportError):
     pass
 import matplotlib.pyplot as plt
 
+plt.rcParams.update({
+    "font.size":             20,
+    "axes.titlesize":        20,
+    "axes.labelsize":        20,
+    "xtick.labelsize":       20,
+    "ytick.labelsize":       20,
+    "legend.fontsize":       20,
+    "legend.title_fontsize": 20,
+    "figure.titlesize":      20,
+})
+
 try:
     from preprocessing.normalize import normalize_data
     from intrinsic_coordinate.discovery import discover_latent_dimension
@@ -178,8 +189,7 @@ def run_pipeline(X, y, args):
     res_latent = discover_latent_dimension(
         X_norm, y_norm, max_latent=4,
         n_epochs=args.latent_epochs, n_restarts=args.n_restarts, seed=args.seed,
-        **enc_kwargs,
-    )
+        **enc_kwargs)
     results["latent"] = res_latent
     n_latent = res_latent["optimal_n_latent"]
     print(f"\n  Optimal latent dimension: {n_latent}")
@@ -195,8 +205,7 @@ def run_pipeline(X, y, args):
     sys.stdout.flush()
     res_sym = identify_symmetry(
         X_norm, y_norm, n_latent=n_latent, decoder=res_latent["best_decoder"],
-        n_epochs=args.sym_epochs, n_restarts=args.n_restarts, seed=args.seed,
-    )
+        n_epochs=args.sym_epochs, n_restarts=args.n_restarts, seed=args.seed)
     results["symmetry"] = res_sym
     print(f"\n  Detected symmetry: {res_sym['symmetry_type']}")
     for stype, loss in sorted(res_sym["losses"].items(), key=lambda kv: kv[1]):
@@ -295,8 +304,7 @@ def plot_results(X, y, results, output_dir):
     W = results["W"]
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5.5))
-    fig.suptitle("Concrete Compressive Strength — Symmetry Discovery",
-                 fontsize=15, fontweight="bold")
+    fig.suptitle("Concrete Compressive Strength — Symmetry Discovery", fontweight="bold")
 
     # --- Panel 1: Learned latent variable z vs strength ---
     ax = axes[0]
@@ -311,15 +319,15 @@ def plot_results(X, y, results, output_dir):
         ss_res = np.sum((y - np.polyval(coeffs, z)) ** 2)
         ss_tot = np.sum((y - y.mean()) ** 2)
         r2 = 1 - ss_res / (ss_tot + 1e-12)
-        ax.set_xlabel("z = W·x (learned latent variable)", fontsize=11)
-        ax.set_ylabel("Compressive Strength (MPa)", fontsize=11)
-        ax.set_title(f"Latent Variable vs Strength (R²={r2:.3f})", fontsize=12)
-        ax.legend(fontsize=9)
+        ax.set_xlabel("z = W·x (learned latent variable)")
+        ax.set_ylabel("Compressive Strength (MPa)")
+        ax.set_title(f"Latent Variable vs Strength (R²={r2:.3f})")
+        ax.legend()
     else:
         ax.scatter(z[:, 0], z[:, 1], c=y, cmap="viridis", s=12, alpha=0.5)
-        ax.set_xlabel("z₁", fontsize=11)
-        ax.set_ylabel("z₂", fontsize=11)
-        ax.set_title("Latent Variables (colored by strength)", fontsize=12)
+        ax.set_xlabel("z₁")
+        ax.set_ylabel("z₂")
+        ax.set_title("Latent Variables (colored by strength)")
 
     # --- Panel 2: Symmetry type identification ---
     ax = axes[1]
@@ -327,11 +335,11 @@ def plot_results(X, y, results, output_dir):
     losses = [sym_res["losses"][t] for t in types]
     colors = ["#55A868" if t == sym_res["symmetry_type"] else "#DD8452" for t in types]
     bars = ax.bar(types, losses, color=colors, edgecolor="black", lw=1)
-    ax.set_ylabel("Validation MSE", fontsize=11)
-    ax.set_title(f"Symmetry Type (winner: {sym_res['symmetry_type']})", fontsize=12)
+    ax.set_ylabel("Validation MSE")
+    ax.set_title(f"Symmetry Type (winner: {sym_res['symmetry_type']})")
     for bar, loss in zip(bars, losses):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
-                f"{loss:.4f}", ha="center", va="bottom", fontsize=9)
+                f"{loss:.4f}", ha="center", va="bottom")
 
     plt.tight_layout(rect=[0, 0, 1, 0.93])
     plot_path = os.path.join(output_dir, "concrete_symmetry_discovery.png")
