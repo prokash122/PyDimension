@@ -30,14 +30,14 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
 plt.rcParams.update({
-    "font.size":             14,
-    "axes.titlesize":        18,
-    "axes.labelsize":        16,
-    "xtick.labelsize":       14,
-    "ytick.labelsize":       14,
-    "legend.fontsize":       14,
-    "legend.title_fontsize": 15,
-    "figure.titlesize":      20,
+    "font.size":             18,
+    "axes.titlesize":        22,
+    "axes.labelsize":        20,
+    "xtick.labelsize":       18,
+    "ytick.labelsize":       18,
+    "legend.fontsize":       18,
+    "legend.title_fontsize": 19,
+    "figure.titlesize":      25,
 })
 
 from rotational import generate_rotational_data
@@ -91,7 +91,7 @@ input_labels = [("$x_1$", "$x_2$"),
 # Build figure:  3 rows × 3 cols
 # ---------------------------------------------------------------------------
 fig = plt.figure(figsize=(15, 12))
-fig.suptitle("Symmetry Data Visualization", fontsize=24, fontweight="bold", y=0.98)
+fig.suptitle("Symmetry Data Visualization", fontsize=30, fontweight="bold", y=0.98)
 
 gs = gridspec.GridSpec(3, 3, figure=fig, hspace=0.45, wspace=0.38)
 
@@ -116,12 +116,12 @@ for col, (data, title, color, latent_fn, ll, il) in enumerate(
     sc = ax0.scatter(x_plot[:, 0], x_plot[:, 1], c=y, cmap="RdYlBu_r",
                      s=12, alpha=0.7, linewidths=0)
     fig.colorbar(sc, ax=ax0, fraction=0.046, pad=0.04, label="$y$")
-    ax0.set_xlabel(il[0], fontsize=15)
-    ax0.set_ylabel(il[1], fontsize=15)
-    ax0.set_title(title, fontsize=16, fontweight="bold")
+    ax0.set_xlabel(il[0], fontsize=19)
+    ax0.set_ylabel(il[1], fontsize=19)
+    ax0.set_title(title, fontsize=20, fontweight="bold")
     if col == 0:
         ax0.annotate(row_titles[0], xy=(-0.35, 0.5), xycoords="axes fraction",
-                     rotation=90, va="center", fontsize=14, color="gray")
+                     rotation=90, va="center", fontsize=18, color="gray")
 
     # ------------------------------------------------------------------
     # Row 1 – Latent vs y  (should collapse to a 1-D curve)
@@ -132,13 +132,13 @@ for col, (data, title, color, latent_fn, ll, il) in enumerate(
     # overlay the clean curve
     ax1.plot(lat[sort_idx], data["y_clean"][sort_idx],
              color="black", lw=1.5, label="$y_{clean}$", zorder=5)
-    ax1.set_xlabel(ll, fontsize=15)
-    ax1.set_ylabel("$y$", fontsize=15)
-    ax1.set_title("Latent → Output", fontsize=15)
-    ax1.legend(fontsize=12)
+    ax1.set_xlabel(ll, fontsize=19)
+    ax1.set_ylabel("$y$", fontsize=19)
+    ax1.set_title("Latent → Output", fontsize=19)
+    ax1.legend(fontsize=15)
     if col == 0:
         ax1.annotate(row_titles[1], xy=(-0.35, 0.5), xycoords="axes fraction",
-                     rotation=90, va="center", fontsize=14, color="gray")
+                     rotation=90, va="center", fontsize=18, color="gray")
 
     # ------------------------------------------------------------------
     # Row 2 – Orbit samples: fix latent ≈ target, vary null direction
@@ -159,8 +159,8 @@ for col, (data, title, color, latent_fn, ll, il) in enumerate(
         sc2 = ax2.scatter(X[:, 0], X[:, 1], c=y, cmap="RdYlBu_r",
                           s=10, alpha=0.5, linewidths=0)
         fig.colorbar(sc2, ax=ax2, fraction=0.046, pad=0.04, label="$y$")
-        ax2.set_xlabel("$x_1$", fontsize=15)
-        ax2.set_ylabel("$x_2$", fontsize=15)
+        ax2.set_xlabel("$x_1$", fontsize=19)
+        ax2.set_ylabel("$x_2$", fontsize=19)
 
     elif sym == "translational":
         # Orbit: fix z = w·x, vary x along null direction
@@ -179,8 +179,8 @@ for col, (data, title, color, latent_fn, ll, il) in enumerate(
                           s=10, alpha=0.5, linewidths=0)
         fig.colorbar(sc2, ax=ax2, fraction=0.046, pad=0.04, label="$y$")
         ax2.set_xlim(-4, 4); ax2.set_ylim(-4, 4)
-        ax2.set_xlabel("$x_1$", fontsize=15)
-        ax2.set_ylabel("$x_2$", fontsize=15)
+        ax2.set_xlabel("$x_1$", fontsize=19)
+        ax2.set_ylabel("$x_2$", fontsize=19)
 
     else:  # scaling
         # Orbit in log-space: fix log(pi) = e·log(x), vary along null
@@ -197,14 +197,14 @@ for col, (data, title, color, latent_fn, ll, il) in enumerate(
         sc2 = ax2.scatter(logX[:, 0], logX[:, 1], c=y, cmap="RdYlBu_r",
                           s=10, alpha=0.5, linewidths=0)
         fig.colorbar(sc2, ax=ax2, fraction=0.046, pad=0.04, label="$y$")
-        ax2.set_xlabel(r"$\log x_1$", fontsize=15)
-        ax2.set_ylabel(r"$\log x_2$", fontsize=15)
+        ax2.set_xlabel(r"$\log x_1$", fontsize=19)
+        ax2.set_ylabel(r"$\log x_2$", fontsize=19)
 
-    ax2.set_title("Symmetry Orbit", fontsize=15)
-    ax2.legend(fontsize=12)
+    ax2.set_title("Symmetry Orbit", fontsize=19)
+    ax2.legend(fontsize=15)
     if col == 0:
         ax2.annotate(row_titles[2], xy=(-0.35, 0.5), xycoords="axes fraction",
-                     rotation=90, va="center", fontsize=14, color="gray")
+                     rotation=90, va="center", fontsize=18, color="gray")
 
 # ---------------------------------------------------------------------------
 # Save
