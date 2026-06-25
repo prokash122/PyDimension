@@ -88,17 +88,6 @@ except (AttributeError, ImportError):
     pass
 import matplotlib.pyplot as plt
 
-plt.rcParams.update({
-    "font.size":             14,
-    "axes.titlesize":        18,
-    "axes.labelsize":        16,
-    "xtick.labelsize":       14,
-    "ytick.labelsize":       14,
-    "legend.fontsize":       14,
-    "legend.title_fontsize": 15,
-    "figure.titlesize":      20,
-})
-
 try:
     from preprocessing.normalize import normalize_data
     from intrinsic_coordinate.discovery import discover_latent_dimension
@@ -536,7 +525,7 @@ def plot_results(X: np.ndarray, y: np.ndarray, results: dict, output_dir: str):
     os.makedirs(output_dir, exist_ok=True)
 
     fig, axes = plt.subplots(2, 3, figsize=(18, 11))
-    fig.suptitle("LHC Dijet Symmetry Discovery", fontsize=24, fontweight="bold")
+    fig.suptitle("LHC Dijet Symmetry Discovery", fontsize=16, fontweight="bold")
 
     # --- (0,0) Input space: p1x vs p1y coloured by m_jj ---
     ax = axes[0, 0]
@@ -568,7 +557,7 @@ def plot_results(X: np.ndarray, y: np.ndarray, results: dict, output_dir: str):
     ax.set_xlabel("Latent dimension $k$")
     ax.set_ylabel("$R^2$")
     ax.set_title("Intrinsic Dimension Discovery")
-    ax.legend(fontsize=14)
+    ax.legend(fontsize=9)
     ax.set_ylim(-0.05, 1.05)
 
     # --- (1,0) Symmetry type losses ---
@@ -582,7 +571,7 @@ def plot_results(X: np.ndarray, y: np.ndarray, results: dict, output_dir: str):
     ax.set_title(f"Symmetry Identification (winner: {sym_res['symmetry_type']})")
     for bar, loss in zip(bars, losses):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
-                f"{loss:.4f}", ha="center", va="bottom", fontsize=14)
+                f"{loss:.4f}", ha="center", va="bottom", fontsize=9)
 
     # --- (1,1) Discovered orbit in (p1x, p1y) plane ---
     ax = axes[1, 1]
@@ -620,7 +609,7 @@ def plot_results(X: np.ndarray, y: np.ndarray, results: dict, output_dir: str):
     ax.set_ylabel("$p_{1y}$ [GeV]")
     ax.set_title("Discovered Orbit (Jet 1 plane)")
     ax.set_aspect("equal")
-    ax.legend(fontsize=14)
+    ax.legend(fontsize=9)
 
     # --- (1,2) Discovered orbit in (p2x, p2y) plane ---
     # Use generators[1] here (jet-2 rotation): it leaves jet 1 fixed and
@@ -647,7 +636,7 @@ def plot_results(X: np.ndarray, y: np.ndarray, results: dict, output_dir: str):
     ax.set_ylabel("$p_{2y}$ [GeV]")
     ax.set_title("Discovered Orbit (Jet 2 plane)")
     ax.set_aspect("equal")
-    ax.legend(fontsize=14)
+    ax.legend(fontsize=9)
 
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     plot_path = os.path.join(output_dir, "lhc_symmetry_discovery.png")

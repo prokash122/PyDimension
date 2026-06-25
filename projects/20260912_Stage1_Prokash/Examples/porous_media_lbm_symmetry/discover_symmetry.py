@@ -70,17 +70,6 @@ except (AttributeError, ImportError):
     pass
 import matplotlib.pyplot as plt
 
-plt.rcParams.update({
-    "font.size":             14,
-    "axes.titlesize":        18,
-    "axes.labelsize":        16,
-    "xtick.labelsize":       14,
-    "ytick.labelsize":       14,
-    "legend.fontsize":       14,
-    "legend.title_fontsize": 15,
-    "figure.titlesize":      20,
-})
-
 try:
     from preprocessing.normalize import normalize_data
     from intrinsic_coordinate.discovery import discover_latent_dimension
@@ -593,11 +582,11 @@ def plot_ergun_collapse(X, y, Re_p, output_dir):
     ax.loglog(x_range, y_ergun, 'k--', lw=2.2,
               label="Textbook Ergun: 150/x + 1.75")
 
-    ax.set_xlabel(r"$Re_p \,/\, (1-\phi)$", fontsize=20)
-    ax.set_ylabel(r"$f \cdot \phi^3 \,/\, (1-\phi)$", fontsize=20)
+    ax.set_xlabel(r"$Re_p \,/\, (1-\phi)$", fontsize=13)
+    ax.set_ylabel(r"$f \cdot \phi^3 \,/\, (1-\phi)$", fontsize=13)
     ax.set_title("Ergun Collapse — LBM points vs Textbook Curve",
-                 fontsize=20, fontweight="bold")
-    ax.legend(fontsize=14, loc="best")
+                 fontsize=13, fontweight="bold")
+    ax.legend(fontsize=9, loc="best")
     ax.grid(True, which='both', alpha=0.3)
 
     plt.tight_layout()
@@ -621,7 +610,7 @@ def plot_pi_candidates(X, y, results, output_dir):
     gs = fig.add_gridspec(1, n_pi + 1, width_ratios=[1.3] + [1.0] * n_pi,
                           wspace=0.35)
     fig.suptitle("Porous Media LBM — Dimensional Analysis & Reduced Pi Candidates",
-                 fontsize=21, fontweight="bold")
+                 fontsize=14, fontweight="bold")
 
     # Pi-basis heatmap
     ax = fig.add_subplot(gs[0, 0])
@@ -632,7 +621,7 @@ def plot_pi_candidates(X, y, results, output_dir):
     ax.set_xticklabels(VARIABLE_NAMES, rotation=30, ha="right")
     ax.set_yticks(range(n_pi))
     ax.set_yticklabels([f"Pi{i+1}" for i in range(n_pi)])
-    ax.set_title("Pi-basis exponents", fontsize=16)
+    ax.set_title("Pi-basis exponents", fontsize=11)
     for i in range(n_pi):
         for j in range(len(VARIABLE_NAMES)):
             v = pi_basis[j, i]
@@ -643,7 +632,7 @@ def plot_pi_candidates(X, y, results, output_dir):
                         color=("white"
                                if abs(v) > 0.6 * np.max(np.abs(pi_basis))
                                else "black"),
-                        fontsize=14)
+                        fontsize=9)
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="exponent")
 
     # Pi panels
@@ -653,9 +642,9 @@ def plot_pi_candidates(X, y, results, output_dir):
         ax.scatter(xk, log10_y, c="#4C72B0", s=22, alpha=0.7,
                    edgecolors="black", linewidths=0.3)
         expr = format_pi_expression(pi_basis[:, i], VARIABLE_NAMES)
-        ax.set_xlabel(f"log₁₀(Pi{i+1})\n{expr}", fontsize=15)
-        ax.set_ylabel("log₁₀(f)", fontsize=15)
-        ax.set_title(f"Pi{i+1}", fontsize=16)
+        ax.set_xlabel(f"log₁₀(Pi{i+1})\n{expr}", fontsize=10)
+        ax.set_ylabel("log₁₀(f)", fontsize=10)
+        ax.set_title(f"Pi{i+1}", fontsize=11)
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout(rect=[0, 0, 1, 0.93])
@@ -672,7 +661,7 @@ def plot_results(X, y, results, output_dir):
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5.5))
     fig.suptitle("Porous Media LBM — Symmetry Discovery",
-                 fontsize=22, fontweight="bold")
+                 fontsize=15, fontweight="bold")
 
     # Panel 1: symmetry type bar chart
     ax = axes[0]
@@ -681,18 +670,18 @@ def plot_results(X, y, results, output_dir):
     colors = ["#55A868" if t == sym_res["symmetry_type"] else "#DD8452"
               for t in types]
     bars = ax.bar(types, losses, color=colors, edgecolor="black", lw=1)
-    ax.set_ylabel("Validation MSE", fontsize=18)
+    ax.set_ylabel("Validation MSE", fontsize=12)
     ax.set_title(f"Symmetry Type  (winner: {sym_res['symmetry_type']})",
-                 fontsize=20)
+                 fontsize=13)
     for bar, loss in zip(bars, losses):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
-                f"{loss:.4f}", ha="center", va="bottom", fontsize=15)
+                f"{loss:.4f}", ha="center", va="bottom", fontsize=10)
     sorted_losses = sorted(losses)
     if len(sorted_losses) >= 2 and sorted_losses[0] > 0:
         gap = sorted_losses[1] / sorted_losses[0]
         ax.text(0.97, 0.97, f"Loss gap: {gap:.1f}×",
                 ha="right", va="top", transform=ax.transAxes,
-                fontsize=15, color="#333333")
+                fontsize=10, color="#333333")
 
     # Panel 2: latent-dim R² curve
     ax = axes[1]
@@ -708,12 +697,12 @@ def plot_results(X, y, results, output_dir):
     k_star = lat_res["optimal_n_latent"]
     ax.axvline(k_star, color="grey", ls=":", lw=1.5,
                label=f"k* = {k_star}")
-    ax.set_xlabel("Latent dimension k", fontsize=18)
-    ax.set_ylabel("R²", fontsize=18)
-    ax.set_title("Latent Dimension Discovery", fontsize=20)
+    ax.set_xlabel("Latent dimension k", fontsize=12)
+    ax.set_ylabel("R²", fontsize=12)
+    ax.set_title("Latent Dimension Discovery", fontsize=13)
     ax.set_xticks(ks)
     ax.set_ylim(0, 1.05)
-    ax.legend(fontsize=15)
+    ax.legend(fontsize=10)
 
     plt.tight_layout(rect=[0, 0, 1, 0.93])
     plot_path = os.path.join(output_dir, "lbm_symmetry_discovery.png")
