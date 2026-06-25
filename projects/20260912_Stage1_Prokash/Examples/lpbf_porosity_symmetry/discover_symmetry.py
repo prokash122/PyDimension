@@ -920,7 +920,7 @@ def plot_pi_candidates(X, y, results, output_dir):
     gs  = fig.add_gridspec(1, n_pi + 1, width_ratios=[1.3] + [1.0] * n_pi,
                            wspace=0.35)
     fig.suptitle("LPBF Porosity — Dimensional Analysis & Reduced Pi Candidates",
-                 fontsize=14, fontweight="bold")
+                 fontsize=21, fontweight="bold")
 
     # --- Panel A: Pi basis heatmap -------------------------------------------
     ax = fig.add_subplot(gs[0, 0])
@@ -931,7 +931,7 @@ def plot_pi_candidates(X, y, results, output_dir):
     ax.set_xticklabels(VARIABLE_NAMES, rotation=30, ha="right")
     ax.set_yticks(range(n_pi))
     ax.set_yticklabels([f"Pi{i+1}" for i in range(n_pi)])
-    ax.set_title("Pi-basis exponents", fontsize=11)
+    ax.set_title("Pi-basis exponents", fontsize=16)
     for i in range(n_pi):
         for j in range(len(VARIABLE_NAMES)):
             v = pi_basis[j, i]
@@ -939,7 +939,7 @@ def plot_pi_candidates(X, y, results, output_dir):
                 ax.text(j, i, f"{v:+.0f}" if abs(v - round(v)) < 1e-9 else f"{v:+.2f}",
                         ha="center", va="center",
                         color="white" if abs(v) > 0.6 * np.max(np.abs(pi_basis)) else "black",
-                        fontsize=9)
+                        fontsize=14)
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="exponent")
 
     # --- Panels B..: Pore fraction vs log10(Pi_k) ----------------------------
@@ -969,15 +969,15 @@ def plot_pi_candidates(X, y, results, output_dir):
                 ss_tot = np.sum((y - y.mean()) ** 2)
                 r2 = 1 - ss_res / (ss_tot + 1e-12)
                 ax.text(0.03, 0.95, f"R² = {r2:.2f}", transform=ax.transAxes,
-                        va="top", ha="left", fontsize=10,
+                        va="top", ha="left", fontsize=15,
                         bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
             except Exception:
                 pass
-            ax.legend(fontsize=9, loc="lower right")
+            ax.legend(fontsize=14, loc="lower right")
         expr = format_pi_expression(pi_basis[:, i], VARIABLE_NAMES)
-        ax.set_xlabel(f"log₁₀(Pi{i+1})\n{expr}", fontsize=10)
-        ax.set_ylabel("Pore fraction", fontsize=10)
-        ax.set_title(f"Reduced candidate Pi{i+1}", fontsize=11)
+        ax.set_xlabel(f"log₁₀(Pi{i+1})\n{expr}", fontsize=15)
+        ax.set_ylabel("Pore fraction", fontsize=15)
+        ax.set_title(f"Reduced candidate Pi{i+1}", fontsize=16)
 
     plt.tight_layout(rect=[0, 0, 1, 0.93])
     out_path = os.path.join(output_dir, "lpbf_pi_candidates.png")
@@ -993,7 +993,7 @@ def plot_results(X, y, results, output_dir):
     sym_res = results["symmetry"]
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5.5))
-    fig.suptitle("LPBF Porosity — Symmetry Discovery", fontsize=15, fontweight="bold")
+    fig.suptitle("LPBF Porosity — Symmetry Discovery", fontsize=22, fontweight="bold")
 
     # --- Panel 1: Symmetry type identification ---
     ax = axes[0]
@@ -1001,17 +1001,17 @@ def plot_results(X, y, results, output_dir):
     losses = [sym_res["losses"][t] for t in types]
     colors = ["#55A868" if t == sym_res["symmetry_type"] else "#DD8452" for t in types]
     bars = ax.bar(types, losses, color=colors, edgecolor="black", lw=1)
-    ax.set_ylabel("Validation MSE", fontsize=12)
-    ax.set_title(f"Symmetry Type  (winner: {sym_res['symmetry_type']})", fontsize=13)
+    ax.set_ylabel("Validation MSE", fontsize=18)
+    ax.set_title(f"Symmetry Type  (winner: {sym_res['symmetry_type']})", fontsize=20)
     for bar, loss in zip(bars, losses):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
-                f"{loss:.4f}", ha="center", va="bottom", fontsize=10)
+                f"{loss:.4f}", ha="center", va="bottom", fontsize=15)
     sorted_losses = sorted(losses)
     if len(sorted_losses) >= 2 and sorted_losses[0] > 0:
         gap = sorted_losses[1] / sorted_losses[0]
         ax.text(0.97, 0.97, f"Loss gap: {gap:.1f}\u00d7",
                 ha="right", va="top", transform=ax.transAxes,
-                fontsize=10, color="#333333")
+                fontsize=15, color="#333333")
 
     # --- Panel 2: Latent dimension R² curve ---
     ax = axes[1]
@@ -1023,12 +1023,12 @@ def plot_results(X, y, results, output_dir):
     ax.plot(ks, r2_test,  "s-",  color="#DD8452", lw=2.2, ms=8, label="R\u00b2 test")
     k_star = lat_res["optimal_n_latent"]
     ax.axvline(k_star, color="grey", ls=":", lw=1.5, label=f"k* = {k_star}")
-    ax.set_xlabel("Latent dimension k", fontsize=12)
-    ax.set_ylabel("R\u00b2", fontsize=12)
-    ax.set_title("Latent Dimension Discovery", fontsize=13)
+    ax.set_xlabel("Latent dimension k", fontsize=18)
+    ax.set_ylabel("R\u00b2", fontsize=18)
+    ax.set_title("Latent Dimension Discovery", fontsize=20)
     ax.set_xticks(ks)
     ax.set_ylim(0, 1.05)
-    ax.legend(fontsize=10)
+    ax.legend(fontsize=15)
 
     plt.tight_layout(rect=[0, 0, 1, 0.93])
     plot_path = os.path.join(output_dir, "lpbf_porosity_symmetry_discovery.png")

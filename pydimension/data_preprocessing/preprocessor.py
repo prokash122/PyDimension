@@ -735,12 +735,12 @@ class DataPreprocessor:
             sns.heatmap(corr_matrix, annot=True, fmt='.2f', cmap='coolwarm', 
                        center=0, square=True, linewidths=1, cbar_kws={"shrink": 0.8},
                        ax=ax1, xticklabels=True, yticklabels=True)
-            ax1.set_title('Correlation Matrix (Input Variables)', fontsize=12, fontweight='bold', pad=20)
+            ax1.set_title('Correlation Matrix (Input Variables)', fontsize=18, fontweight='bold', pad=20)
             plt.setp(ax1.get_xticklabels(), rotation=45, ha='right')
         else:
             ax1.text(0.5, 0.5, 'Need at least 2\ninput variables\nfor correlation', 
-                    ha='center', va='center', fontsize=12)
-            ax1.set_title('Correlation Matrix (Input Variables)', fontsize=12, fontweight='bold')
+                    ha='center', va='center', fontsize=18)
+            ax1.set_title('Correlation Matrix (Input Variables)', fontsize=18, fontweight='bold')
         
         # Plot 2: Summary Statistics Table
         ax2 = fig.add_subplot(gs[0, 1])
@@ -769,7 +769,7 @@ class DataPreprocessor:
         for var in self.output_variables:
             summary_text += f"  - {var}\n"
         
-        ax2.text(0.1, 0.9, summary_text, transform=ax2.transAxes, fontsize=10,
+        ax2.text(0.1, 0.9, summary_text, transform=ax2.transAxes, fontsize=15,
                 verticalalignment='top', family='monospace',
                 bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
         

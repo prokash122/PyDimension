@@ -811,7 +811,7 @@ def show_data_preprocessing_page(default_config):
                         for idx, col in enumerate(cols_to_plot):
                             if idx < len(axes):
                                 axes[idx].hist(input_df[col].dropna(), bins=30, edgecolor='black', alpha=0.7)
-                                axes[idx].set_title(f'{col}', fontsize=10)
+                                axes[idx].set_title(f'{col}', fontsize=15)
                                 axes[idx].set_xlabel('Value')
                                 axes[idx].set_ylabel('Frequency')
                                 axes[idx].grid(True, alpha=0.3)
@@ -833,7 +833,7 @@ def show_data_preprocessing_page(default_config):
                         sns.heatmap(corr_matrix, annot=True, fmt='.2f', cmap='coolwarm', 
                                    center=0, square=True, linewidths=1, cbar_kws={"shrink": 0.8},
                                    ax=ax, xticklabels=True, yticklabels=True)
-                        ax.set_title('Correlation Matrix of Numeric Variables', fontsize=12, pad=20)
+                        ax.set_title('Correlation Matrix of Numeric Variables', fontsize=18, pad=20)
                         plt.xticks(rotation=45, ha='right')
                         plt.yticks(rotation=0)
                         plt.tight_layout()

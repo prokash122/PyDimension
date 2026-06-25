@@ -296,7 +296,7 @@ def plot_results(X, y, results, output_dir):
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5.5))
     fig.suptitle("Concrete Compressive Strength — Symmetry Discovery",
-                 fontsize=15, fontweight="bold")
+                 fontsize=22, fontweight="bold")
 
     # --- Panel 1: Learned latent variable z vs strength ---
     ax = axes[0]
@@ -311,15 +311,15 @@ def plot_results(X, y, results, output_dir):
         ss_res = np.sum((y - np.polyval(coeffs, z)) ** 2)
         ss_tot = np.sum((y - y.mean()) ** 2)
         r2 = 1 - ss_res / (ss_tot + 1e-12)
-        ax.set_xlabel("z = W·x (learned latent variable)", fontsize=11)
-        ax.set_ylabel("Compressive Strength (MPa)", fontsize=11)
-        ax.set_title(f"Latent Variable vs Strength (R²={r2:.3f})", fontsize=12)
-        ax.legend(fontsize=9)
+        ax.set_xlabel("z = W·x (learned latent variable)", fontsize=16)
+        ax.set_ylabel("Compressive Strength (MPa)", fontsize=16)
+        ax.set_title(f"Latent Variable vs Strength (R²={r2:.3f})", fontsize=18)
+        ax.legend(fontsize=14)
     else:
         ax.scatter(z[:, 0], z[:, 1], c=y, cmap="viridis", s=12, alpha=0.5)
-        ax.set_xlabel("z₁", fontsize=11)
-        ax.set_ylabel("z₂", fontsize=11)
-        ax.set_title("Latent Variables (colored by strength)", fontsize=12)
+        ax.set_xlabel("z₁", fontsize=16)
+        ax.set_ylabel("z₂", fontsize=16)
+        ax.set_title("Latent Variables (colored by strength)", fontsize=18)
 
     # --- Panel 2: Symmetry type identification ---
     ax = axes[1]
@@ -327,11 +327,11 @@ def plot_results(X, y, results, output_dir):
     losses = [sym_res["losses"][t] for t in types]
     colors = ["#55A868" if t == sym_res["symmetry_type"] else "#DD8452" for t in types]
     bars = ax.bar(types, losses, color=colors, edgecolor="black", lw=1)
-    ax.set_ylabel("Validation MSE", fontsize=11)
-    ax.set_title(f"Symmetry Type (winner: {sym_res['symmetry_type']})", fontsize=12)
+    ax.set_ylabel("Validation MSE", fontsize=16)
+    ax.set_title(f"Symmetry Type (winner: {sym_res['symmetry_type']})", fontsize=18)
     for bar, loss in zip(bars, losses):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
-                f"{loss:.4f}", ha="center", va="bottom", fontsize=9)
+                f"{loss:.4f}", ha="center", va="bottom", fontsize=14)
 
     plt.tight_layout(rect=[0, 0, 1, 0.93])
     plot_path = os.path.join(output_dir, "concrete_symmetry_discovery.png")
