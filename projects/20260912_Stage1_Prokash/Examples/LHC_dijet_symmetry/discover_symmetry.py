@@ -89,14 +89,14 @@ except (AttributeError, ImportError):
 import matplotlib.pyplot as plt
 
 plt.rcParams.update({
-    "font.size":             13,
-    "axes.titlesize":        16,
-    "axes.labelsize":        15,
-    "xtick.labelsize":       13,
-    "ytick.labelsize":       13,
-    "legend.fontsize":       13,
-    "legend.title_fontsize": 14,
-    "figure.titlesize":      19,
+    "font.size":             17,
+    "axes.titlesize":        20,
+    "axes.labelsize":        19,
+    "xtick.labelsize":       17,
+    "ytick.labelsize":       17,
+    "legend.fontsize":       17,
+    "legend.title_fontsize": 18,
+    "figure.titlesize":      24,
 })
 
 try:
