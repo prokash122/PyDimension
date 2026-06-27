@@ -70,6 +70,17 @@ except (AttributeError, ImportError):
     pass
 import matplotlib.pyplot as plt
 
+plt.rcParams.update({
+    "font.size":             17,
+    "axes.titlesize":        20,
+    "axes.labelsize":        19,
+    "xtick.labelsize":       17,
+    "ytick.labelsize":       17,
+    "legend.fontsize":       17,
+    "legend.title_fontsize": 18,
+    "figure.titlesize":      24,
+})
+
 try:
     from preprocessing.normalize import normalize_data
     from intrinsic_coordinate.discovery import discover_latent_dimension
@@ -92,8 +103,7 @@ if os.path.isdir(os.path.join(_da_root, "pydimension")):
     sys.path.insert(0, _da_root)
 from pydimension.data_preprocessing import (
     DataPreprocessor,
-    DataPreprocessingConfig,
-)
+    DataPreprocessingConfig)
 
 import torch.multiprocessing as _tmp
 _tmp.cpu_count = lambda: 0
@@ -191,8 +201,7 @@ def run_repo_dimensional_analysis(csv_path: str, input_vars, output_var: str,
         dimension_matrix_file=dim_csv,
         normalize=True,
         normalize_basis=False,    # keep primitive integer basis vectors
-        output_dir=output_dir,
-    )
+        output_dir=output_dir)
     pre = DataPreprocessor(cfg)
     pre.process_with_dimensional_analysis(verbose=True)
     try:
@@ -297,8 +306,7 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
         input_vars=VARIABLE_NAMES,
         output_var="f",
         dim_matrix=DIMENSION_MATRIX,
-        output_dir=repo_out_dir,
-    )
+        output_dir=repo_out_dir)
     pi_basis = repo_res["basis_vectors"]
     pi_expressions = repo_res["expressions"]
     results["da_repo"] = repo_res
@@ -421,8 +429,7 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
         pi_features_norm, y_norm,
         max_latent=min(3, pi_features_norm.shape[1]),
         n_epochs=args.latent_epochs, n_restarts=args.n_restarts,
-        seed=args.seed, **enc_kwargs,
-    )
+        seed=args.seed, **enc_kwargs)
     results["latent"] = res_latent
     n_latent = res_latent["optimal_n_latent"]
     print(f"\n  Optimal latent dimension: {n_latent}")
@@ -443,8 +450,7 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
         X_norm_raw, y_norm, n_latent=n_latent,
         decoder=res_latent["best_decoder"],
         n_epochs=args.sym_epochs, n_restarts=args.n_restarts,
-        seed=args.seed,
-    )
+        seed=args.seed)
     results["symmetry"] = res_sym
     print(f"\n  Detected symmetry: {res_sym['symmetry_type']}")
     for stype, loss in sorted(res_sym["losses"].items(),
@@ -582,11 +588,10 @@ def plot_ergun_collapse(X, y, Re_p, output_dir):
     ax.loglog(x_range, y_ergun, 'k--', lw=2.2,
               label="Textbook Ergun: 150/x + 1.75")
 
-    ax.set_xlabel(r"$Re_p \,/\, (1-\phi)$", fontsize=13)
-    ax.set_ylabel(r"$f \cdot \phi^3 \,/\, (1-\phi)$", fontsize=13)
-    ax.set_title("Ergun Collapse — LBM points vs Textbook Curve",
-                 fontsize=13, fontweight="bold")
-    ax.legend(fontsize=9, loc="best")
+    ax.set_xlabel(r"$Re_p \,/\, (1-\phi)$")
+    ax.set_ylabel(r"$f \cdot \phi^3 \,/\, (1-\phi)$")
+    ax.set_title("Ergun Collapse — LBM points vs Textbook Curve", fontweight="bold")
+    ax.legend(loc="best")
     ax.grid(True, which='both', alpha=0.3)
 
     plt.tight_layout()
@@ -609,8 +614,7 @@ def plot_pi_candidates(X, y, results, output_dir):
     fig = plt.figure(figsize=(5 * (n_pi + 1), 5))
     gs = fig.add_gridspec(1, n_pi + 1, width_ratios=[1.3] + [1.0] * n_pi,
                           wspace=0.35)
-    fig.suptitle("Porous Media LBM — Dimensional Analysis & Reduced Pi Candidates",
-                 fontsize=14, fontweight="bold")
+    fig.suptitle("Porous Media LBM — Dimensional Analysis & Reduced Pi Candidates", fontweight="bold")
 
     # Pi-basis heatmap
     ax = fig.add_subplot(gs[0, 0])
@@ -621,7 +625,7 @@ def plot_pi_candidates(X, y, results, output_dir):
     ax.set_xticklabels(VARIABLE_NAMES, rotation=30, ha="right")
     ax.set_yticks(range(n_pi))
     ax.set_yticklabels([f"Pi{i+1}" for i in range(n_pi)])
-    ax.set_title("Pi-basis exponents", fontsize=11)
+    ax.set_title("Pi-basis exponents")
     for i in range(n_pi):
         for j in range(len(VARIABLE_NAMES)):
             v = pi_basis[j, i]
@@ -631,8 +635,7 @@ def plot_pi_candidates(X, y, results, output_dir):
                 ax.text(j, i, txt, ha="center", va="center",
                         color=("white"
                                if abs(v) > 0.6 * np.max(np.abs(pi_basis))
-                               else "black"),
-                        fontsize=9)
+                               else "black"))
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="exponent")
 
     # Pi panels
@@ -642,9 +645,9 @@ def plot_pi_candidates(X, y, results, output_dir):
         ax.scatter(xk, log10_y, c="#4C72B0", s=22, alpha=0.7,
                    edgecolors="black", linewidths=0.3)
         expr = format_pi_expression(pi_basis[:, i], VARIABLE_NAMES)
-        ax.set_xlabel(f"log₁₀(Pi{i+1})\n{expr}", fontsize=10)
-        ax.set_ylabel("log₁₀(f)", fontsize=10)
-        ax.set_title(f"Pi{i+1}", fontsize=11)
+        ax.set_xlabel(f"log₁₀(Pi{i+1})\n{expr}")
+        ax.set_ylabel("log₁₀(f)")
+        ax.set_title(f"Pi{i+1}")
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout(rect=[0, 0, 1, 0.93])
@@ -660,8 +663,7 @@ def plot_results(X, y, results, output_dir):
     sym_res = results["symmetry"]
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5.5))
-    fig.suptitle("Porous Media LBM — Symmetry Discovery",
-                 fontsize=15, fontweight="bold")
+    fig.suptitle("Porous Media LBM — Symmetry Discovery", fontweight="bold")
 
     # Panel 1: symmetry type bar chart
     ax = axes[0]
@@ -670,18 +672,16 @@ def plot_results(X, y, results, output_dir):
     colors = ["#55A868" if t == sym_res["symmetry_type"] else "#DD8452"
               for t in types]
     bars = ax.bar(types, losses, color=colors, edgecolor="black", lw=1)
-    ax.set_ylabel("Validation MSE", fontsize=12)
-    ax.set_title(f"Symmetry Type  (winner: {sym_res['symmetry_type']})",
-                 fontsize=13)
+    ax.set_ylabel("Validation MSE")
+    ax.set_title(f"Symmetry Type  (winner: {sym_res['symmetry_type']})")
     for bar, loss in zip(bars, losses):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
-                f"{loss:.4f}", ha="center", va="bottom", fontsize=10)
+                f"{loss:.4f}", ha="center", va="bottom")
     sorted_losses = sorted(losses)
     if len(sorted_losses) >= 2 and sorted_losses[0] > 0:
         gap = sorted_losses[1] / sorted_losses[0]
         ax.text(0.97, 0.97, f"Loss gap: {gap:.1f}×",
-                ha="right", va="top", transform=ax.transAxes,
-                fontsize=10, color="#333333")
+                ha="right", va="top", transform=ax.transAxes, color="#333333")
 
     # Panel 2: latent-dim R² curve
     ax = axes[1]
@@ -697,12 +697,12 @@ def plot_results(X, y, results, output_dir):
     k_star = lat_res["optimal_n_latent"]
     ax.axvline(k_star, color="grey", ls=":", lw=1.5,
                label=f"k* = {k_star}")
-    ax.set_xlabel("Latent dimension k", fontsize=12)
-    ax.set_ylabel("R²", fontsize=12)
-    ax.set_title("Latent Dimension Discovery", fontsize=13)
+    ax.set_xlabel("Latent dimension k")
+    ax.set_ylabel("R²")
+    ax.set_title("Latent Dimension Discovery")
     ax.set_xticks(ks)
     ax.set_ylim(0, 1.05)
-    ax.legend(fontsize=10)
+    ax.legend()
 
     plt.tight_layout(rect=[0, 0, 1, 0.93])
     plot_path = os.path.join(output_dir, "lbm_symmetry_discovery.png")
