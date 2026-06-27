@@ -71,14 +71,14 @@ except (AttributeError, ImportError):
 import matplotlib.pyplot as plt
 
 plt.rcParams.update({
-    "font.size":             17,
-    "axes.titlesize":        20,
-    "axes.labelsize":        19,
-    "xtick.labelsize":       17,
-    "ytick.labelsize":       17,
-    "legend.fontsize":       17,
-    "legend.title_fontsize": 18,
-    "figure.titlesize":      24,
+    "font.size":             14,
+    "axes.titlesize":        17,
+    "axes.labelsize":        16,
+    "xtick.labelsize":       14,
+    "ytick.labelsize":       14,
+    "legend.fontsize":       14,
+    "legend.title_fontsize": 15,
+    "figure.titlesize":      21,
 })
 
 try:
@@ -672,6 +672,7 @@ def plot_results(X, y, results, output_dir):
     colors = ["#55A868" if t == sym_res["symmetry_type"] else "#DD8452"
               for t in types]
     bars = ax.bar(types, losses, color=colors, edgecolor="black", lw=1)
+    ax.set_ylim(0, max(losses) * 1.5)
     ax.set_ylabel("Validation MSE")
     ax.set_title(f"Symmetry Type  (winner: {sym_res['symmetry_type']})")
     for bar, loss in zip(bars, losses):
