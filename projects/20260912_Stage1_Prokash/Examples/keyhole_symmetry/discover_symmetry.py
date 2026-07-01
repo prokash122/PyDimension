@@ -562,6 +562,172 @@ def plot_pi_candidates(X, y, results, output_dir):
     print(f"Pi candidates figure saved to {out_path}")
 
 
+def plot_discovered_law_and_generators(X, y, Ke, results, output_dir):
+    """Visualize the discovered scaling law and the six generator directions.
+
+    Four panels:
+      A. Discovered exponent vector W (from the winning scaling encoder) plotted
+         against the known Ke exponents — both L2-normalized so directions are
+         directly comparable.
+      B. Data collapse: e* vs the discovered latent  z_disc = W · log|X_norm|,
+         and vs log10(Ke) as reference. A near-1D curve in both panels means the
+         discovered law captures the same physics as Ke.
+      C. Heatmap of the 6 generators (rows) × 7 variables (cols). Each row is a
+         direction in log-space along which e* is invariant.
+      D. Orbit invariance test: for each generator g_k, march
+         X(eps) = X0 * exp(eps · g_k) and evaluate the known Ke along the orbit.
+         Curves that stay flat confirm the discovered generators genuinely
+         preserve the physics.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    winner_encoder = results["winner_encoder"]
+    generators     = results["generators"]
+    W              = winner_encoder.weight_matrix  # (1, 7) for k*=1
+    X_norm_raw     = results["normalization"]["X_normalized"]
+    n_vars         = len(VARIABLE_NAMES)
+    n_gen          = len(generators)
+
+    # ── Panel A: discovered exponent vector vs known Ke exponents ──────────
+    W_dir = W[0] / (np.linalg.norm(W[0]) + 1e-12)
+    Ke_dir = KNOWN_KE_EXPONENTS / np.linalg.norm(KNOWN_KE_EXPONENTS)
+    # Align signs so direction comparison isn't flipped arbitrarily by training
+    if np.dot(W_dir, Ke_dir) < 0:
+        W_dir = -W_dir
+    cos_sim = float(np.dot(W_dir, Ke_dir))
+
+    # ── Panel B: discovered latent z_disc = W · log|X_norm| (encoder-equivalent) ──
+    log_X = np.log(np.clip(np.abs(X_norm_raw), 0.1, None))
+    z_disc = (log_X @ W[0])                    # (n_samples,)
+    log10_Ke = np.log10(np.clip(Ke, 1e-30, None))
+
+    # ── Panel D: orbit invariance in the encoder's native space ────────────
+    # Apply each generator as a step in log|X_norm| space (where the encoder
+    # operates): X_norm(ε) = X_norm(0) · exp(ε · g). z = W · log|X_norm| is
+    # then exactly invariant by construction (g lies in null(W)). Unnormalise
+    # each orbit to raw physical X to also evaluate Ke — its drift measures
+    # the misalignment between the encoder direction and the true Ke
+    # exponent vector.
+    scaler_X = results["normalization"]["scaler_X"]
+    # Start from the elementwise median in normalised space so a symmetric ε
+    # sweep stays inside [0, 1] as long as possible.
+    Xn_start = np.median(X_norm_raw, axis=0)
+    Xn_start = np.clip(Xn_start, 0.1, 1.0)  # avoid the log-clamp region
+    x_start_raw = scaler_X.inverse_transform(Xn_start[None, :])[0]
+    Ke_start = float(compute_ke(x_start_raw[None, :])[0])
+    eps_grid = np.linspace(-0.3, 0.3, 41)
+    orbit_Ke = np.zeros((n_gen, eps_grid.size))
+    orbit_z  = np.zeros((n_gen, eps_grid.size))
+    for k, g in enumerate(generators):
+        Xn_orbit = Xn_start[None, :] * np.exp(np.outer(eps_grid, g))    # (n_eps, n_vars)
+        Xn_orbit = np.clip(Xn_orbit, 1e-6, None)  # stay positive for log/unnorm
+        X_orbit  = scaler_X.inverse_transform(Xn_orbit)
+        orbit_Ke[k] = compute_ke(X_orbit)
+        # z = W · log|X_norm| (with the same 0.1 clamp the encoder uses)
+        log_Xn = np.log(np.clip(np.abs(Xn_orbit), 0.1, None))
+        orbit_z[k] = log_Xn @ W[0]
+    z_start = float(orbit_z[0, len(eps_grid) // 2]) if n_gen > 0 else 0.0
+
+    # ── Build the figure ────────────────────────────────────────────────────
+    fig = plt.figure(figsize=(17, 13))
+    gs  = fig.add_gridspec(2, 2, hspace=0.62, wspace=0.34)
+    fig.suptitle("Keyhole — Discovered Scaling Law & Invariance Generators",
+                 fontweight="bold")
+
+    # Panel A: discovered W vs known Ke exponents (both L2-normalized)
+    ax = fig.add_subplot(gs[0, 0])
+    x_pos = np.arange(n_vars)
+    bar_w = 0.38
+    ax.bar(x_pos - bar_w / 2, W_dir, bar_w,
+           color="#4C72B0", edgecolor="black", label="Discovered W (encoder)")
+    ax.bar(x_pos + bar_w / 2, Ke_dir, bar_w,
+           color="#DD8452", edgecolor="black", label="Known Ke exponents")
+    ax.axhline(0, color="black", lw=0.6)
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(VARIABLE_NAMES, rotation=30, ha="right")
+    ax.set_ylabel("Exponent (L2-normalized)")
+    ax.set_title(
+        f"Discovered scaling law vs known Ke  (direction cos = {cos_sim:+.3f})\n"
+        "W is a direction in log|X_norm| space, not the raw-log Ke exponents",
+        fontsize=17)
+    ax.legend(loc="best", fontsize=13)
+
+    # Panel B: data collapse — e* vs z_disc, with e* vs log10(Ke) as reference
+    ax = fig.add_subplot(gs[0, 1])
+    order_disc = np.argsort(z_disc)
+    ax.scatter(z_disc, y, c="#4C72B0", s=22, alpha=0.75, edgecolors="none",
+               label="e* vs discovered z")
+    # R² of a quadratic fit against z_disc, as a "collapse quality" number
+    try:
+        c = np.polyfit(z_disc, y, 2)
+        y_hat = np.polyval(c, z_disc)
+        ss_res = np.sum((y - y_hat) ** 2)
+        ss_tot = np.sum((y - y.mean()) ** 2)
+        r2 = 1 - ss_res / (ss_tot + 1e-12)
+        zf = np.linspace(z_disc.min(), z_disc.max(), 200)
+        ax.plot(zf, np.polyval(c, zf), "r-", lw=1.8, alpha=0.9,
+                label=f"quad fit  R²={r2:.3f}")
+    except Exception:
+        pass
+    ax.set_xlabel("Discovered latent  z = W · log|X_norm|")
+    ax.set_ylabel("e*")
+    ax.set_title("Data collapse onto the discovered law")
+    ax.legend(loc="best", fontsize=13)
+
+    # Panel C: generator heatmap — 6 rows × 7 columns
+    ax = fig.add_subplot(gs[1, 0])
+    if n_gen > 0:
+        G = np.stack([g if g.ndim == 1 else g.ravel() for g in generators], axis=0)
+        vmax = float(np.max(np.abs(G))) or 1.0
+        im = ax.imshow(G, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="auto")
+        ax.set_xticks(range(n_vars))
+        ax.set_xticklabels(VARIABLE_NAMES, rotation=30, ha="right")
+        ax.set_yticks(range(n_gen))
+        ax.set_yticklabels([f"g{i+1}" for i in range(n_gen)])
+        for i in range(n_gen):
+            for j in range(n_vars):
+                v = G[i, j]
+                if abs(v) > 0.05:
+                    ax.text(j, i, f"{v:+.2f}", ha="center", va="center",
+                            color="white" if abs(v) > 0.6 * vmax else "black",
+                            fontsize=13)
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="component")
+        ax.set_title(f"{n_gen} generators of e*-invariance  (rows = null(W))")
+    else:
+        ax.set_axis_off()
+        ax.set_title("No generators")
+
+    # Panel D: invariance along each orbit — discovered z (exact by
+    # construction) vs textbook Ke (drifts with encoder–Ke misalignment).
+    ax = fig.add_subplot(gs[1, 1])
+    cmap = plt.get_cmap("tab10")
+    for k in range(n_gen):
+        rel_Ke = orbit_Ke[k] / Ke_start
+        ax.plot(eps_grid, rel_Ke, "-", color=cmap(k % 10), lw=1.8,
+                label=f"Ke, g{k+1}")
+    # Discovered z stays flat by construction — plot one bold reference line
+    if n_gen > 0 and abs(z_start) > 1e-9:
+        rel_z = orbit_z[0] / z_start
+        ax.plot(eps_grid, rel_z, "k--", lw=2.2, alpha=0.9,
+                label="z (discovered)")
+    ax.axhline(1.0, color="grey", ls=":", lw=1.2)
+    ax.set_xlabel("Orbit parameter  ε   (log|X_norm| → log|X_norm| + ε·g)")
+    ax.set_ylabel("ratio to ε=0")
+    ax.set_title("Invariance check along each orbit")
+    ax.legend(loc="best", ncol=2, fontsize=11)
+    y_dev = float(np.max(np.abs(orbit_Ke / Ke_start - 1.0)))
+    ax.text(0.03, 0.03,
+            f"max |ΔKe/Ke|={y_dev:.2f} at |ε|=0.3\n"
+            "z stays flat (null(W) by construction)",
+            transform=ax.transAxes, va="bottom", ha="left", fontsize=11,
+            color="#333333")
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    out_path = os.path.join(output_dir, "keyhole_discovered_law_generators.png")
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Discovered-law & generators figure saved to {out_path}")
+
+
 def plot_results(X, y, results, output_dir):
     """Two-panel summary: symmetry type bar chart + latent-dimension R² curve."""
     os.makedirs(output_dir, exist_ok=True)
@@ -642,6 +808,7 @@ def main():
     print("=" * 60)
     plot_pi_candidates(X, y, results, args.output_dir)
     plot_results(X, y, results, args.output_dir)
+    plot_discovered_law_and_generators(X, y, Ke, results, args.output_dir)
 
     print()
     print("=" * 60)

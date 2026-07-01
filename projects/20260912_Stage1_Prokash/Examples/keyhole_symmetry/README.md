@@ -196,6 +196,7 @@ All outputs go to `output_keyhole_symmetry/` (configurable via `--output-dir`).
 |---|---|
 | `keyhole_pi_candidates.png` | Pi-basis exponent heatmap + scatter of `e*` vs each `log₁₀(Πₖ)` with logistic fit and R² |
 | `keyhole_symmetry_discovery.png` | 3-panel: Pi-collapse, symmetry-type bar chart, discovered iso-invariant orbits in log-space |
+| `keyhole_discovered_law_generators.png` | 4-panel: discovered `W` vs known Ke exponents, `e*` collapse onto the discovered latent, heatmap of the 6 null-space generators, and orbit-invariance check comparing the exact `z` invariant with the drift in textbook `Ke` |
 | `_da_repo/dimension_matrix.csv` | Explicit dimension matrix fed to `DataPreprocessor` |
 | `_da_repo/basis_vectors.csv` | Integer Pi-group exponent vectors |
 
