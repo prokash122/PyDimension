@@ -61,117 +61,116 @@ Number of dimensionless groups: 6
     π5 = P × V^3 × rho × k^-2 × Tb^-2
     π6 = P × V^3 × rho × k^-2 × Tm_minus_T0^-2
   Known Pi exponents projected onto null-space basis: cos = +1.0000  (±1 means the notebook Pi lies in the Pi-group span)
-  Reduced candidates (pi_features) shape: (232, 6)  range: [0.000, 1.000]
-  Feature list: ['Pi1 (DA)', 'Pi2 (DA)', 'Pi3 (DA)', 'Pi4 (DA)', 'Pi5 (DA)', 'Pi6 (DA)']
+  Reduced candidates (pi_features) shape: (232, 8)  range: [0.000, 1.000]
+  Feature list: ['Pi1 (DA)', 'Pi2 (DA)', 'Pi3 (DA)', 'Pi4 (DA)', 'Pi5 (DA)', 'Pi6 (DA)', 'Pe_vap (known)', 'Pr (known)']
+  (Pe_vap and Pr appended as known extra Pi features)
+  Centred Pi values for Step 3: shape (232, 8)  range: [0.000981, 177]
 
 ============================================================
 Step 1: Normalizing data
 ============================================================
-  --pi-only: Step 2 input = 6 dimensionless features; Step 3 input = raw physical X (10 variables)
+  --pi-only: Step 2 input = 8 dimensionless features; Step 3 input = raw physical X (10 variables)
   X_raw range: [0.000, 1.000]
   X_pi  range: [0.000, 1.000]
 
 ============================================================
 Step 2: Discovering intrinsic latent dimension
 ============================================================
-  --pi-only: Step 2 encoder input = 6 dimensionless features (no [X, X², log|X|] augmentation)
+  --pi-only: Step 2 encoder input = 8 dimensionless features (no [X, X², log|X|] augmentation)
   Multilayer encoder hidden dims: [64, 32]
   Multi-layer encoder: [64, 32]
   raw_input=True: [X, X², log|X|] augmentation is disabled
 
-  Optimal latent dimension: 1
-    k=1: R2_train=0.9043, R2_test=0.7552, MSE=0.024603
-    k=2: R2_train=0.8698, R2_test=0.7379, MSE=0.026335
-    k=3: R2_train=0.8116, R2_test=0.7138, MSE=0.028758
-    k=4: R2_train=0.8800, R2_test=0.7434, MSE=0.025790
+  Optimal latent dimension: 2
+    k=1: R2_train=0.8920, R2_test=0.7472, MSE=0.025400
+    k=2: R2_train=0.8902, R2_test=0.7680, MSE=0.023316
+    k=3: R2_train=0.9093, R2_test=0.7611, MSE=0.024006
+    k=4: R2_train=0.9067, R2_test=0.7639, MSE=0.023726
 
 ============================================================
 Step 2b: Checking whether z encodes Pe_vap and Pr
 ============================================================
-  z (shape (232, 1)) -> log10(Pe_vap): R2 = 0.4161  (NOT in latent span)
-  z (shape (232, 1)) -> log10(Pr):     R2 = 0.0403  (NOT in latent span)
-  → Bottleneck-injecting (skips encoder): ['Pe_vap', 'Pr']
+  z (shape (232, 2)) -> log10(Pe_vap): R2 = 0.7692  (NOT in latent span)
+  z (shape (232, 2)) -> log10(Pr):     R2 = 0.4650  (NOT in latent span)
+  → Pe_vap and Pr are Step 2/3 encoder inputs (pi-only mode); no bottleneck injection.
 
 ============================================================
 Step 3: Identifying symmetry type
 ============================================================
-  Encoder input: 10 raw physical variables (['P', 'V', 'A', 'rho', 'k', 'Lv', 'dT', 'gamma', 'Tb', 'Tm_minus_T0'])
-  Bottleneck:    [W·ϕ_s(X) (1), ['Pe_vap', 'Pr']]  → decoder sees 3 dims
+  Encoder input: 8 geometric-mean-centred Pi values (['Pi1', 'Pi2', 'Pi3', 'Pi4', 'Pi5', 'Pi6', 'Pe_vap', 'Pr'])
+  Centring is purely multiplicative → the scaling encoder's internal log sees centred log-Pi coordinates;
+  generators live in dimensionless Pi space.
 
   Detected symmetry: scaling
-    scaling        : 0.020286 <--
-    translational  : 0.031613
-    rotational     : 0.035414
-  Loss gap: 1.6x
+    scaling        : 0.023015 <--
+    translational  : 0.032745
+    rotational     : 0.058156
+  Loss gap: 1.4x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
 ============================================================
   Symmetry type: scaling
-  Generators: 9
+  Generators: 6
 
 ============================================================
   Winning encoder weight vector(s)
 ============================================================
   Row 1 (scaling):
-              P            V            A          rho            k           Lv           dT        gamma           Tb  Tm_minus_T0
-  raw :        -0.5756      -0.3280      -0.0579      +0.0322      -0.1330      -0.0296      -0.0377      +0.0694      -0.1382      -0.1779
-  L2-n:        -0.7991      -0.4553      -0.0803      +0.0447      -0.1847      -0.0410      -0.0524      +0.0963      -0.1919      -0.2470
-  cos<row, known-Pi-exponents> = -0.2377  (±1 means perfect alignment)
+        Pi1      Pi2      Pi3      Pi4      Pi5      Pi6   Pe_vap       Pr
+  raw :    +0.2102  +0.2921  -0.2645  -0.0765  +0.3101  +0.0534  -0.2953  +0.4626
+  L2-n:    +0.2701  +0.3754  -0.3399  -0.0983  +0.3985  +0.0687  -0.3794  +0.5945
+  cos<row, known-Pi (DA coords)> = -0.2571  (±1 means perfect alignment)
+  cos<row, pure Pe_vap axis> = -0.3794  (±1 means perfect alignment)
+  Row 2 (scaling):
+        Pi1      Pi2      Pi3      Pi4      Pi5      Pi6   Pe_vap       Pr
+  raw :    -0.3636  -0.1534  -0.3629  -0.1856  -0.0404  -0.2993  -0.1243  +0.2642
+  L2-n:    -0.5151  -0.2173  -0.5141  -0.2629  -0.0572  -0.4240  -0.1760  +0.3742
+  cos<row, known-Pi (DA coords)> = -0.4688  (±1 means perfect alignment)
+  cos<row, pure Pe_vap axis> = -0.1760  (±1 means perfect alignment)
 
 ============================================================
 Step 5: Physical interpretation of generators
 ============================================================
-  Each generator is a direction in log-space along which Pi is preserved.
-  Physically: simultaneous rescaling of variables that keeps the
-  normalised enthalpy Pi (and therefore the pore fraction) invariant.
+  Each generator is a direction in log-Pi space along which the
+  pore fraction is preserved: simultaneously rescaling the
+  dimensionless groups along g keeps the LPBF physics invariant.
 
   Generator 1:
-    P x exp(-0.455*eps), V x exp(+0.885*eps), Tm_minus_T0 x exp(-0.063*eps)
-    Meaning: increase V while decrease P, decrease Tm_minus_T0
+    Pi1 x exp(+0.226*eps), Pi2 x exp(-0.542*eps), Pi3 x exp(+0.613*eps), Pi4 x exp(-0.175*eps), Pi5 x exp(+0.091*eps), Pi6 x exp(-0.212*eps), Pe_vap x exp(-0.213*eps), Pr x exp(+0.388*eps)
+    Meaning: increase Pi3 while increase Pi1, decrease Pi2, decrease Pi4, increase Pi5, decrease Pi6, decrease Pe_vap, increase Pr
              to keep Pi (and pore fraction) unchanged
 
   Generator 2:
-    P x exp(-0.080*eps), A x exp(+0.996*eps)
-    Meaning: increase A while decrease P
+    Pi2 x exp(-0.280*eps), Pi3 x exp(-0.169*eps), Pi4 x exp(+0.921*eps), Pi6 x exp(-0.106*eps), Pe_vap x exp(-0.083*eps), Pr x exp(+0.156*eps)
+    Meaning: increase Pi4 while decrease Pi2, decrease Pi3, decrease Pi6, decrease Pe_vap, increase Pr
              to keep Pi (and pore fraction) unchanged
 
   Generator 3:
-    rho x exp(+0.999*eps)
+    Pi1 x exp(-0.392*eps), Pi2 x exp(-0.079*eps), Pi3 x exp(+0.125*eps), Pi5 x exp(+0.876*eps), Pe_vap x exp(+0.126*eps), Pr x exp(-0.201*eps)
+    Meaning: increase Pi5 while decrease Pi1, decrease Pi2, increase Pi3, increase Pe_vap, decrease Pr
+             to keep Pi (and pore fraction) unchanged
 
   Generator 4:
-    P x exp(-0.185*eps), k x exp(+0.981*eps)
-    Meaning: increase k while decrease P
+    Pi1 x exp(-0.147*eps), Pi2 x exp(-0.461*eps), Pi3 x exp(-0.185*eps), Pi4 x exp(-0.097*eps), Pi6 x exp(+0.838*eps), Pe_vap x exp(-0.056*eps), Pr x exp(+0.125*eps)
+    Meaning: increase Pi6 while decrease Pi1, decrease Pi2, decrease Pi3, decrease Pi4, decrease Pe_vap, increase Pr
              to keep Pi (and pore fraction) unchanged
 
   Generator 5:
-    Lv x exp(+0.999*eps)
+    Pi1 x exp(+0.329*eps), Pi2 x exp(-0.174*eps), Pi3 x exp(-0.234*eps), Pi4 x exp(-0.096*eps), Pi5 x exp(+0.112*eps), Pi6 x exp(-0.082*eps), Pe_vap x exp(+0.837*eps), Pr x exp(+0.280*eps)
+    Meaning: increase Pe_vap while increase Pi1, decrease Pi2, decrease Pi3, decrease Pi4, increase Pi5, decrease Pi6, increase Pr
+             to keep Pi (and pore fraction) unchanged
 
   Generator 6:
-    P x exp(-0.052*eps), dT x exp(+0.998*eps)
-    Meaning: increase dT while decrease P
-             to keep Pi (and pore fraction) unchanged
-
-  Generator 7:
-    P x exp(+0.096*eps), gamma x exp(+0.995*eps)
-    Meaning: increase gamma while increase P
-             to keep Pi (and pore fraction) unchanged
-
-  Generator 8:
-    P x exp(-0.192*eps), Tb x exp(+0.980*eps)
-    Meaning: increase Tb while decrease P
-             to keep Pi (and pore fraction) unchanged
-
-  Generator 9:
-    P x exp(-0.247*eps), V x exp(-0.063*eps), Tm_minus_T0 x exp(+0.966*eps)
-    Meaning: increase Tm_minus_T0 while decrease P, decrease V
+    Pi1 x exp(-0.496*eps), Pi2 x exp(+0.380*eps), Pi3 x exp(+0.415*eps), Pi4 x exp(+0.174*eps), Pi5 x exp(-0.173*eps), Pi6 x exp(+0.167*eps), Pe_vap x exp(+0.274*eps), Pr x exp(+0.523*eps)
+    Meaning: increase Pr while decrease Pi1, increase Pi2, increase Pi3, increase Pi4, decrease Pi5, increase Pi6, increase Pe_vap
              to keep Pi (and pore fraction) unchanged
 
 
 ============================================================
 Creating visualizations
 ============================================================
-/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry/discover_symmetry.py:982: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry/discover_symmetry.py:1007: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   plt.tight_layout(rect=[0, 0, 1, 0.93])
 Pi candidates figure saved to output_lpbf_porosity_symmetry/lpbf_pi_candidates.png
 Figure saved to output_lpbf_porosity_symmetry/lpbf_porosity_symmetry_discovery.png
@@ -180,10 +179,10 @@ Figure saved to output_lpbf_porosity_symmetry/lpbf_porosity_symmetry_discovery.p
 COMPLETE
 ============================================================
   Symmetry: scaling
-  Generators: 9
-  These generators show how P, V, A, rho, k, Lv, dT, γ, Tb can be
-  simultaneously rescaled while preserving the normalised enthalpy Pi
-  — and therefore the LPBF pore fraction.
-  Step 2 (latent dim) used only the dimensionless Pi groups.
-  Step 3 (symmetry type) used raw physical X for valid log/X²/X transforms.
+  Generators: 6
+  These generators show how the dimensionless Pi groups (incl. the
+  known Pe_vap and Pr) can be simultaneously rescaled while
+  preserving the LPBF pore fraction.
+  Step 2 (latent dim) used the DA Pi groups + known Pe_vap, Pr.
+  Step 3 (symmetry type) used geometric-mean-centred Pi values.
 

@@ -349,6 +349,19 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
     print(f"  pi_features_norm shape: {pi_features_norm.shape}  "
           f"range: [{pi_features_norm.min():.3f}, "
           f"{pi_features_norm.max():.3f}]")
+
+    # Step 3 input: the Pi VALUES themselves, geometric-mean-centred per
+    # column (a purely multiplicative rescaling, no min-max).  The scaling
+    # encoder's internal log then sees centred log-Pi coordinates, and the
+    # generators live in dimensionless (Re_p, phi) space.
+    log10_pi_vals = np.column_stack([log10_Re,
+                                     np.log10(np.maximum(phi, 1e-30))])
+    log10_pi_vals = log10_pi_vals - log10_pi_vals.mean(axis=0, keepdims=True)
+    pi_centred = 10.0 ** log10_pi_vals
+    results["pi_centred"] = pi_centred
+    results["feature_names_step3"] = ["Re_p", "phi"]
+    print(f"  Centred Pi values for Step 3: shape {pi_centred.shape}  "
+          f"range: [{pi_centred.min():.3g}, {pi_centred.max():.3g}]")
     print()
 
     # ───────── Step 1: Normalisation ─────────
@@ -444,10 +457,13 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
     print("Step 3: Identifying symmetry type")
     print("=" * 60)
     sys.stdout.flush()
-    print(f"  Step 3 input: raw physical X ({X_norm_raw.shape[1]} variables)")
+    names_step3 = results["feature_names_step3"]
+    print(f"  Step 3 input: {pi_centred.shape[1]} geometric-mean-centred "
+          f"Pi values ({names_step3})")
+    print(f"  Generators therefore live in dimensionless (Re_p, phi) space.")
 
     res_sym = identify_symmetry(
-        X_norm_raw, y_norm, n_latent=n_latent,
+        pi_centred, y_norm, n_latent=n_latent,
         decoder=res_latent["best_decoder"],
         n_epochs=args.sym_epochs, n_restarts=args.n_restarts,
         seed=args.seed)
@@ -477,28 +493,33 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
     print(f"  Generators: {len(generators)}")
     print()
 
-    # Winning encoder weight vector(s)
+    # Winning encoder weight vector(s), reported in Pi space.
+    # Deep-Darcy reference: f ≈ 150·(1−φ)²/(Re_p·φ³), so in log-Pi space
+    #   d(log f) = −1 · d(log Re_p) + s · d(log φ),  s = −3 − 2φ̄/(1−φ̄)
+    # evaluated at the mean porosity φ̄ (local power-law slope of (1−φ)²/φ³).
     W = winner_encoder.weight_matrix
-    name_w = max(7, max(len(n) for n in VARIABLE_NAMES))
+    phi_bar = float(phi.mean())
+    darcy_ref = np.array([-1.0, -3.0 - 2.0 * phi_bar / (1.0 - phi_bar)])
+    name_w = max(7, max(len(n) for n in names_step3))
     print("=" * 60)
-    print("  Winning encoder weight vector(s)")
+    print("  Winning encoder weight vector(s)  [Pi space]")
     print("=" * 60)
+    print(f"  Darcy reference direction (at phi_bar={phi_bar:.3f}): "
+          f"{np.round(darcy_ref, 3)}")
     for i in range(W.shape[0]):
         row = W[i]
         denom = np.linalg.norm(row) + 1e-12
         row_n = row / denom
         print(f"  Row {i+1} ({winner_type}):")
-        header = "    " + "  ".join(f"{n:>{name_w}s}" for n in VARIABLE_NAMES)
+        header = "    " + "  ".join(f"{n:>{name_w}s}" for n in names_step3)
         raw_s = "    " + "  ".join(f"{v:+{name_w}.4f}" for v in row)
         normed = "    " + "  ".join(f"{v:+{name_w}.4f}" for v in row_n)
         print(header)
         print(f"  raw :{raw_s}")
         print(f"  L2-n:{normed}")
-        for label, ref in [("Re_p", KNOWN_RE_EXPONENTS),
-                           ("f   ", KNOWN_F_EXPONENTS)]:
-            ref_n = ref / np.linalg.norm(ref)
-            cos = float(np.dot(row_n, ref_n))
-            print(f"  cos<row, known {label} exponents> = {cos:+.4f}")
+        ref_n = darcy_ref / np.linalg.norm(darcy_ref)
+        cos = float(np.dot(row_n, ref_n))
+        print(f"  cos<row, Darcy [dlogf/dlogRe, dlogf/dlogphi]> = {cos:+.4f}")
     print()
 
     # ───────── Step 5: Physical Interpretation ─────────
@@ -506,23 +527,23 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
     print("Step 5: Physical interpretation of generators")
     print("=" * 60)
     if winner_type == "scaling" and generators:
-        print(f"  Each generator is a direction in log-space along which")
-        print(f"  the friction factor f is preserved. Physically: a")
-        print(f"  simultaneous rescaling of variables that keeps the flow")
-        print(f"  invariant (Darcy/Forchheimer regime preserved).\n")
+        print(f"  Each generator is a direction in log-Pi space along which")
+        print(f"  the friction factor f is preserved: simultaneously rescale")
+        print(f"  Re_p and phi along g and the flow stays invariant")
+        print(f"  (Darcy regime preserved).\n")
         for i, g in enumerate(generators):
             if g.ndim == 1:
                 parts = []
-                for j, name in enumerate(VARIABLE_NAMES):
+                for j, name in enumerate(names_step3):
                     if abs(g[j]) > 0.05:
                         parts.append(f"{name} x exp({g[j]:+.3f}*eps)")
                 print(f"  Generator {i+1}:")
                 print(f"    {', '.join(parts) if parts else '(all components < 0.05)'}")
-                _interpret_generator(g)
+                _interpret_generator(g, names_step3)
                 print()
     else:
         print(f"  Winner is '{winner_type}', not scaling. Generators below are "
-              f"null-space directions of W in raw-X space; they do NOT correspond")
+              f"null-space directions of W in Pi space; they do NOT correspond")
         print(f"  to log-space rescalings (which is the physically meaningful")
         print(f"  invariance for the Darcy power-law). Reporting them for")
         print(f"  completeness only.\n")
@@ -530,7 +551,7 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
             g_arr = np.asarray(g)
             if g_arr.ndim == 1:
                 parts = [f"{name}:{g_arr[j]:+.3f}"
-                         for j, name in enumerate(VARIABLE_NAMES)
+                         for j, name in enumerate(names_step3)
                          if abs(g_arr[j]) > 0.05]
                 print(f"  Generator {i+1}: [{', '.join(parts) if parts else '(all components < 0.05)'}]")
             else:
@@ -540,11 +561,11 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
     return results
 
 
-def _interpret_generator(g):
+def _interpret_generator(g, names):
     abs_g = np.abs(g)
     dominant = int(np.argmax(abs_g))
-    name = VARIABLE_NAMES[dominant]
-    coupled = [(VARIABLE_NAMES[j], g[j]) for j in range(len(g))
+    name = names[dominant]
+    coupled = [(names[j], g[j]) for j in range(len(g))
                if j != dominant and abs(g[j]) > 0.05]
     if coupled:
         direction = "increase" if g[dominant] > 0 else "decrease"
@@ -760,10 +781,10 @@ def main():
     print(f"  Symmetry: {sym_type}")
     print(f"  Generators: {len(results['generators'])}")
     if sym_type == "scaling":
-        print(f"  These generators show how dP_L, v, mu, rho, d, phi can")
-        print(f"  be simultaneously rescaled while preserving the friction")
-        print(f"  factor f -- the porous-media analogue of the Ergun")
-        print(f"  scaling invariance.")
+        print(f"  These generators show how the dimensionless groups Re_p")
+        print(f"  and phi can be simultaneously rescaled while preserving")
+        print(f"  the friction factor f -- the porous-media analogue of")
+        print(f"  the Ergun scaling invariance, in Pi space.")
     print()
 
 

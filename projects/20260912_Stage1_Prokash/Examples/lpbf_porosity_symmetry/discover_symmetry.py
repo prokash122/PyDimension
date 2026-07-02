@@ -621,12 +621,41 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
           f"(±1 means the notebook Pi lies in the Pi-group span)")
     pi_features = compute_pi_features(X, pi_basis)
     pi_feature_names = [f"Pi{i+1} (DA)" for i in range(pi_basis.shape[1])]
+
+    # Append the two KNOWN dimensionless numbers from the keyhole-transition
+    # literature as extra Pi features: the vaporisation Péclet Pe_vap
+    # (normalised enthalpy) and the thermal Prandtl Pr.  Same treatment as
+    # the DA groups: log10 then min-max to [0, 1].
+    known_pi_vals = np.column_stack([Pe_vap, Pr_thermal])
+    log_known = np.log10(np.maximum(known_pi_vals, 1e-30))
+    mn_k = log_known.min(axis=0, keepdims=True)
+    mx_k = log_known.max(axis=0, keepdims=True)
+    rng_k = np.where(mx_k - mn_k > 1e-12, mx_k - mn_k, 1.0)
+    known_features = (log_known - mn_k) / rng_k
+    pi_features = np.hstack([pi_features, known_features])
+    pi_feature_names += ["Pe_vap (known)", "Pr (known)"]
+
     results["pi_basis"] = pi_basis
     results["pi_features"] = pi_features
     results["pi_feature_names"] = pi_feature_names
     print(f"  Reduced candidates (pi_features) shape: {pi_features.shape}  "
           f"range: [{pi_features.min():.3f}, {pi_features.max():.3f}]")
     print(f"  Feature list: {pi_feature_names}")
+    print(f"  (Pe_vap and Pr appended as known extra Pi features)")
+
+    # Geometric-mean-centred Pi VALUES for Step 3 (DA groups + Pe_vap + Pr):
+    # a purely multiplicative rescaling, so the scaling encoder's internal
+    # log sees centred log-Pi coordinates and generators live in Pi space.
+    X_pos = np.maximum(X, 1e-30)
+    log10_all_pi = np.hstack([np.log10(X_pos) @ pi_basis,
+                              np.log10(np.maximum(known_pi_vals, 1e-30))])
+    log10_all_pi = log10_all_pi - log10_all_pi.mean(axis=0, keepdims=True)
+    pi_centred = 10.0 ** log10_all_pi
+    pi_names_step3 = [f"Pi{i+1}" for i in range(pi_basis.shape[1])] + ["Pe_vap", "Pr"]
+    results["pi_centred"] = pi_centred
+    results["pi_names_step3"] = pi_names_step3
+    print(f"  Centred Pi values for Step 3: shape {pi_centred.shape}  "
+          f"range: [{pi_centred.min():.3g}, {pi_centred.max():.3g}]")
     print()
 
     # --- Normalize ---
@@ -741,34 +770,18 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     results["r2_pe_vap"] = r2_pe
     results["r2_pr"]     = r2_pr
 
-    # Option A: Pe_vap and Pr enter the Step 3 *bottleneck* rather than the
-    # encoder input.  The symmetry-class encoder still acts only on the 9
-    # raw physical variables (z = W · ϕ_s(X_9)); Pe_vap and Pr are min-max
-    # scaled and concatenated to the encoder's output before the decoder
-    # sees them.  Effective bottleneck dim = n_latent + 2 = 3 (for k*=1).
-    bottleneck_cols, bottleneck_names = [], []
-    if r2_pe < R2_DISCOVERED:
-        bottleneck_cols.append(Pe_vap.reshape(-1, 1))
-        bottleneck_names.append("Pe_vap")
-    if r2_pr < R2_DISCOVERED:
-        bottleneck_cols.append(Pr_thermal.reshape(-1, 1))
-        bottleneck_names.append("Pr")
-
-    if bottleneck_cols:
-        bottleneck_extras = np.hstack(bottleneck_cols)
-        mn = bottleneck_extras.min(axis=0, keepdims=True)
-        mx = bottleneck_extras.max(axis=0, keepdims=True)
-        bottleneck_extras = (bottleneck_extras - mn) / np.where(
-            mx - mn > 1e-12, mx - mn, 1.0
-        )
-        print(f"  → Bottleneck-injecting (skips encoder): {bottleneck_names}")
+    # Pe_vap and Pr are now first-class Step 2 AND Step 3 encoder inputs
+    # (appended to the Pi feature set above), so no bottleneck injection is
+    # needed in pi-only mode.  The diagnostic above stays as a report of
+    # whether the latent z actually absorbed them.
+    if pi_only:
+        names_step3 = list(pi_names_step3)
+        print(f"  → Pe_vap and Pr are Step 2/3 encoder inputs (pi-only mode); "
+              f"no bottleneck injection.")
     else:
-        bottleneck_extras = np.zeros((X_norm_raw.shape[0], 0), dtype=np.float32)
-        print(f"  → Pe_vap and Pr already in latent span; "
-              f"nothing injected into the Step 3 bottleneck.")
-    names_step3 = list(VARIABLE_NAMES)
+        names_step3 = list(VARIABLE_NAMES)
     results["feature_names_step3"] = names_step3
-    results["bottleneck_extras_names"] = bottleneck_names
+    results["bottleneck_extras_names"] = []
     print()
 
     # --- Identify symmetry type ---
@@ -777,15 +790,17 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     print("=" * 60)
     sys.stdout.flush()
     if pi_only:
-        print(f"  Encoder input: {X_norm_raw.shape[1]} raw physical variables "
-              f"({names_step3})")
-        print(f"  Bottleneck:    [W·ϕ_s(X) ({n_latent}), {bottleneck_names}]  → "
-              f"decoder sees {n_latent + len(bottleneck_names)} dims")
-    res_sym = identify_symmetry_with_bottleneck_extras(
-        X=X_norm_raw,
-        y=y_norm,
-        bottleneck_extras=bottleneck_extras,
-        n_latent=n_latent,
+        print(f"  Encoder input: {pi_centred.shape[1]} geometric-mean-centred "
+              f"Pi values ({names_step3})")
+        print(f"  Centring is purely multiplicative → the scaling encoder's "
+              f"internal log sees centred log-Pi coordinates;")
+        print(f"  generators live in dimensionless Pi space.")
+        X_step3 = pi_centred
+    else:
+        X_step3 = X_norm_raw
+    results["X_step3"] = X_step3
+    res_sym = identify_symmetry(
+        X_step3, y_norm, n_latent=n_latent,
         n_epochs=args.sym_epochs,
         n_restarts=args.n_restarts,
         seed=args.seed,
@@ -816,14 +831,27 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     print()
 
     # --- Report the winning encoder's weight vector ---
-    # Step 3 runs on physical X, possibly augmented with Pe_vap and/or Pr
-    # (when Step 2's latent z did not span them).  For scaling, z = W · log|X|.
+    # In pi-only mode Step 3 runs on the centred Pi values, so W is a
+    # direction in log-Pi space.  Two known references there:
+    #   (a) the notebook normalised-enthalpy Pi expressed in the DA basis
+    #       (coords from lstsq, zero-padded over Pe_vap / Pr), and
+    #   (b) the pure Pe_vap axis — Pe_vap IS the known collapse variable.
     W = winner_encoder.weight_matrix  # (n_latent, n_inputs)
     names_for_W = names_step3
     print("=" * 60)
     print("  Winning encoder weight vector(s)")
     print("=" * 60)
     name_w = max(7, max(len(n) for n in names_for_W))
+    if pi_only:
+        known_coords, *_ = np.linalg.lstsq(pi_basis, KNOWN_PI_EXPONENTS, rcond=None)
+        refs = {
+            "known-Pi (DA coords)": np.concatenate([known_coords, [0.0, 0.0]]),
+            "pure Pe_vap axis":     np.eye(len(names_for_W))[len(names_for_W) - 2],
+        }
+    else:
+        ref = np.zeros(len(names_for_W))
+        ref[: len(KNOWN_PI_EXPONENTS)] = KNOWN_PI_EXPONENTS
+        refs = {"known-Pi-exponents": ref}
     for i in range(W.shape[0]):
         row = W[i]
         denom = np.linalg.norm(row) + 1e-12
@@ -835,14 +863,11 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
         print(header)
         print(f"  raw :{raw}")
         print(f"  L2-n:{normed}")
-        # Compare direction against known Pi exponents (defined on the 9
-        # physical vars only — pad with zeros for any extra Pe_vap / Pr cols).
-        ref = np.zeros(len(names_for_W))
-        ref[: len(KNOWN_PI_EXPONENTS)] = KNOWN_PI_EXPONENTS
-        ref_n = ref / (np.linalg.norm(ref) + 1e-12)
-        cos = float(np.dot(row_n, ref_n))
-        print(f"  cos<row, known-Pi-exponents> = {cos:+.4f}  "
-              f"(±1 means perfect alignment)")
+        for label, ref in refs.items():
+            ref_n = ref / (np.linalg.norm(ref) + 1e-12)
+            cos = float(np.dot(row_n, ref_n))
+            print(f"  cos<row, {label}> = {cos:+.4f}  "
+                  f"(±1 means perfect alignment)")
     print()
 
     # --- Interpret generators physically ---
@@ -850,9 +875,9 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     print("Step 5: Physical interpretation of generators")
     print("=" * 60)
     if winner_type == "scaling" and generators:
-        print(f"  Each generator is a direction in log-space along which Pi is preserved.")
-        print(f"  Physically: simultaneous rescaling of variables that keeps the")
-        print(f"  normalised enthalpy Pi (and therefore the pore fraction) invariant.\n")
+        print(f"  Each generator is a direction in log-Pi space along which the")
+        print(f"  pore fraction is preserved: simultaneously rescaling the")
+        print(f"  dimensionless groups along g keeps the LPBF physics invariant.\n")
         for i, g in enumerate(generators):
             if g.ndim == 1:
                 parts = []
@@ -1079,12 +1104,12 @@ def main():
     print(f"  Symmetry: {sym_type}")
     print(f"  Generators: {len(results['generators'])}")
     if sym_type == "scaling":
-        print(f"  These generators show how P, V, A, rho, k, Lv, dT, γ, Tb can be")
-        print(f"  simultaneously rescaled while preserving the normalised enthalpy Pi")
-        print(f"  — and therefore the LPBF pore fraction.")
+        print(f"  These generators show how the dimensionless Pi groups (incl. the")
+        print(f"  known Pe_vap and Pr) can be simultaneously rescaled while")
+        print(f"  preserving the LPBF pore fraction.")
     if args.pi_only:
-        print(f"  Step 2 (latent dim) used only the dimensionless Pi groups.")
-        print(f"  Step 3 (symmetry type) used raw physical X for valid log/X²/X transforms.")
+        print(f"  Step 2 (latent dim) used the DA Pi groups + known Pe_vap, Pr.")
+        print(f"  Step 3 (symmetry type) used geometric-mean-centred Pi values.")
     print()
 
 

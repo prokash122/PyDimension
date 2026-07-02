@@ -64,6 +64,7 @@ Basis vectors: output_porous_media_lbm_symmetry/_da_repo/data/basis_vectors.csv
   Known Re_p (Reynolds) exponents in Pi span: cos = +1.0000  (±1 means it lies in the discovered Pi space)
   Pi features for Step 2 encoder: ['log10(Re_p)', 'phi']
   pi_features_norm shape: (144, 2)  range: [0.000, 1.000]
+  Centred Pi values for Step 3: shape (144, 2)  range: [0.0111, 47]
 
 ============================================================
 Step 1: Normalizing data
@@ -89,59 +90,42 @@ Step 2: Discovering intrinsic latent dimension
 ============================================================
 Step 3: Identifying symmetry type
 ============================================================
-  Step 3 input: raw physical X (6 variables)
+  Step 3 input: 2 geometric-mean-centred Pi values (['Re_p', 'phi'])
+  Generators therefore live in dimensionless (Re_p, phi) space.
 
   Detected symmetry: scaling
-    scaling        : 0.000757 <--
-    translational  : 0.001571
-    rotational     : 0.005822
-  Loss gap: 2.1x
+    scaling        : 0.000473 <--
+    translational  : 0.001909
+    rotational     : 0.002972
+  Loss gap: 4.0x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
 ============================================================
   Symmetry type: scaling
-  Generators: 5
+  Generators: 1
 
 ============================================================
-  Winning encoder weight vector(s)
+  Winning encoder weight vector(s)  [Pi space]
 ============================================================
+  Darcy reference direction (at phi_bar=0.544): [-1.   -5.39]
   Row 1 (scaling):
-       dP_L        v       mu      rho        d      phi
-  raw :    -0.0426  +0.2621  -0.1149  +0.0052  +0.1018  +0.5322
-  L2-n:    -0.0694  +0.4266  -0.1871  +0.0085  +0.1657  +0.8664
-  cos<row, known Re_p exponents> = +0.3940
-  cos<row, known f    exponents> = -0.2894
+       Re_p      phi
+  raw :    +0.1985  +0.6457
+  L2-n:    +0.2939  +0.9558
+  cos<row, Darcy [dlogf/dlogRe, dlogf/dlogphi]> = -0.9934
 
 ============================================================
 Step 5: Physical interpretation of generators
 ============================================================
-  Each generator is a direction in log-space along which
-  the friction factor f is preserved. Physically: a
-  simultaneous rescaling of variables that keeps the flow
-  invariant (Darcy/Forchheimer regime preserved).
+  Each generator is a direction in log-Pi space along which
+  the friction factor f is preserved: simultaneously rescale
+  Re_p and phi along g and the flow stays invariant
+  (Darcy regime preserved).
 
   Generator 1:
-    dP_L x exp(+0.427*eps), v x exp(+0.830*eps), mu x exp(+0.075*eps), d x exp(-0.066*eps), phi x exp(-0.346*eps)
-    Meaning: increase v while increase dP_L, increase mu, decrease d, decrease phi
-             to keep friction factor f invariant
-
-  Generator 2:
-    dP_L x exp(-0.187*eps), v x exp(+0.075*eps), mu x exp(+0.967*eps), phi x exp(+0.152*eps)
-    Meaning: increase mu while decrease dP_L, increase v, increase phi
-             to keep friction factor f invariant
-
-  Generator 3:
-    rho x exp(+1.000*eps)
-
-  Generator 4:
-    dP_L x exp(+0.166*eps), v x exp(-0.066*eps), d x exp(+0.974*eps), phi x exp(-0.134*eps)
-    Meaning: increase d while increase dP_L, decrease v, decrease phi
-             to keep friction factor f invariant
-
-  Generator 5:
-    dP_L x exp(+0.866*eps), v x exp(-0.346*eps), mu x exp(+0.152*eps), d x exp(-0.134*eps), phi x exp(+0.298*eps)
-    Meaning: increase dP_L while decrease v, increase mu, decrease d, increase phi
+    Re_p x exp(-0.956*eps), phi x exp(+0.294*eps)
+    Meaning: decrease Re_p while increase phi
              to keep friction factor f invariant
 
 
@@ -149,7 +133,7 @@ Step 5: Physical interpretation of generators
 Creating visualizations
 ============================================================
 Ergun collapse figure saved to output_porous_media_lbm_symmetry/lbm_ergun_collapse.png
-/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry/discover_symmetry.py:650: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry/discover_symmetry.py:674: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   plt.tight_layout(rect=[0, 0, 1, 0.93])
 Pi candidates figure saved to output_porous_media_lbm_symmetry/lbm_pi_candidates.png
 Symmetry-discovery figure saved to output_porous_media_lbm_symmetry/lbm_symmetry_discovery.png
@@ -158,9 +142,9 @@ Symmetry-discovery figure saved to output_porous_media_lbm_symmetry/lbm_symmetry
 COMPLETE
 ============================================================
   Symmetry: scaling
-  Generators: 5
-  These generators show how dP_L, v, mu, rho, d, phi can
-  be simultaneously rescaled while preserving the friction
-  factor f -- the porous-media analogue of the Ergun
-  scaling invariance.
+  Generators: 1
+  These generators show how the dimensionless groups Re_p
+  and phi can be simultaneously rescaled while preserving
+  the friction factor f -- the porous-media analogue of
+  the Ergun scaling invariance, in Pi space.
 

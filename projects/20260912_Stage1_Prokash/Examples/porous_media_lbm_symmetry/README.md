@@ -104,8 +104,9 @@ lie exactly in the span of the discovered Pi groups).
 
 ### Step 1 — Normalisation
 
-- Raw X (6 columns) min-max scaled to [0, 1] → for Step 3
 - `log10(Re_p)` and `phi` min-max scaled → Pi features for Step 2
+- `Re_p` and `phi` **values** geometric-mean-centred (a purely multiplicative
+  rescaling, no min-max) → Step 3 input
 - `log10(f)` (NN target) min-max scaled — f spans 5 orders of magnitude, so
   log-transformation is essential
 
@@ -125,43 +126,52 @@ lie exactly in the span of the discovered Pi groups).
 
 ### Step 3 — Symmetry Type Identification
 
-**Input:** Raw 6-variable physical X.
+**Input:** The 2 Pi **values** `(Re_p, phi)`, geometric-mean-centred.
 
-Three competing single-layer encoders test power-law (`log|X|`),
-additive (`X`), and quadratic (`X²`) symmetries.
+Three competing single-layer encoders test power-law (`log|Pi|`),
+additive (`Pi`), and quadratic (`Pi²`) symmetries — now acting on
+dimensionless quantities, so the scaling encoder's internal log sees
+centred log-Pi coordinates directly.
 
 **Expected (physics):** Scaling should win, because the Darcy law
 `f ∝ 1/Re_p` is a pure power-law.
 
-**Observed:** No symmetry type wins decisively on this dataset — see the
-**Caveat on symmetry-type volatility** in Observed Results below. With only
-3 of 6 variables meaningfully varying, all three losses sit within ~1.5×
-of each other and the winner flips run-to-run. This is honest behaviour:
-the pipeline reports its uncertainty rather than confidently picking the
-wrong family. Step 0 (Pi recovery) is the physically meaningful result.
+**Observed (Pi-space Step 3):**
+
+```
+scaling        : 0.000473  ← winner
+translational  : 0.001909
+rotational     : 0.002972
+Loss gap: 4.0×
+```
+
+Scaling now wins decisively. The earlier raw-X Step 3 was volatile
+(winner flipped run-to-run; see the historical caveat in Observed Results)
+because only 3 of 6 physical columns actually varied and min-max scaling
+distorted the multiplicative structure. In Pi space both problems vanish.
+
+**Discovered direction vs Darcy:** in the deep-Darcy regime
+`f ≈ 150·(1−φ)²/(Re_p·φ³)`, so the local log-slope reference is
+`[∂logf/∂logRe, ∂logf/∂logφ] = [−1, −5.39]` at `φ̄ = 0.544`. The winning
+encoder row satisfies **cos(W, Darcy reference) = ±0.993**.
 
 ---
 
 ### Step 4 — Generator Extraction
 
-With `k* = 2`, there are `6 − 2 = 4` null-space generators in 6-D log space.
-
-**Caveat:** The `d` column is constant in this dataset, so the generator
-component along `d` is undetermined. The pipeline reports it but it should
-not be physically interpreted.
+With `k* = 1` and 2 Pi inputs, there is `2 − 1 = 1` null-space generator
+in log-Pi space. (The old raw-X caveat about the constant `d` column no
+longer applies — both Pi inputs vary meaningfully.)
 
 ---
 
 ### Step 5 — Physical Interpretation
 
-Expected generators (directions in log-space that preserve `f`):
+**Actual generator (Pi space):**
 
 | Generator | Trade-off | Meaning |
 |---|---|---|
-| G1 | ρ ↑, μ ↑ (proportional) | Fluid swap at fixed Re_p |
-| G2 | dP_L ↑, μ ↑, v ↑ | Darcy invariance |
-| G3 | (along `d`) | **Undetermined** — d is constant in this dataset |
-| G4 | combined Re_p / f trade-off | Darcy-regime invariance |
+| G1 | `Re_p` × exp(−0.96ε), `phi` × exp(+0.29ε) | Higher porosity lowers friction; a lower Reynolds number raises it back — moving along this direction keeps `f` constant |
 
 ---
 
@@ -198,8 +208,9 @@ Step 0 is driven by `pydimension.data_preprocessing.DataPreprocessor`.
 | Known `f` exponents in Pi span | **cos = +1.0000 ✓** |
 | Known `Re_p` exponents in Pi span | **cos = +1.0000 ✓** |
 | Latent dimension `k*` | **1** (R² ≈ 0.997 at k=1) |
-| Symmetry type | **Scaling ✓** (MSE 0.000543) — winner by **4.9× margin** over translational (0.00264) and rotational (0.00474) |
-| Generators | 5 directions in 6-D log-space — Darcy invariance, length-scale rescaling, fluid-swap, plus the under-constrained ρ direction |
+| Symmetry type (Pi-space Step 3) | **Scaling ✓** (MSE 0.000473) — winner by **4.0×** over translational (0.00191) and rotational (0.00297) |
+| Discovered direction | cos(W, Darcy `[−1, −5.39]`) = ±0.993 |
+| Generators | 1 direction in log-(Re_p, φ) space: `Re_p` × exp(−0.96ε), `φ` × exp(+0.29ε) |
 
 **Stable physics (Step 0):** The Buckingham-Pi reduction is fully
 reproducible. `DataPreprocessor` returns the same three primitive integer
@@ -252,14 +263,14 @@ the needed `log()` internally — letting them appear to win on raw fit
 MSE even though their feature maps don't encode the underlying
 invariance.
 
-The fix in this example: **skip the min-max step on X for Step 3**.
-The script geometric-mean-centres each column (so the per-column
-geometric mean is exactly 1.0) and passes that directly to
-`identify_symmetry`. Values now span roughly `[0.05, 25]` per column
-— the regime the clamp threshold was designed for — and the scaling
-encoder works as intended. Toggle this with `--no-log-normalize` to
-reproduce the broken behaviour for comparison (it will revert to
-rotational/translational wins).
+The fix in this example (current form): **Step 3 runs on the Pi values
+themselves** — `(Re_p, φ)`, each column divided by its geometric mean
+(per-column geometric mean exactly 1.0), passed directly to
+`identify_symmetry` with no min-max. This keeps the multiplicative
+structure intact for the clamp regime the log encoder was designed for,
+and additionally removes the three non-varying physical columns from the
+encoder entirely. Result: a stable scaling win (4.0×) and a weight
+vector aligned with the Darcy slope.
 
 **Reproducibility:** lock the three BLAS thread vars and
 `PYTHONHASHSEED` so the run is bit-reproducible. Without

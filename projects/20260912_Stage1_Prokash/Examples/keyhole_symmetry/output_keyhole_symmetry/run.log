@@ -53,11 +53,13 @@ Number of dimensionless groups: 3
     π3 = Vs^2 × cp^(-1) × Tl-T0^(-1)
   Known Ke exponents projected onto null-space basis: cos = +1.0000  (±1 means Ke lies in the Pi-group span)
   Reduced candidates (pi_features) shape: (90, 3)  range: [0.000, 1.000]
+  Known Ke in Pi coordinates: Ke = Pi1^0.5 · Pi2^1 · Pi3^1
+  Centred Pi values for Step 3: shape (90, 3)  range: [0.0791, 41.9]
 
 ============================================================
 Step 1: Normalizing data
 ============================================================
-  --pi-only: Step 2 input = 3 dimensionless features; Step 3 input = raw physical X (7 variables)
+  --pi-only: Step 2 input = 3 dimensionless features; Step 3 input = 3 geometric-mean-centred Pi values
   X_raw range: [0.000, 1.000]
   X_pi  range: [0.000, 1.000]
 
@@ -78,71 +80,58 @@ Step 2: Discovering intrinsic latent dimension
 ============================================================
 Step 3: Identifying symmetry type
 ============================================================
-  Running Step 3 on raw physical X (7 variables) so the translational/rotational/scaling encoders see
-  multiplicatively-meaningful quantities (avoids the log-of-log degeneracy of feeding pre-log-scaled Pi groups).
+  Running Step 3 on the 3 geometric-mean-centred Pi VALUES (not the log-min-max Step 2 features).
+  Centring is purely multiplicative, so the scaling encoder's internal log sees centred log-Pi coordinates —
+  no log-of-log degeneracy, and generators live in dimensionless Pi space.
 
   Detected symmetry: scaling
-    scaling        : 0.001053 <--
-    translational  : 0.006448
-    rotational     : 0.015701
-  Loss gap: 6.1x
+    scaling        : 0.001448 <--
+    translational  : 0.027440
+    rotational     : 0.031735
+  Loss gap: 18.9x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
 ============================================================
   Symmetry type: scaling
-  Generators: 6
+  Generators: 2
+
+  Encoder row 1 (L2-n): Pi1:-0.368, Pi2:-0.669, Pi3:-0.646
+  cos<row, Ke Pi-exponents [0.5 1.  1. ]> = -0.9992  (±1 = the encoder rediscovered Ke)
 
 ============================================================
 Step 5: Physical interpretation of generators
 ============================================================
-  Each generator is a direction in log-space along which Ke is preserved.
-  Physically: simultaneous rescaling of variables that keeps the physics invariant.
+  Each generator is a direction in log-Pi space along which e* is preserved.
+  Simultaneously rescaling the Pi groups along g leaves the keyhole physics invariant.
 
   Generator 1:
-    etaP x exp(+0.149*eps), Vs x exp(+0.984*eps), cp x exp(+0.055*eps)
-    Meaning: increase Vs while increase etaP, increase cp
+    Pi1 x exp(-0.669*eps), Pi2 x exp(+0.673*eps), Pi3 x exp(-0.316*eps)
+    Meaning: increase Pi2 while decrease Pi1, decrease Pi3
              to keep Ke (and e*) unchanged
 
   Generator 2:
-    etaP x exp(+0.223*eps), r0 x exp(+0.965*eps), rho x exp(+0.070*eps), cp x exp(+0.082*eps), Tl-T0 x exp(+0.062*eps)
-    Meaning: increase r0 while increase etaP, increase rho, increase cp, increase Tl-T0
-             to keep Ke (and e*) unchanged
-
-  Generator 3:
-    etaP x exp(-0.317*eps), alpha x exp(+0.930*eps), rho x exp(-0.100*eps), cp x exp(-0.116*eps), Tl-T0 x exp(-0.088*eps)
-    Meaning: increase alpha while decrease etaP, decrease rho, decrease cp, decrease Tl-T0
-             to keep Ke (and e*) unchanged
-
-  Generator 4:
-    etaP x exp(-0.452*eps), r0 x exp(+0.070*eps), alpha x exp(-0.100*eps), rho x exp(+0.858*eps), cp x exp(-0.166*eps), Tl-T0 x exp(-0.125*eps)
-    Meaning: increase rho while decrease etaP, increase r0, decrease alpha, decrease cp, decrease Tl-T0
-             to keep Ke (and e*) unchanged
-
-  Generator 5:
-    etaP x exp(-0.526*eps), Vs x exp(+0.055*eps), r0 x exp(+0.082*eps), alpha x exp(-0.116*eps), rho x exp(-0.166*eps), cp x exp(+0.807*eps), Tl-T0 x exp(-0.146*eps)
-    Meaning: increase cp while decrease etaP, increase Vs, increase r0, decrease alpha, decrease rho, decrease Tl-T0
-             to keep Ke (and e*) unchanged
-
-  Generator 6:
-    etaP x exp(-0.398*eps), r0 x exp(+0.062*eps), alpha x exp(-0.088*eps), rho x exp(-0.125*eps), cp x exp(-0.146*eps), Tl-T0 x exp(+0.889*eps)
-    Meaning: increase Tl-T0 while decrease etaP, increase r0, decrease alpha, decrease rho, decrease cp
+    Pi1 x exp(-0.646*eps), Pi2 x exp(-0.316*eps), Pi3 x exp(+0.695*eps)
+    Meaning: increase Pi3 while decrease Pi1, decrease Pi2
              to keep Ke (and e*) unchanged
 
 
 ============================================================
 Creating visualizations
 ============================================================
-/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/keyhole_symmetry/discover_symmetry.py:554: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/keyhole_symmetry/discover_symmetry.py:609: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   plt.tight_layout(rect=[0, 0, 1, 0.93])
 Pi candidates figure saved to output_keyhole_symmetry/keyhole_pi_candidates.png
 Figure saved to output_keyhole_symmetry/keyhole_symmetry_discovery.png
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/keyhole_symmetry/discover_symmetry.py:758: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  plt.tight_layout(rect=[0, 0, 1, 0.95])
+Discovered-law & generators figure saved to output_keyhole_symmetry/keyhole_discovered_law_generators.png
 
 ============================================================
 COMPLETE
 ============================================================
   Symmetry: scaling
-  Generators: 6
+  Generators: 2
   These generators show how physical variables can be
   simultaneously rescaled while preserving Ke and e*.
 

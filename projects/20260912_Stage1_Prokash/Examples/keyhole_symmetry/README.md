@@ -80,7 +80,8 @@ discovered span.
 
 **Outputs:**
 - `X_norm_step2` — 3 Pi features scaled to [0, 1] (input to Step 2).
-- `X_norm_raw` — 7 physical variables scaled to [0, 1] (input to Step 3 always).
+- `pi_centred` — 3 Pi **values** divided by their per-column geometric mean
+  (input to Step 3; a purely multiplicative rescaling, no min-max).
 - `y_norm` — min-max scaled eccentricity.
 
 ---
@@ -121,70 +122,78 @@ coordinate is sufficient. The near-perfect train/test R² alignment (0.9821 vs
 **Goal:** Determine whether the invariance is scaling, translational, or
 rotational.
 
-**Input:** Always `X_norm_raw` — the 7 raw physical variables.
+**Input:** The 3 Pi **values**, geometric-mean-centred (`pi_centred`).
 
-> Raw physical X is always used here (not the Pi features) because the three
-> competing encoders apply specific transforms: `X` (translational), `X²`
-> (rotational), `log|X|` (scaling). These only make physical sense on
-> multiplicatively-structured raw variables. Feeding pre-log-scaled Pi groups
-> would produce `log(log(·))`, which is degenerate near zero.
+> Pi-only Step 3: the input is the Pi group values themselves (not the
+> pre-log-scaled Step 2 features, and not raw physical X). Because the
+> centring is purely multiplicative (each column divided by a constant),
+> the scaling encoder's internal `log` sees centred log-Pi coordinates —
+> there is no `log(log(·))` degeneracy, and the discovered weight vector
+> and generators live directly in dimensionless Pi space.
 
 **What it does:** Trains three single-linear-layer encoders, each applying a
 different input transform before the shared decoder from Step 2:
 
 | Encoder | Transform | What it tests |
 |---|---|---|
-| Scaling | `z = W · log|X|` | Power-law / dimensional symmetry |
-| Translational | `z = W · X` | Additive / affine symmetry |
-| Rotational | `z = W · X²` | Quadratic / Euclidean symmetry |
+| Scaling | `z = W · log(Pi)` | Power-law / dimensional symmetry |
+| Translational | `z = W · Pi` | Additive / affine symmetry |
+| Rotational | `z = W · Pi²` | Quadratic / Euclidean symmetry |
 
 **Actual results:**
 
 ```
-scaling        : 0.000982  ← winner
-translational  : 0.006229
-rotational     : 0.015462
-Loss gap: 6.3×
+scaling        : 0.001615  ← winner
+translational  : 0.027839
+rotational     : 0.032845
+Loss gap: ~17-19×
 ```
 
-**Scaling wins by 6.3×** over translational. This is a decisive result — the
-keyhole physics obeys power-law dimensional relationships exactly as predicted
-by Buckingham Pi, and the scaling encoder (`z = W · log|X|`) detects this with
-far lower reconstruction error than the alternatives.
+**Scaling wins by ~17×** over translational — far more decisive than the
+6× gap obtained when Step 3 ran on raw physical X. Working in Pi space
+removes the min-max distortion of the raw variables and lets the log
+encoder align directly with the multiplicative structure.
 
 ---
 
 ### Step 4 — Generator Extraction
 
-**Goal:** Extract the explicit directions in variable space along which `e*` is
+**Goal:** Extract the explicit directions in Pi space along which `e*` is
 invariant.
 
-**Input:** Winning (scaling) encoder weight matrix `W` (shape `1 × 7`).
+**Input:** Winning (scaling) encoder weight matrix `W` (shape `1 × 3`).
+
+**Discovered law:** The known keyhole number decomposes exactly in the
+discovered Pi basis as `Ke = π1^0.5 · π2 · π3`, i.e. Pi-exponents
+`[0.5, 1, 1]`. The winning encoder row satisfies
+
+```
+cos( W , [0.5, 1, 1] ) = ±0.9992
+```
+
+— the encoder **rediscovered Ke from data** (sign is arbitrary).
 
 **What it does:** For a scaling symmetry, invariance requires `W · g = 0`.
-The generators are the **null-space of W** — there are `7 − 1 = 6` generators.
+The generators are the **null-space of W** — there are `3 − 1 = 2` generators.
 
-Each generator `g` is a 7-vector: simultaneously rescaling variable `i` by
-`exp(ε·gᵢ)` for any `ε` leaves `e*` unchanged.
+Each generator `g` is a 3-vector: simultaneously rescaling Pi group `k` by
+`exp(ε·gₖ)` for any `ε` leaves `e*` unchanged.
 
 ---
 
 ### Step 5 — Physical Interpretation
 
-**Actual generators:**
+**Actual generators (Pi space):**
 
 | Generator | Trade-off | Physical meaning |
 |---|---|---|
-| 1 | increase `Vs` (+0.99), increase `etaP` (+0.14) | Faster scan + slightly more power preserves the energy-density balance |
-| 2 | increase `r0` (+0.97), increase `etaP` (+0.20) | Larger beam radius compensated by more laser power |
-| 3 | increase `alpha` (+0.72), decrease `etaP` (−0.63) | Higher thermal diffusivity drains heat faster; less laser power needed |
-| 4 | increase `rho` (+0.85), decrease `etaP` (−0.46) | Higher-density metal absorbs more energy; less laser power needed |
-| 5 | increase `cp` (+0.93), increase `etaP` (+0.32) | Higher specific heat compensated by more laser power |
-| 6 | increase `Tl-T0` (+0.97), increase `etaP` (+0.22) | Higher superheat absorbed by more laser power |
+| 1 | `π1` × exp(−0.67ε), `π2` × exp(+0.67ε), `π3` × exp(−0.32ε) | Lower Péclet number offset by a higher power/kinetic ratio |
+| 2 | `π1` × exp(−0.64ε), `π2` × exp(−0.32ε), `π3` × exp(+0.70ε) | Higher kinetic/thermal ratio offset by lower Péclet and power ratios |
 
-With seven variables and `k* = 1`, the six generators span the entire
-six-dimensional null space of `W`: any combination of these directions
-keeps the keyhole eccentricity unchanged.
+Both generators are orthogonal to the discovered `W ∝ [0.5, 1, 1]` — they
+span the 2-D iso-`Ke` surface in log-Pi space. Along either direction the
+known `Ke` changes by less than 3% over `|ε| ≤ 0.5` (it would be exactly 0
+if `W` matched `[0.5, 1, 1]` perfectly).
 
 ---
 
@@ -196,7 +205,7 @@ All outputs go to `output_keyhole_symmetry/` (configurable via `--output-dir`).
 |---|---|
 | `keyhole_pi_candidates.png` | Pi-basis exponent heatmap + scatter of `e*` vs each `log₁₀(Πₖ)` with logistic fit and R² |
 | `keyhole_symmetry_discovery.png` | 3-panel: Pi-collapse, symmetry-type bar chart, discovered iso-invariant orbits in log-space |
-| `keyhole_discovered_law_generators.png` | 4-panel: discovered `W` vs known Ke exponents, `e*` collapse onto the discovered latent, heatmap of the 6 null-space generators, and orbit-invariance check comparing the exact `z` invariant with the drift in textbook `Ke` |
+| `keyhole_discovered_law_generators.png` | 4-panel (Pi space): discovered `W` vs known Ke Pi-exponents `[0.5, 1, 1]`, `e*` collapse onto the discovered latent, heatmap of the 2 null-space generators, and orbit-invariance check (`z` exactly flat, textbook `Ke` drift < 3%) |
 | `_da_repo/dimension_matrix.csv` | Explicit dimension matrix fed to `DataPreprocessor` |
 | `_da_repo/basis_vectors.csv` | Integer Pi-group exponent vectors |
 
@@ -231,12 +240,13 @@ Default training budget: `--latent-epochs 600`, `--sym-epochs 1500`,
 |---|---|
 | Pi groups discovered | 3 (π1 = Péclet, π2 = power/kinetic, π3 = kinetic/thermal) |
 | Known Ke in null-space | cos = +1.0000 ✓ |
+| Known Ke in Pi coordinates | `Ke = π1^0.5 · π2 · π3` (exact) |
 | Latent dimension k* | **1** — single coordinate explains 98.2% variance |
 | Test R² | **0.9820** (train and test nearly identical — no overfitting) |
-| Symmetry type | **Scaling** — 6.3× loss gap over translational |
-| Generators | 6 directions (7 variables − 1 latent dimension) |
-| Constrained generators | etaP-Vs, etaP-r0, alpha-etaP, rho-etaP, cp-etaP, Tl-T0-etaP |
-| Free generators | none (six generators span the full 6-D null space) |
+| Symmetry type | **Scaling** — ~17× loss gap over translational (Pi-space Step 3) |
+| Discovered law | cos(W, [0.5, 1, 1]) = ±0.9992 — encoder rediscovered Ke |
+| Generators | 2 directions in log-Pi space (3 Pi groups − 1 latent dimension) |
+| Invariance check | Ke drifts < 3% along either generator over `|ε| ≤ 0.5` |
 
 ---
 

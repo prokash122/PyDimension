@@ -158,6 +158,21 @@ def compute_pi_features(X_raw: np.ndarray, basis: np.ndarray) -> np.ndarray:
     return (log_pi - mn) / rng
 
 
+def compute_pi_values_centred(X_raw: np.ndarray, basis: np.ndarray) -> np.ndarray:
+    """Per-sample Pi-group values, geometric-mean-centred per column.
+
+    Unlike compute_pi_features (log10 + min-max, for the Step 2 MLP), this
+    returns the Pi values themselves divided by their per-column geometric
+    mean — a purely multiplicative rescaling. Step 3's competing encoders
+    (X, X², log|X|) therefore act on genuinely multiplicative quantities,
+    and the scaling encoder's internal log sees centred log-Pi coordinates.
+    """
+    X_pos = np.maximum(X_raw, 1e-30)
+    log10_pi = np.log10(X_pos) @ basis
+    log10_pi = log10_pi - log10_pi.mean(axis=0, keepdims=True)
+    return 10.0 ** log10_pi
+
+
 def format_pi_expression(basis_col: np.ndarray, names) -> str:
     """Human-readable product form of a single Pi group."""
     parts = []
@@ -329,6 +344,17 @@ def run_pipeline(X, y, Ke, args):
     results["pi_feature_names"] = pi_feature_names
     print(f"  Reduced candidates (pi_features) shape: {pi_features.shape}  "
           f"range: [{pi_features.min():.3f}, {pi_features.max():.3f}]")
+    # Known Ke expressed in the discovered Pi basis (Ke = Π_k Pi_k^{c_k}):
+    # `coords` from the lstsq above are exactly those exponents c_k.
+    ke_pi_coords = coords
+    results["ke_pi_coords"] = ke_pi_coords
+    print(f"  Known Ke in Pi coordinates: Ke = "
+          + " · ".join(f"Pi{i+1}^{c:.3g}" for i, c in enumerate(ke_pi_coords)))
+    # Geometric-mean-centred Pi values: Step 3 input (multiplicative, no min-max).
+    pi_centred = compute_pi_values_centred(X, pi_basis)
+    results["pi_centred"] = pi_centred
+    print(f"  Centred Pi values for Step 3: shape {pi_centred.shape}  "
+          f"range: [{pi_centred.min():.3g}, {pi_centred.max():.3g}]")
     print()
 
     # --- Normalize ---
@@ -351,12 +377,15 @@ def run_pipeline(X, y, Ke, args):
         norm_pi = normalize_data(pi_features, y, method="minmax")
         X_norm_step2 = norm_pi["X_normalized"]
         print(f"  --pi-only: Step 2 input = {pi_features.shape[1]} dimensionless features; "
-              f"Step 3 input = raw physical X ({X_norm_raw.shape[1]} variables)")
+              f"Step 3 input = {pi_centred.shape[1]} geometric-mean-centred Pi values")
     else:
         X_norm_step2 = X_norm_raw
 
+    n_pi = pi_centred.shape[1]
+    pi_names_step3 = [f"Pi{i+1}" for i in range(n_pi)]
     results["normalization"] = norm_raw
-    results["feature_names"] = VARIABLE_NAMES   # Step 3 always on physical X
+    results["feature_names"] = pi_names_step3 if pi_only else VARIABLE_NAMES
+    results["feature_names_step3"] = results["feature_names"]
     print(f"  X_raw range: [{X_norm_raw.min():.3f}, {X_norm_raw.max():.3f}]")
     if pi_only:
         print(f"  X_pi  range: [{X_norm_step2.min():.3f}, {X_norm_step2.max():.3f}]")
@@ -401,12 +430,18 @@ def run_pipeline(X, y, Ke, args):
     print("=" * 60)
     sys.stdout.flush()
     if pi_only:
-        print(f"  Running Step 3 on raw physical X ({X_norm_raw.shape[1]} variables) "
-              f"so the translational/rotational/scaling encoders see")
-        print(f"  multiplicatively-meaningful quantities (avoids the log-of-log "
-              f"degeneracy of feeding pre-log-scaled Pi groups).")
+        print(f"  Running Step 3 on the {n_pi} geometric-mean-centred Pi VALUES "
+              f"(not the log-min-max Step 2 features).")
+        print(f"  Centring is purely multiplicative, so the scaling encoder's "
+              f"internal log sees centred log-Pi coordinates —")
+        print(f"  no log-of-log degeneracy, and generators live in "
+              f"dimensionless Pi space.")
+        X_step3 = pi_centred
+    else:
+        X_step3 = X_norm_raw
+    results["X_step3"] = X_step3
     res_sym = identify_symmetry(
-        X_norm_raw, y_norm, n_latent=n_latent, decoder=res_latent["best_decoder"],
+        X_step3, y_norm, n_latent=n_latent, decoder=res_latent["best_decoder"],
         n_epochs=args.sym_epochs, n_restarts=args.n_restarts, seed=args.seed)
     results["symmetry"] = res_sym
     print(f"\n  Detected symmetry: {res_sym['symmetry_type']}")
@@ -433,23 +468,39 @@ def run_pipeline(X, y, Ke, args):
     print(f"  Generators: {len(generators)}")
     print()
 
+    # --- Report the winning encoder direction vs the known Ke Pi-exponents ---
+    names_step3 = results["feature_names_step3"]
+    W = winner_encoder.weight_matrix
+    if pi_only and winner_type == "scaling":
+        for i in range(W.shape[0]):
+            row_n = W[i] / (np.linalg.norm(W[i]) + 1e-12)
+            ref_n = ke_pi_coords / (np.linalg.norm(ke_pi_coords) + 1e-12)
+            cos = float(np.dot(row_n, ref_n))
+            print(f"  Encoder row {i+1} (L2-n): "
+                  + ", ".join(f"{n}:{v:+.3f}" for n, v in zip(names_step3, row_n)))
+            print(f"  cos<row, Ke Pi-exponents {np.round(ke_pi_coords, 3)}> = {cos:+.4f}  "
+                  f"(±1 = the encoder rediscovered Ke)")
+        print()
+
     # --- Interpret generators physically ---
     print("=" * 60)
     print("Step 5: Physical interpretation of generators")
     print("=" * 60)
     if winner_type == "scaling" and generators:
-        print(f"  Each generator is a direction in log-space along which Ke is preserved.")
-        print(f"  Physically: simultaneous rescaling of variables that keeps the physics invariant.\n")
+        print(f"  Each generator is a direction in log-Pi space along which e* is preserved."
+              if pi_only else
+              f"  Each generator is a direction in log-space along which Ke is preserved.")
+        print(f"  Simultaneously rescaling the Pi groups along g leaves the keyhole physics invariant.\n")
         for i, g in enumerate(generators):
             if g.ndim == 1:
                 parts = []
-                for j, name in enumerate(VARIABLE_NAMES):
+                for j, name in enumerate(names_step3):
                     if abs(g[j]) > 0.05:
                         parts.append(f"{name} x exp({g[j]:+.3f}*eps)")
                 print(f"  Generator {i+1}:")
                 print(f"    {', '.join(parts)}")
                 # Physical meaning
-                _interpret_generator(g, i + 1)
+                _interpret_generator(g, i + 1, names_step3)
                 print()
     elif winner_type == "rotational" and generators:
         for i, g in enumerate(generators):
@@ -458,22 +509,22 @@ def run_pipeline(X, y, Ke, args):
     else:
         for i, g in enumerate(generators):
             if g.ndim == 1:
-                parts = [f"{name}:{g[j]:+.3f}" for j, name in enumerate(VARIABLE_NAMES) if abs(g[j]) > 0.05]
+                parts = [f"{name}:{g[j]:+.3f}" for j, name in enumerate(names_step3) if abs(g[j]) > 0.05]
                 print(f"  Generator {i+1}: [{', '.join(parts)}]")
     print()
 
     return results
 
 
-def _interpret_generator(g, idx):
+def _interpret_generator(g, idx, names):
     """Give a physical interpretation of a scaling generator."""
     # Find the dominant variable
     abs_g = np.abs(g)
     dominant = np.argmax(abs_g)
-    name = VARIABLE_NAMES[dominant]
+    name = names[dominant]
 
     # Find coupled variables (others that must change to preserve Ke)
-    coupled = [(VARIABLE_NAMES[j], g[j]) for j in range(len(g))
+    coupled = [(names[j], g[j]) for j in range(len(g))
                if j != dominant and abs(g[j]) > 0.05]
 
     if coupled:
@@ -563,100 +614,86 @@ def plot_pi_candidates(X, y, results, output_dir):
 
 
 def plot_discovered_law_and_generators(X, y, Ke, results, output_dir):
-    """Visualize the discovered scaling law and the six generator directions.
+    """Visualize the discovered scaling law and generators in Pi space.
 
-    Four panels:
-      A. Discovered exponent vector W (from the winning scaling encoder) plotted
-         against the known Ke exponents — both L2-normalized so directions are
-         directly comparable.
-      B. Data collapse: e* vs the discovered latent  z_disc = W · log|X_norm|,
-         and vs log10(Ke) as reference. A near-1D curve in both panels means the
-         discovered law captures the same physics as Ke.
-      C. Heatmap of the 6 generators (rows) × 7 variables (cols). Each row is a
-         direction in log-space along which e* is invariant.
-      D. Orbit invariance test: for each generator g_k, march
-         X(eps) = X0 * exp(eps · g_k) and evaluate the known Ke along the orbit.
-         Curves that stay flat confirm the discovered generators genuinely
-         preserve the physics.
+    Step 3 runs on the geometric-mean-centred Pi values, so everything here
+    lives in dimensionless Pi coordinates:
+      A. Discovered W (1 × n_pi) vs the known Ke Pi-exponents [0.5, 1, 1] —
+         both L2-normalized. cos → ±1 means the encoder rediscovered Ke.
+      B. Data collapse: e* vs the discovered latent z = W · log(Pi_centred).
+      C. Heatmap of the null-space generators (rows) × Pi groups (cols).
+      D. Orbit invariance: Pi(ε) = Pi0 · exp(ε·g). Because Ke = Π Pi_k^{c_k},
+         Ke(ε)/Ke(0) = exp(ε · c·g) exactly; z is checked numerically with
+         the encoder's log-clamp.
     """
     os.makedirs(output_dir, exist_ok=True)
     winner_encoder = results["winner_encoder"]
     generators     = results["generators"]
-    W              = winner_encoder.weight_matrix  # (1, 7) for k*=1
-    X_norm_raw     = results["normalization"]["X_normalized"]
-    n_vars         = len(VARIABLE_NAMES)
+    W              = winner_encoder.weight_matrix    # (k*, n_pi)
+    pi_centred     = results["X_step3"]
+    pi_names       = results["feature_names_step3"]
+    ke_coords      = np.asarray(results["ke_pi_coords"], dtype=float)
+    pi_basis       = results["pi_basis"]
+    n_pi           = pi_centred.shape[1]
     n_gen          = len(generators)
 
-    # ── Panel A: discovered exponent vector vs known Ke exponents ──────────
+    # ── Panel A: discovered direction vs known Ke Pi-exponents ─────────────
     W_dir = W[0] / (np.linalg.norm(W[0]) + 1e-12)
-    Ke_dir = KNOWN_KE_EXPONENTS / np.linalg.norm(KNOWN_KE_EXPONENTS)
-    # Align signs so direction comparison isn't flipped arbitrarily by training
+    Ke_dir = ke_coords / (np.linalg.norm(ke_coords) + 1e-12)
     if np.dot(W_dir, Ke_dir) < 0:
         W_dir = -W_dir
     cos_sim = float(np.dot(W_dir, Ke_dir))
 
-    # ── Panel B: discovered latent z_disc = W · log|X_norm| (encoder-equivalent) ──
-    log_X = np.log(np.clip(np.abs(X_norm_raw), 0.1, None))
-    z_disc = (log_X @ W[0])                    # (n_samples,)
-    log10_Ke = np.log10(np.clip(Ke, 1e-30, None))
+    # ── Panel B: discovered latent (encoder-equivalent, incl. 0.1 clamp) ───
+    log_pi = np.log(np.clip(np.abs(pi_centred), 0.1, None))
+    z_disc = log_pi @ W[0]
 
-    # ── Panel D: orbit invariance in the encoder's native space ────────────
-    # Apply each generator as a step in log|X_norm| space (where the encoder
-    # operates): X_norm(ε) = X_norm(0) · exp(ε · g). z = W · log|X_norm| is
-    # then exactly invariant by construction (g lies in null(W)). Unnormalise
-    # each orbit to raw physical X to also evaluate Ke — its drift measures
-    # the misalignment between the encoder direction and the true Ke
-    # exponent vector.
-    scaler_X = results["normalization"]["scaler_X"]
-    # Start from the elementwise median in normalised space so a symmetric ε
-    # sweep stays inside [0, 1] as long as possible.
-    Xn_start = np.median(X_norm_raw, axis=0)
-    Xn_start = np.clip(Xn_start, 0.1, 1.0)  # avoid the log-clamp region
-    x_start_raw = scaler_X.inverse_transform(Xn_start[None, :])[0]
-    Ke_start = float(compute_ke(x_start_raw[None, :])[0])
-    eps_grid = np.linspace(-0.3, 0.3, 41)
+    # ── Panel D: orbits in Pi space ─────────────────────────────────────────
+    eps_grid = np.linspace(-0.5, 0.5, 41)
     orbit_Ke = np.zeros((n_gen, eps_grid.size))
     orbit_z  = np.zeros((n_gen, eps_grid.size))
+    Pi_start = np.exp(np.log(pi_centred).mean(axis=0))     # geometric centre ≈ 1
     for k, g in enumerate(generators):
-        Xn_orbit = Xn_start[None, :] * np.exp(np.outer(eps_grid, g))    # (n_eps, n_vars)
-        Xn_orbit = np.clip(Xn_orbit, 1e-6, None)  # stay positive for log/unnorm
-        X_orbit  = scaler_X.inverse_transform(Xn_orbit)
-        orbit_Ke[k] = compute_ke(X_orbit)
-        # z = W · log|X_norm| (with the same 0.1 clamp the encoder uses)
-        log_Xn = np.log(np.clip(np.abs(Xn_orbit), 0.1, None))
-        orbit_z[k] = log_Xn @ W[0]
-    z_start = float(orbit_z[0, len(eps_grid) // 2]) if n_gen > 0 else 0.0
+        Pi_orbit = Pi_start[None, :] * np.exp(np.outer(eps_grid, g))
+        # Ke ratio is exact: log Ke moves by ε · (c · g)
+        orbit_Ke[k] = np.exp(eps_grid * float(ke_coords @ g))
+        orbit_z[k]  = np.log(np.clip(np.abs(Pi_orbit), 0.1, None)) @ W[0]
+    z0 = float(np.log(np.clip(np.abs(Pi_start), 0.1, None)) @ W[0])
 
     # ── Build the figure ────────────────────────────────────────────────────
     fig = plt.figure(figsize=(17, 13))
     gs  = fig.add_gridspec(2, 2, hspace=0.62, wspace=0.34)
-    fig.suptitle("Keyhole — Discovered Scaling Law & Invariance Generators",
+    fig.suptitle("Keyhole — Discovered Law & Generators in Pi Space",
                  fontweight="bold")
 
-    # Panel A: discovered W vs known Ke exponents (both L2-normalized)
+    # Panel A
     ax = fig.add_subplot(gs[0, 0])
-    x_pos = np.arange(n_vars)
+    x_pos = np.arange(n_pi)
     bar_w = 0.38
     ax.bar(x_pos - bar_w / 2, W_dir, bar_w,
            color="#4C72B0", edgecolor="black", label="Discovered W (encoder)")
     ax.bar(x_pos + bar_w / 2, Ke_dir, bar_w,
-           color="#DD8452", edgecolor="black", label="Known Ke exponents")
+           color="#DD8452", edgecolor="black",
+           label="Known Ke Pi-exponents")
     ax.axhline(0, color="black", lw=0.6)
     ax.set_xticks(x_pos)
-    ax.set_xticklabels(VARIABLE_NAMES, rotation=30, ha="right")
+    ax.set_xticklabels(pi_names)
+    ax.text(0.02, 0.02,
+            "\n".join(f"{n} = {format_pi_expression(pi_basis[:, i], VARIABLE_NAMES)}"
+                      for i, n in enumerate(pi_names)),
+            transform=ax.transAxes, ha="left", va="bottom", fontsize=12,
+            color="#444444")
     ax.set_ylabel("Exponent (L2-normalized)")
     ax.set_title(
         f"Discovered scaling law vs known Ke  (direction cos = {cos_sim:+.3f})\n"
-        "W is a direction in log|X_norm| space, not the raw-log Ke exponents",
+        f"Known: Ke = " + " · ".join(f"Pi{i+1}^{c:.2g}" for i, c in enumerate(ke_coords)),
         fontsize=17)
     ax.legend(loc="best", fontsize=13)
 
-    # Panel B: data collapse — e* vs z_disc, with e* vs log10(Ke) as reference
+    # Panel B
     ax = fig.add_subplot(gs[0, 1])
-    order_disc = np.argsort(z_disc)
     ax.scatter(z_disc, y, c="#4C72B0", s=22, alpha=0.75, edgecolors="none",
                label="e* vs discovered z")
-    # R² of a quadratic fit against z_disc, as a "collapse quality" number
     try:
         c = np.polyfit(z_disc, y, 2)
         y_hat = np.polyval(c, z_disc)
@@ -668,23 +705,23 @@ def plot_discovered_law_and_generators(X, y, Ke, results, output_dir):
                 label=f"quad fit  R²={r2:.3f}")
     except Exception:
         pass
-    ax.set_xlabel("Discovered latent  z = W · log|X_norm|")
+    ax.set_xlabel("Discovered latent  z = W · log(Pi_centred)")
     ax.set_ylabel("e*")
     ax.set_title("Data collapse onto the discovered law")
     ax.legend(loc="best", fontsize=13)
 
-    # Panel C: generator heatmap — 6 rows × 7 columns
+    # Panel C
     ax = fig.add_subplot(gs[1, 0])
     if n_gen > 0:
         G = np.stack([g if g.ndim == 1 else g.ravel() for g in generators], axis=0)
         vmax = float(np.max(np.abs(G))) or 1.0
         im = ax.imshow(G, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="auto")
-        ax.set_xticks(range(n_vars))
-        ax.set_xticklabels(VARIABLE_NAMES, rotation=30, ha="right")
+        ax.set_xticks(range(n_pi))
+        ax.set_xticklabels(pi_names)
         ax.set_yticks(range(n_gen))
         ax.set_yticklabels([f"g{i+1}" for i in range(n_gen)])
         for i in range(n_gen):
-            for j in range(n_vars):
+            for j in range(n_pi):
                 v = G[i, j]
                 if abs(v) > 0.05:
                     ax.text(j, i, f"{v:+.2f}", ha="center", va="center",
@@ -696,27 +733,24 @@ def plot_discovered_law_and_generators(X, y, Ke, results, output_dir):
         ax.set_axis_off()
         ax.set_title("No generators")
 
-    # Panel D: invariance along each orbit — discovered z (exact by
-    # construction) vs textbook Ke (drifts with encoder–Ke misalignment).
+    # Panel D
     ax = fig.add_subplot(gs[1, 1])
     cmap = plt.get_cmap("tab10")
     for k in range(n_gen):
-        rel_Ke = orbit_Ke[k] / Ke_start
-        ax.plot(eps_grid, rel_Ke, "-", color=cmap(k % 10), lw=1.8,
+        ax.plot(eps_grid, orbit_Ke[k], "-", color=cmap(k % 10), lw=1.8,
                 label=f"Ke, g{k+1}")
-    # Discovered z stays flat by construction — plot one bold reference line
-    if n_gen > 0 and abs(z_start) > 1e-9:
-        rel_z = orbit_z[0] / z_start
-        ax.plot(eps_grid, rel_z, "k--", lw=2.2, alpha=0.9,
-                label="z (discovered)")
+    if n_gen > 0:
+        # z0 sits at the geometric centre (≈ 0), so show 1 + Δz instead of a ratio
+        ax.plot(eps_grid, 1.0 + (orbit_z[0] - z0), "k--", lw=2.2, alpha=0.9,
+                label="1 + Δz (discovered)")
     ax.axhline(1.0, color="grey", ls=":", lw=1.2)
-    ax.set_xlabel("Orbit parameter  ε   (log|X_norm| → log|X_norm| + ε·g)")
+    ax.set_xlabel("Orbit parameter  ε   (Pi → Pi · exp(ε·g))")
     ax.set_ylabel("ratio to ε=0")
-    ax.set_title("Invariance check along each orbit")
+    ax.set_title("Invariance check along each generator orbit")
     ax.legend(loc="best", ncol=2, fontsize=11)
-    y_dev = float(np.max(np.abs(orbit_Ke / Ke_start - 1.0)))
+    y_dev = float(np.max(np.abs(orbit_Ke - 1.0))) if n_gen else 0.0
     ax.text(0.03, 0.03,
-            f"max |ΔKe/Ke|={y_dev:.2f} at |ε|=0.3\n"
+            f"max |ΔKe/Ke|={y_dev:.3f} at |ε|=0.5\n"
             "z stays flat (null(W) by construction)",
             transform=ax.transAxes, va="bottom", ha="left", fontsize=11,
             color="#333333")
@@ -808,7 +842,11 @@ def main():
     print("=" * 60)
     plot_pi_candidates(X, y, results, args.output_dir)
     plot_results(X, y, results, args.output_dir)
-    plot_discovered_law_and_generators(X, y, Ke, results, args.output_dir)
+    if args.pi_only and results["winner_type"] == "scaling":
+        plot_discovered_law_and_generators(X, y, Ke, results, args.output_dir)
+    else:
+        print("Skipping Pi-space law/generator figure "
+              "(requires --pi-only and a scaling winner).")
 
     print()
     print("=" * 60)
@@ -818,7 +856,7 @@ def main():
     print(f"  Symmetry: {sym_type}")
     print(f"  Generators: {len(results['generators'])}")
     if sym_type == "scaling":
-        print(f"  These generators show how physical variables can be")
+        print(f"  These generators show how the dimensionless Pi groups can be")
         print(f"  simultaneously rescaled while preserving Ke and e*.")
     print()
 
