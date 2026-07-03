@@ -71,14 +71,14 @@ except (AttributeError, ImportError):
 import matplotlib.pyplot as plt
 
 plt.rcParams.update({
-    "font.size":             17,
-    "axes.titlesize":        20,
-    "axes.labelsize":        19,
-    "xtick.labelsize":       17,
-    "ytick.labelsize":       17,
-    "legend.fontsize":       17,
-    "legend.title_fontsize": 18,
-    "figure.titlesize":      24,
+    "font.size":             19,
+    "axes.titlesize":        26,
+    "axes.labelsize":        24,
+    "xtick.labelsize":       22,
+    "ytick.labelsize":       22,
+    "legend.fontsize":       18,
+    "legend.title_fontsize": 20,
+    "figure.titlesize":      30,
 })
 
 try:
@@ -590,7 +590,7 @@ def plot_ergun_collapse(X, y, Re_p, output_dir):
     x_mod = Re_p / np.maximum(1 - phi, 1e-30)
     y_mod = y * phi**3 / np.maximum(1 - phi, 1e-30)
 
-    fig, ax = plt.subplots(figsize=(9, 6.5))
+    fig, ax = plt.subplots(figsize=(11, 7.5))
 
     # Colour-code by porosity bin
     phi_rounded = np.round(phi, 3)
@@ -632,7 +632,7 @@ def plot_pi_candidates(X, y, results, output_dir):
     log10_pi = np.log10(X_pos) @ pi_basis
     log10_y = np.log10(np.maximum(y, 1e-30))
 
-    fig = plt.figure(figsize=(5 * (n_pi + 1), 5))
+    fig = plt.figure(figsize=(6 * (n_pi + 1), 6.5))
     gs = fig.add_gridspec(1, n_pi + 1, width_ratios=[1.3] + [1.0] * n_pi,
                           wspace=0.35)
     fig.suptitle("Porous Media LBM — Dimensional Analysis & Reduced Pi Candidates", fontweight="bold")
@@ -683,7 +683,7 @@ def plot_results(X, y, results, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     sym_res = results["symmetry"]
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5.5))
+    fig, axes = plt.subplots(1, 2, figsize=(16, 7))
     fig.suptitle("Porous Media LBM — Symmetry Discovery", fontweight="bold")
 
     # Panel 1: symmetry type bar chart

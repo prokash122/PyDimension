@@ -63,14 +63,14 @@ except (AttributeError, ImportError):
 import matplotlib.pyplot as plt
 
 plt.rcParams.update({
-    "font.size":             17,
-    "axes.titlesize":        20,
-    "axes.labelsize":        19,
-    "xtick.labelsize":       17,
-    "ytick.labelsize":       17,
-    "legend.fontsize":       17,
-    "legend.title_fontsize": 18,
-    "figure.titlesize":      24,
+    "font.size":             19,
+    "axes.titlesize":        26,
+    "axes.labelsize":        24,
+    "xtick.labelsize":       22,
+    "ytick.labelsize":       22,
+    "legend.fontsize":       18,
+    "legend.title_fontsize": 20,
+    "figure.titlesize":      30,
 })
 
 try:
@@ -558,7 +558,7 @@ def plot_pi_candidates(X, y, results, output_dir):
     X_pos = np.maximum(X, 1e-30)
     log10_pi = np.log10(X_pos) @ pi_basis     # (n_samples, n_pi)
 
-    fig = plt.figure(figsize=(5 * (n_pi + 1), 5))
+    fig = plt.figure(figsize=(6 * (n_pi + 1), 6.5))
     gs  = fig.add_gridspec(1, n_pi + 1, width_ratios=[1.3] + [1.0] * n_pi,
                            wspace=0.35)
     fig.suptitle("Keyhole — Dimensional Analysis & Reduced Pi Candidates", fontweight="bold")
@@ -661,8 +661,8 @@ def plot_discovered_law_and_generators(X, y, Ke, results, output_dir):
     z0 = float(np.log(np.clip(np.abs(Pi_start), 0.1, None)) @ W[0])
 
     # ── Build the figure ────────────────────────────────────────────────────
-    fig = plt.figure(figsize=(17, 13))
-    gs  = fig.add_gridspec(2, 2, hspace=0.62, wspace=0.45)
+    fig = plt.figure(figsize=(19, 14))
+    gs  = fig.add_gridspec(2, 2, hspace=0.7, wspace=0.5)
     fig.suptitle("Keyhole — Discovered Law & Generators in Pi Space",
                  fontweight="bold")
 
@@ -678,11 +678,12 @@ def plot_discovered_law_and_generators(X, y, Ke, results, output_dir):
     ax.axhline(0, color="black", lw=0.6)
     ax.set_xticks(x_pos)
     ax.set_xticklabels(pi_names)
-    ax.set_ylabel("Exponent (L2-normalized)")
-    ax.set_title(
-        f"Discovered scaling law vs known Ke  (direction cos = {cos_sim:+.3f})\n"
-        f"Known: Ke = " + " · ".join(f"Pi{i+1}^{c:.2g}" for i, c in enumerate(ke_coords)),
-        fontsize=17)
+    ax.set_ylabel("Exponent (L2-norm)")
+    ax.set_title(f"Discovered W vs known Ke   (cos = {cos_sim:+.3f})")
+    ax.text(0.5, -0.14,
+            "Known: Ke = " + " · ".join(f"Pi{i+1}^{c:.2g}" for i, c in enumerate(ke_coords)),
+            transform=ax.transAxes, ha="center", va="top", fontsize=17,
+            color="#444444")
     ax.legend(loc="best", fontsize=15)
 
     # Panel B
@@ -723,7 +724,7 @@ def plot_discovered_law_and_generators(X, y, Ke, results, output_dir):
                             color="white" if abs(v) > 0.6 * vmax else "black",
                             fontsize=15)
         fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-        ax.set_title(f"{n_gen} generators of e*-invariance  (rows = null(W))")
+        ax.set_title(f"{n_gen} generators of e*-invariance")
     else:
         ax.set_axis_off()
         ax.set_title("No generators")
@@ -741,7 +742,7 @@ def plot_discovered_law_and_generators(X, y, Ke, results, output_dir):
     ax.axhline(1.0, color="grey", ls=":", lw=1.2)
     ax.set_xlabel("Orbit parameter  ε   (Pi → Pi · exp(ε·g))")
     ax.set_ylabel("ratio to ε=0")
-    ax.set_title("Invariance check along each generator orbit")
+    ax.set_title("Invariance check along each orbit")
     ax.legend(loc="best", ncol=2, fontsize=14)
     y_dev = float(np.max(np.abs(orbit_Ke - 1.0))) if n_gen else 0.0
     ax.text(0.03, 0.03,
@@ -769,7 +770,7 @@ def plot_results(X, y, results, output_dir):
     winner_type = results["winner_type"]
     sym_res = results["symmetry"]
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5.5))
+    fig, axes = plt.subplots(1, 2, figsize=(16, 7))
     fig.suptitle("Keyhole — Symmetry Discovery", fontweight="bold")
 
     # --- Panel 1: Symmetry type identification ---
