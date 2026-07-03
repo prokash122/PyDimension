@@ -94,10 +94,10 @@ Step 3: Identifying symmetry type
   Generators therefore live in dimensionless (Re_p, phi) space.
 
   Detected symmetry: scaling
-    scaling        : 0.000473 <--
-    translational  : 0.001909
-    rotational     : 0.002972
-  Loss gap: 4.0x
+    scaling        : 0.000500 <--
+    translational  : 0.001841
+    rotational     : 0.003028
+  Loss gap: 3.7x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
@@ -111,9 +111,9 @@ Step 4: Extracting Lie-algebra generators
   Darcy reference direction (at phi_bar=0.544): [-1.   -5.39]
   Row 1 (scaling):
        Re_p      phi
-  raw :    +0.1985  +0.6457
-  L2-n:    +0.2939  +0.9558
-  cos<row, Darcy [dlogf/dlogRe, dlogf/dlogphi]> = -0.9934
+  raw :    -0.1373  -0.5498
+  L2-n:    -0.2422  -0.9702
+  cos<row, Darcy [dlogf/dlogRe, dlogf/dlogphi]> = +0.9981
 
 ============================================================
 Step 5: Physical interpretation of generators
@@ -124,7 +124,7 @@ Step 5: Physical interpretation of generators
   (Darcy regime preserved).
 
   Generator 1:
-    Re_p x exp(-0.956*eps), phi x exp(+0.294*eps)
+    Re_p x exp(-0.970*eps), phi x exp(+0.242*eps)
     Meaning: decrease Re_p while increase phi
              to keep friction factor f invariant
 

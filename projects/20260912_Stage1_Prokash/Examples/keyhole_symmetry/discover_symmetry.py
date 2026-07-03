@@ -662,7 +662,7 @@ def plot_discovered_law_and_generators(X, y, Ke, results, output_dir):
 
     # ── Build the figure ────────────────────────────────────────────────────
     fig = plt.figure(figsize=(17, 13))
-    gs  = fig.add_gridspec(2, 2, hspace=0.62, wspace=0.34)
+    gs  = fig.add_gridspec(2, 2, hspace=0.62, wspace=0.45)
     fig.suptitle("Keyhole — Discovered Law & Generators in Pi Space",
                  fontweight="bold")
 
@@ -678,17 +678,12 @@ def plot_discovered_law_and_generators(X, y, Ke, results, output_dir):
     ax.axhline(0, color="black", lw=0.6)
     ax.set_xticks(x_pos)
     ax.set_xticklabels(pi_names)
-    ax.text(0.02, 0.02,
-            "\n".join(f"{n} = {format_pi_expression(pi_basis[:, i], VARIABLE_NAMES)}"
-                      for i, n in enumerate(pi_names)),
-            transform=ax.transAxes, ha="left", va="bottom", fontsize=12,
-            color="#444444")
     ax.set_ylabel("Exponent (L2-normalized)")
     ax.set_title(
         f"Discovered scaling law vs known Ke  (direction cos = {cos_sim:+.3f})\n"
         f"Known: Ke = " + " · ".join(f"Pi{i+1}^{c:.2g}" for i, c in enumerate(ke_coords)),
         fontsize=17)
-    ax.legend(loc="best", fontsize=13)
+    ax.legend(loc="best", fontsize=15)
 
     # Panel B
     ax = fig.add_subplot(gs[0, 1])
@@ -708,7 +703,7 @@ def plot_discovered_law_and_generators(X, y, Ke, results, output_dir):
     ax.set_xlabel("Discovered latent  z = W · log(Pi_centred)")
     ax.set_ylabel("e*")
     ax.set_title("Data collapse onto the discovered law")
-    ax.legend(loc="best", fontsize=13)
+    ax.legend(loc="best", fontsize=15)
 
     # Panel C
     ax = fig.add_subplot(gs[1, 0])
@@ -726,8 +721,8 @@ def plot_discovered_law_and_generators(X, y, Ke, results, output_dir):
                 if abs(v) > 0.05:
                     ax.text(j, i, f"{v:+.2f}", ha="center", va="center",
                             color="white" if abs(v) > 0.6 * vmax else "black",
-                            fontsize=13)
-        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="component")
+                            fontsize=15)
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
         ax.set_title(f"{n_gen} generators of e*-invariance  (rows = null(W))")
     else:
         ax.set_axis_off()
@@ -747,15 +742,21 @@ def plot_discovered_law_and_generators(X, y, Ke, results, output_dir):
     ax.set_xlabel("Orbit parameter  ε   (Pi → Pi · exp(ε·g))")
     ax.set_ylabel("ratio to ε=0")
     ax.set_title("Invariance check along each generator orbit")
-    ax.legend(loc="best", ncol=2, fontsize=11)
+    ax.legend(loc="best", ncol=2, fontsize=14)
     y_dev = float(np.max(np.abs(orbit_Ke - 1.0))) if n_gen else 0.0
     ax.text(0.03, 0.03,
             f"max |ΔKe/Ke|={y_dev:.3f} at |ε|=0.5\n"
             "z stays flat (null(W) by construction)",
-            transform=ax.transAxes, va="bottom", ha="left", fontsize=11,
+            transform=ax.transAxes, va="bottom", ha="left", fontsize=14,
             color="#333333")
 
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    # Footer: the actual Pi-group expressions behind the feature names.
+    fig.text(0.05, 0.045,
+             "    ".join(f"{n} = {format_pi_expression(pi_basis[:, i], VARIABLE_NAMES)}"
+                         for i, n in enumerate(pi_names)),
+             ha="left", va="top", fontsize=15, color="#444444")
+
+    plt.tight_layout(rect=[0, 0.05, 1, 0.95])
     out_path = os.path.join(output_dir, "keyhole_discovered_law_generators.png")
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close(fig)

@@ -85,10 +85,10 @@ Step 3: Identifying symmetry type
   no log-of-log degeneracy, and generators live in dimensionless Pi space.
 
   Detected symmetry: scaling
-    scaling        : 0.001448 <--
-    translational  : 0.027440
-    rotational     : 0.031735
-  Loss gap: 18.9x
+    scaling        : 0.001388 <--
+    translational  : 0.027741
+    rotational     : 0.034607
+  Loss gap: 20.0x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
@@ -96,8 +96,8 @@ Step 4: Extracting Lie-algebra generators
   Symmetry type: scaling
   Generators: 2
 
-  Encoder row 1 (L2-n): Pi1:-0.368, Pi2:-0.669, Pi3:-0.646
-  cos<row, Ke Pi-exponents [0.5 1.  1. ]> = -0.9992  (±1 = the encoder rediscovered Ke)
+  Encoder row 1 (L2-n): Pi1:+0.370, Pi2:+0.667, Pi3:+0.646
+  cos<row, Ke Pi-exponents [0.5 1.  1. ]> = +0.9991  (±1 = the encoder rediscovered Ke)
 
 ============================================================
 Step 5: Physical interpretation of generators
@@ -106,12 +106,12 @@ Step 5: Physical interpretation of generators
   Simultaneously rescaling the Pi groups along g leaves the keyhole physics invariant.
 
   Generator 1:
-    Pi1 x exp(-0.669*eps), Pi2 x exp(+0.673*eps), Pi3 x exp(-0.316*eps)
+    Pi1 x exp(-0.667*eps), Pi2 x exp(+0.675*eps), Pi3 x exp(-0.315*eps)
     Meaning: increase Pi2 while decrease Pi1, decrease Pi3
              to keep Ke (and e*) unchanged
 
   Generator 2:
-    Pi1 x exp(-0.646*eps), Pi2 x exp(-0.316*eps), Pi3 x exp(+0.695*eps)
+    Pi1 x exp(-0.646*eps), Pi2 x exp(-0.315*eps), Pi3 x exp(+0.695*eps)
     Meaning: increase Pi3 while decrease Pi1, decrease Pi2
              to keep Ke (and e*) unchanged
 
@@ -123,8 +123,8 @@ Creating visualizations
   plt.tight_layout(rect=[0, 0, 1, 0.93])
 Pi candidates figure saved to output_keyhole_symmetry/keyhole_pi_candidates.png
 Figure saved to output_keyhole_symmetry/keyhole_symmetry_discovery.png
-/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/keyhole_symmetry/discover_symmetry.py:758: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
-  plt.tight_layout(rect=[0, 0, 1, 0.95])
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/keyhole_symmetry/discover_symmetry.py:759: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  plt.tight_layout(rect=[0, 0.05, 1, 0.95])
 Discovered-law & generators figure saved to output_keyhole_symmetry/keyhole_discovered_law_generators.png
 
 ============================================================
@@ -132,6 +132,6 @@ COMPLETE
 ============================================================
   Symmetry: scaling
   Generators: 2
-  These generators show how physical variables can be
+  These generators show how the dimensionless Pi groups can be
   simultaneously rescaled while preserving Ke and e*.
 
