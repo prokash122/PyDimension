@@ -779,7 +779,7 @@ def plot_results(X, y, results, output_dir):
     losses = [sym_res["losses"][t] for t in types]
     colors = ["#55A868" if t == sym_res["symmetry_type"] else "#DD8452" for t in types]
     bars = ax.bar(types, losses, color=colors, edgecolor="black", lw=1)
-    ax.set_ylim(0, 1)
+    ax.set_ylim(0, 0.05)
     ax.set_ylabel("Validation MSE")
     ax.set_title(f"Symmetry Type  (winner: {sym_res['symmetry_type']})")
     for bar, loss in zip(bars, losses):

@@ -85,10 +85,10 @@ Step 3: Identifying symmetry type
   no log-of-log degeneracy, and generators live in dimensionless Pi space.
 
   Detected symmetry: scaling
-    scaling        : 0.001416 <--
-    translational  : 0.027417
-    rotational     : 0.039369
-  Loss gap: 19.4x
+    scaling        : 0.001342 <--
+    translational  : 0.027715
+    rotational     : 0.030071
+  Loss gap: 20.7x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
@@ -96,8 +96,8 @@ Step 4: Extracting Lie-algebra generators
   Symmetry type: scaling
   Generators: 2
 
-  Encoder row 1 (L2-n): Pi1:+0.370, Pi2:+0.667, Pi3:+0.647
-  cos<row, Ke Pi-exponents [0.5 1.  1. ]> = +0.9991  (±1 = the encoder rediscovered Ke)
+  Encoder row 1 (L2-n): Pi1:+0.369, Pi2:+0.667, Pi3:+0.647
+  cos<row, Ke Pi-exponents [0.5 1.  1. ]> = +0.9992  (±1 = the encoder rediscovered Ke)
 
 ============================================================
 Step 5: Physical interpretation of generators
@@ -111,7 +111,7 @@ Step 5: Physical interpretation of generators
              to keep Ke (and e*) unchanged
 
   Generator 2:
-    Pi1 x exp(-0.647*eps), Pi2 x exp(-0.315*eps), Pi3 x exp(+0.695*eps)
+    Pi1 x exp(-0.647*eps), Pi2 x exp(-0.315*eps), Pi3 x exp(+0.694*eps)
     Meaning: increase Pi3 while decrease Pi1, decrease Pi2
              to keep Ke (and e*) unchanged
 
