@@ -102,10 +102,10 @@ Step 3: Identifying symmetry type
   generators live in dimensionless Pi space.
 
   Detected symmetry: scaling
-    scaling        : 0.023015 <--
-    translational  : 0.032745
-    rotational     : 0.058156
-  Loss gap: 1.4x
+    scaling        : 0.016873 <--
+    translational  : 0.022566
+    rotational     : 0.075993
+  Loss gap: 1.3x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
@@ -118,16 +118,16 @@ Step 4: Extracting Lie-algebra generators
 ============================================================
   Row 1 (scaling):
         Pi1      Pi2      Pi3      Pi4      Pi5      Pi6   Pe_vap       Pr
-  raw :    +0.2102  +0.2921  -0.2645  -0.0765  +0.3101  +0.0534  -0.2953  +0.4626
-  L2-n:    +0.2701  +0.3754  -0.3399  -0.0983  +0.3985  +0.0687  -0.3794  +0.5945
-  cos<row, known-Pi (DA coords)> = -0.2571  (±1 means perfect alignment)
-  cos<row, pure Pe_vap axis> = -0.3794  (±1 means perfect alignment)
+  raw :    -0.0574  -0.3998  -0.2753  +0.1303  -0.1929  +0.1863  +0.1122  +0.0046
+  L2-n:    -0.0985  -0.6852  -0.4718  +0.2234  -0.3306  +0.3192  +0.1923  +0.0078
+  cos<row, known-Pi (DA coords)> = +0.0664  (±1 means perfect alignment)
+  cos<row, pure Pe_vap axis> = +0.1923  (±1 means perfect alignment)
   Row 2 (scaling):
         Pi1      Pi2      Pi3      Pi4      Pi5      Pi6   Pe_vap       Pr
-  raw :    -0.3636  -0.1534  -0.3629  -0.1856  -0.0404  -0.2993  -0.1243  +0.2642
-  L2-n:    -0.5151  -0.2173  -0.5141  -0.2629  -0.0572  -0.4240  -0.1760  +0.3742
-  cos<row, known-Pi (DA coords)> = -0.4688  (±1 means perfect alignment)
-  cos<row, pure Pe_vap axis> = -0.1760  (±1 means perfect alignment)
+  raw :    -0.0431  -0.1075  +0.1825  +0.0876  +0.3567  -0.2180  +0.2474  -0.5421
+  L2-n:    -0.0564  -0.1406  +0.2388  +0.1146  +0.4666  -0.2852  +0.3237  -0.7092
+  cos<row, known-Pi (DA coords)> = +0.1865  (±1 means perfect alignment)
+  cos<row, pure Pe_vap axis> = +0.3237  (±1 means perfect alignment)
 
 ============================================================
 Step 5: Physical interpretation of generators
@@ -137,33 +137,33 @@ Step 5: Physical interpretation of generators
   dimensionless groups along g keeps the LPBF physics invariant.
 
   Generator 1:
-    Pi1 x exp(+0.226*eps), Pi2 x exp(-0.542*eps), Pi3 x exp(+0.613*eps), Pi4 x exp(-0.175*eps), Pi5 x exp(+0.091*eps), Pi6 x exp(-0.212*eps), Pe_vap x exp(-0.213*eps), Pr x exp(+0.388*eps)
-    Meaning: increase Pi3 while increase Pi1, decrease Pi2, decrease Pi4, increase Pi5, decrease Pi6, decrease Pe_vap, increase Pr
+    Pi1 x exp(-0.568*eps), Pi2 x exp(-0.163*eps), Pi3 x exp(+0.726*eps), Pi4 x exp(+0.093*eps), Pi5 x exp(-0.240*eps), Pi6 x exp(+0.205*eps), Pr x exp(+0.117*eps)
+    Meaning: increase Pi3 while decrease Pi1, decrease Pi2, increase Pi4, decrease Pi5, increase Pi6, increase Pr
              to keep Pi (and pore fraction) unchanged
 
   Generator 2:
-    Pi2 x exp(-0.280*eps), Pi3 x exp(-0.169*eps), Pi4 x exp(+0.921*eps), Pi6 x exp(-0.106*eps), Pe_vap x exp(-0.083*eps), Pr x exp(+0.156*eps)
-    Meaning: increase Pi4 while decrease Pi2, decrease Pi3, decrease Pi6, decrease Pe_vap, increase Pr
+    Pi1 x exp(+0.153*eps), Pi2 x exp(+0.236*eps), Pi4 x exp(+0.953*eps), Pe_vap x exp(-0.067*eps), Pr x exp(+0.082*eps)
+    Meaning: increase Pi4 while increase Pi1, increase Pi2, decrease Pe_vap, increase Pr
              to keep Pi (and pore fraction) unchanged
 
   Generator 3:
-    Pi1 x exp(-0.392*eps), Pi2 x exp(-0.079*eps), Pi3 x exp(+0.125*eps), Pi5 x exp(+0.876*eps), Pe_vap x exp(+0.126*eps), Pr x exp(-0.201*eps)
-    Meaning: increase Pi5 while decrease Pi1, decrease Pi2, increase Pi3, increase Pe_vap, decrease Pr
+    Pi1 x exp(-0.550*eps), Pi2 x exp(+0.095*eps), Pi3 x exp(-0.305*eps), Pi4 x exp(+0.061*eps), Pi5 x exp(+0.677*eps), Pi6 x exp(+0.252*eps), Pr x exp(+0.263*eps)
+    Meaning: increase Pi5 while decrease Pi1, increase Pi2, decrease Pi3, increase Pi4, increase Pi6, increase Pr
              to keep Pi (and pore fraction) unchanged
 
   Generator 4:
-    Pi1 x exp(-0.147*eps), Pi2 x exp(-0.461*eps), Pi3 x exp(-0.185*eps), Pi4 x exp(-0.097*eps), Pi6 x exp(+0.838*eps), Pe_vap x exp(-0.056*eps), Pr x exp(+0.125*eps)
-    Meaning: increase Pi6 while decrease Pi1, decrease Pi2, decrease Pi3, decrease Pi4, decrease Pe_vap, increase Pr
+    Pi1 x exp(+0.447*eps), Pi3 x exp(+0.232*eps), Pi4 x exp(-0.061*eps), Pi5 x exp(+0.226*eps), Pi6 x exp(+0.817*eps), Pr x exp(-0.154*eps)
+    Meaning: increase Pi6 while increase Pi1, increase Pi3, decrease Pi4, increase Pi5, decrease Pr
              to keep Pi (and pore fraction) unchanged
 
   Generator 5:
-    Pi1 x exp(+0.329*eps), Pi2 x exp(-0.174*eps), Pi3 x exp(-0.234*eps), Pi4 x exp(-0.096*eps), Pi5 x exp(+0.112*eps), Pi6 x exp(-0.082*eps), Pe_vap x exp(+0.837*eps), Pr x exp(+0.280*eps)
-    Meaning: increase Pe_vap while increase Pi1, decrease Pi2, decrease Pi3, decrease Pi4, increase Pi5, decrease Pi6, increase Pr
+    Pi2 x exp(+0.360*eps), Pi5 x exp(-0.121*eps), Pi6 x exp(+0.068*eps), Pe_vap x exp(+0.897*eps), Pr x exp(+0.206*eps)
+    Meaning: increase Pe_vap while increase Pi2, decrease Pi5, increase Pi6, increase Pr
              to keep Pi (and pore fraction) unchanged
 
   Generator 6:
-    Pi1 x exp(-0.496*eps), Pi2 x exp(+0.380*eps), Pi3 x exp(+0.415*eps), Pi4 x exp(+0.174*eps), Pi5 x exp(-0.173*eps), Pi6 x exp(+0.167*eps), Pe_vap x exp(+0.274*eps), Pr x exp(+0.523*eps)
-    Meaning: increase Pr while decrease Pi1, increase Pi2, increase Pi3, increase Pi4, decrease Pi5, increase Pi6, increase Pe_vap
+    Pi1 x exp(+0.369*eps), Pi2 x exp(-0.489*eps), Pi3 x exp(+0.271*eps), Pi5 x exp(+0.370*eps), Pi6 x exp(-0.258*eps), Pe_vap x exp(+0.142*eps), Pr x exp(+0.572*eps)
+    Meaning: increase Pr while increase Pi1, decrease Pi2, increase Pi3, increase Pi5, decrease Pi6, increase Pe_vap
              to keep Pi (and pore fraction) unchanged
 
 
@@ -174,6 +174,9 @@ Creating visualizations
   plt.tight_layout(rect=[0, 0, 1, 0.93])
 Pi candidates figure saved to output_lpbf_porosity_symmetry/lpbf_pi_candidates.png
 Figure saved to output_lpbf_porosity_symmetry/lpbf_porosity_symmetry_discovery.png
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry/discover_symmetry.py:1153: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  plt.tight_layout(rect=[0, 0, 1, 0.95])
+Discovered-coefficients & generators figure saved to output_lpbf_porosity_symmetry/lpbf_discovered_law_generators.png
 
 ============================================================
 COMPLETE

@@ -1011,6 +1011,152 @@ def plot_pi_candidates(X, y, results, output_dir):
     print(f"Pi candidates figure saved to {out_path}")
 
 
+def plot_discovered_law_and_generators(y, results, output_dir):
+    """Visualize the discovered coefficients and generators in Pi space.
+
+    Four panels (requires pi-only mode and a scaling winner):
+      A. Coefficient heatmap: the k* winning encoder rows (L2-normalised)
+         stacked above the two known references — the notebook Pi expressed
+         in DA coordinates, and the pure Pe_vap axis.
+      B. Latent collapse: for k* = 2 a scatter of (z1, z2) colored by pore
+         fraction; for k* = 1 a scatter of pore fraction vs z1.
+      C. Heatmap of the null-space generators (rows) × Pi features (cols).
+      D. Orbit invariance: Pi(ε) = Pi0 · exp(ε·g).  The known normalised-
+         enthalpy Pi moves by exp(ε · c·g) exactly (c = its DA coordinates,
+         zero-padded over Pe_vap/Pr); the latent z stays flat by null(W).
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    winner_encoder = results["winner_encoder"]
+    generators     = results["generators"]
+    W              = winner_encoder.weight_matrix          # (k*, n_pi)
+    pi_centred     = results["pi_centred"]
+    pi_names       = results["pi_names_step3"]
+    pi_basis       = results["pi_basis"]
+    n_pi           = pi_centred.shape[1]
+    n_lat          = W.shape[0]
+    n_gen          = len(generators)
+
+    known_coords, *_ = np.linalg.lstsq(pi_basis, KNOWN_PI_EXPONENTS, rcond=None)
+    c_pad = np.concatenate([known_coords, [0.0, 0.0]])     # over the 8 features
+    c_dir = c_pad / (np.linalg.norm(c_pad) + 1e-12)
+    pe_axis = np.zeros(n_pi)
+    pe_axis[n_pi - 2] = 1.0
+
+    W_dirs = W / (np.linalg.norm(W, axis=1, keepdims=True) + 1e-12)
+
+    # Latent coordinates (encoder-equivalent, incl. the 0.1 clamp)
+    log_pi = np.log(np.clip(np.abs(pi_centred), 0.1, None))
+    Z = log_pi @ W.T                                       # (n, k*)
+
+    # Orbits from the geometric centre (centred Pi ⇒ start point = 1s)
+    eps_grid = np.linspace(-0.5, 0.5, 41)
+    orbit_pi_known = np.zeros((n_gen, eps_grid.size))
+    orbit_dz_max   = np.zeros((n_gen, eps_grid.size))
+    for k, g in enumerate(generators):
+        orbit_pi_known[k] = np.exp(eps_grid * float(c_pad @ g))
+        Pi_orbit = np.exp(np.outer(eps_grid, g))
+        Zo = np.log(np.clip(Pi_orbit, 0.1, None)) @ W.T    # (n_eps, k*)
+        orbit_dz_max[k] = np.abs(Zo).max(axis=1)           # z(0) = 0 at centre
+
+    fig = plt.figure(figsize=(17, 13))
+    gs  = fig.add_gridspec(2, 2, hspace=0.5, wspace=0.32)
+    fig.suptitle("LPBF Porosity — Discovered Coefficients & Generators in Pi Space",
+                 fontweight="bold")
+
+    # ── Panel A: coefficient heatmap, W rows vs known references ────────────
+    ax = fig.add_subplot(gs[0, 0])
+    rows   = [W_dirs[i] for i in range(n_lat)] + [c_dir, pe_axis]
+    labels = [f"W row {i+1}" for i in range(n_lat)] + ["known Pi (DA)", "Pe_vap axis"]
+    M = np.stack(rows, axis=0)
+    vmax = float(np.max(np.abs(M))) or 1.0
+    im = ax.imshow(M, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="auto")
+    ax.set_xticks(range(n_pi))
+    ax.set_xticklabels(pi_names, rotation=30, ha="right")
+    ax.set_yticks(range(len(rows)))
+    ax.set_yticklabels(labels)
+    ax.axhline(n_lat - 0.5, color="black", lw=1.5)
+    for i in range(len(rows)):
+        for j in range(n_pi):
+            v = M[i, j]
+            if abs(v) > 0.05:
+                ax.text(j, i, f"{v:+.2f}", ha="center", va="center",
+                        color="white" if abs(v) > 0.6 * vmax else "black",
+                        fontsize=12)
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="component")
+    cos_txt = "   ".join(
+        f"cos(W{i+1},knownPi)={float(W_dirs[i] @ c_dir):+.2f}"
+        for i in range(n_lat))
+    ax.set_title(f"Discovered coefficients (L2-n) vs known references\n{cos_txt}",
+                 fontsize=16)
+
+    # ── Panel B: latent collapse ─────────────────────────────────────────────
+    ax = fig.add_subplot(gs[0, 1])
+    if n_lat >= 2:
+        sc = ax.scatter(Z[:, 0], Z[:, 1], c=y, cmap="Blues", s=30,
+                        edgecolors="#666666", linewidths=0.4)
+        fig.colorbar(sc, ax=ax, fraction=0.046, pad=0.04, label="pore fraction")
+        ax.set_xlabel("z₁ = W₁ · log(Pi_centred)")
+        ax.set_ylabel("z₂ = W₂ · log(Pi_centred)")
+        ax.set_title("Pore fraction over the 2-D discovered latent")
+    else:
+        ax.scatter(Z[:, 0], y, c="#4C72B0", s=25, alpha=0.75, edgecolors="none")
+        ax.set_xlabel("z = W · log(Pi_centred)")
+        ax.set_ylabel("pore fraction")
+        ax.set_title("Pore fraction vs the discovered latent")
+
+    # ── Panel C: generator heatmap ───────────────────────────────────────────
+    ax = fig.add_subplot(gs[1, 0])
+    if n_gen > 0:
+        G = np.stack([np.asarray(g).ravel() for g in generators], axis=0)
+        vmax = float(np.max(np.abs(G))) or 1.0
+        im = ax.imshow(G, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="auto")
+        ax.set_xticks(range(n_pi))
+        ax.set_xticklabels(pi_names, rotation=30, ha="right")
+        ax.set_yticks(range(n_gen))
+        ax.set_yticklabels([f"g{i+1}" for i in range(n_gen)])
+        for i in range(n_gen):
+            for j in range(n_pi):
+                v = G[i, j]
+                if abs(v) > 0.05:
+                    ax.text(j, i, f"{v:+.2f}", ha="center", va="center",
+                            color="white" if abs(v) > 0.6 * vmax else "black",
+                            fontsize=11)
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="component")
+        ax.set_title(f"{n_gen} generators of pore-fraction invariance "
+                     f"(rows = null(W))")
+    else:
+        ax.set_axis_off()
+        ax.set_title("No generators")
+
+    # ── Panel D: invariance along orbits ─────────────────────────────────────
+    ax = fig.add_subplot(gs[1, 1])
+    cmap = plt.get_cmap("tab10")
+    for k in range(n_gen):
+        ax.plot(eps_grid, orbit_pi_known[k], "-", color=cmap(k % 10),
+                lw=1.8, label=f"known Pi, g{k+1}")
+    if n_gen > 0:
+        ax.plot(eps_grid, 1.0 + orbit_dz_max.max(axis=0), "k--", lw=2.2,
+                alpha=0.9, label="1 + max|Δz|")
+    ax.axhline(1.0, color="grey", ls=":", lw=1.2)
+    ax.set_xlabel("Orbit parameter  ε   (Pi → Pi · exp(ε·g))")
+    ax.set_ylabel("ratio to ε=0")
+    ax.set_title("Invariance check: known Pi along each orbit")
+    ax.legend(loc="best", ncol=2, fontsize=10)
+    dev = float(np.max(np.abs(orbit_pi_known - 1.0))) if n_gen else 0.0
+    ax.text(0.03, 0.03,
+            f"max |ΔPi/Pi|={dev:.2f} at |ε|=0.5\n"
+            "z flat by null(W); known-Pi drift reflects W–Pi misalignment\n"
+            "and the Pe_vap/DA-group collinearity (gauge directions)",
+            transform=ax.transAxes, va="bottom", ha="left", fontsize=10,
+            color="#333333")
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    out_path = os.path.join(output_dir, "lpbf_discovered_law_generators.png")
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Discovered-coefficients & generators figure saved to {out_path}")
+
+
 def plot_results(X, y, results, output_dir):
     """Two-panel summary: symmetry type bar chart + latent-dimension R² curve."""
     os.makedirs(output_dir, exist_ok=True)
@@ -1095,6 +1241,11 @@ def main():
     print("=" * 60)
     plot_pi_candidates(X, y, results, args.output_dir)
     plot_results(X, y, results, args.output_dir)
+    if args.pi_only and results["winner_type"] == "scaling":
+        plot_discovered_law_and_generators(y, results, args.output_dir)
+    else:
+        print("Skipping Pi-space coefficients/generator figure "
+              "(requires pi-only mode and a scaling winner).")
 
     print()
     print("=" * 60)

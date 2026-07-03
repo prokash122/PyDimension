@@ -213,19 +213,25 @@ column divided by its geometric mean — a purely multiplicative rescaling.
 | Translational | `z = W · Pi` | Additive / affine symmetry |
 | Rotational | `z = W · Pi²` | Quadratic / Euclidean symmetry |
 
-**Actual results (k* = 2, 8 Pi inputs):**
+**Actual results (k* = 2, 8 Pi inputs; reproducible run, seed 42 with
+`PYTHONHASHSEED=0` and single-threaded BLAS):**
 
 ```
-scaling        : 0.023015  ← winner
-translational  : 0.032745
-rotational     : 0.058156
-Loss gap: 1.4×
+scaling        : 0.016873  ← winner
+translational  : 0.022566
+rotational     : 0.075993
+Loss gap: 1.3×
 ```
 
-**Scaling wins** (1.4× over translational, ~2.5× over rotational). The
-gap is the narrowest of the three scaling examples — expected for noisy
-experimental data whose output (pore fraction) saturates at 0 and 1, so
-no global power law can hold exactly.
+**Caveat — scaling vs translational is a statistical tie on this
+dataset.** Across hash-locked seeds the winner flips (seed 42: scaling by
+1.3×; seeds 0 and 1: translational by ~1.0–1.1×), while rotational always
+loses by 2–4×. This is expected: after geometric centring the Pi values
+sit near 1, where `log(Pi) ≈ Pi − 1`, so the scaling and translational
+encoders see nearly identical features on a noisy dataset whose output
+saturates at 0 and 1. The robust conclusions are (a) rotational symmetry
+is excluded and (b) the 2-D latent organises pore fraction cleanly — the
+scaling-vs-affine distinction is below this dataset's resolution.
 
 ---
 
@@ -237,18 +243,21 @@ is invariant.
 **Input:** Winning encoder weight matrix `W` (shape `2 × 8` — the 6 DA
 Pi groups plus Pe_vap and Pr; `k* = 2`).
 
-**Encoder weight rows (L2-normalised):**
+**Encoder weight rows (L2-normalised, reproducible seed-42 run):**
 
 ```
           Pi1      Pi2      Pi3      Pi4      Pi5      Pi6   Pe_vap       Pr
-Row 1: +0.270   +0.375   -0.340   -0.098   +0.399   +0.069   -0.379   +0.594
-Row 2: -0.515   -0.217   -0.514   -0.263   -0.057   -0.424   -0.176   +0.374
+Row 1: -0.099   -0.685   -0.472   +0.223   -0.331   +0.319   +0.192   +0.008
+Row 2: -0.056   -0.141   +0.239   +0.115   +0.467   -0.285   +0.324   -0.709
 ```
 
 Direction cosines against the two natural references:
-`cos(row1, known-Pi DA coords) = −0.26`, `cos(row2, ·) = −0.47`;
-`cos(row1, pure Pe_vap axis) = −0.38`, `cos(row2, ·) = −0.18`.
-The alignment is partial, not sharp — see the collinearity caveat below.
+`cos(row1, known-Pi DA coords) = +0.07`, `cos(row2, ·) = +0.19`;
+`cos(row1, pure Pe_vap axis) = +0.19`, `cos(row2, ·) = +0.32`.
+The alignment is weak — the encoder spreads the signal across the
+redundant Pi set instead of isolating the textbook direction. See the
+collinearity caveat below, and note the row values themselves are
+seed-dependent (the 2-D *column space* of `W` is the meaningful object).
 
 With `k* = 2` and an 8-D Pi input there are `8 − 2 = 6` null-space
 generators.
@@ -289,6 +298,7 @@ All outputs go to `output_lpbf_porosity_symmetry/` (configurable via
 |---|---|
 | `lpbf_pi_candidates.png` | Pi-basis exponent heatmap + scatter of pore fraction vs each `log₁₀(Πₖ)` with logistic fit and R² |
 | `lpbf_porosity_symmetry_discovery.png` | 3-panel: Pi-collapse, symmetry-type bar chart, discovered iso-invariant orbits in (log V, log P) |
+| `lpbf_discovered_law_generators.png` | 4-panel (Pi space): coefficient heatmap of the two `W` rows vs the known-Pi DA coordinates and pure `Pe_vap` axis, pore fraction over the 2-D discovered latent `(z₁, z₂)`, heatmap of the 6 null-space generators, and orbit-invariance check (latent `z` exactly flat; known Pi drifts, reflecting W–Pi misalignment and gauge directions) |
 | `_da_repo/dataset_lpbf_enriched.csv` | CSV enriched with `gamma`, `Tb` columns |
 | `_da_repo/dimension_matrix.csv` | Explicit dimension matrix fed to `DataPreprocessor` |
 | `_da_repo/basis_vectors.csv` | Integer Pi-group exponent vectors |
@@ -300,7 +310,12 @@ All outputs go to `output_lpbf_porosity_symmetry/` (configurable via
 ```bash
 cd projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry
 
-# Default: Pi-only input to Step 2 (recommended)
+# Reproducible run (matches committed run.log — locked hash seed + threads)
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 PYTHONHASHSEED=0 \
+  python discover_symmetry.py --data dataset_lpbf.csv --seed 42
+
+# Default: Pi-only input to Steps 2 and 3 (recommended); Step 3 winner is
+# seed-sensitive on this dataset without the locked environment above
 python discover_symmetry.py --data dataset_lpbf.csv
 
 # Deeper encoder:
@@ -331,7 +346,7 @@ Default training budget: `--latent-epochs 600`, `--sym-epochs 1500`,
 | Latent dimension k* | **2** — test R² 0.768 (vs 0.747 at k = 1; small margin) |
 | Pe_vap / Pr linearly in latent span? | R² = 0.77 / 0.47 — absorbed nonlinearly, not passed through |
 | Step 3 encoder input | 8 geometric-mean-centred Pi values |
-| Symmetry type | **Scaling** — 1.4× over translational, ~2.5× over rotational |
+| Symmetry type | **Scaling** (seed 42, 1.3×) — but a statistical tie with translational across seeds; rotational always excluded (2–4×) |
 | Generators | 6 directions in log-Pi space (8 Pi inputs − 2 latent dims) |
 | Caveat | log(Pe_vap) is exactly in the DA-group span → rank ≤ 7, some null-space directions are gauge |
 
