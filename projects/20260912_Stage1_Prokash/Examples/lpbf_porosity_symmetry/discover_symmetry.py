@@ -5,13 +5,13 @@ porosity data using the PyDimension Stage1 pipeline.
 Physics
 -------
 LPBF additive manufacturing defects — in particular the pore fraction `f`
-left in the solidified track — are empirically controlled by a single
-dimensionless "normalised enthalpy" group.  The same quantity was
-extracted by hand in the accompanying notebook ``4_plot_3d-ZGAN(1).ipynb``
-to collapse porosity curves from five different alloys (Al2024, Al6061,
-Cu, SS304, Ti64) onto one master logistic curve:
+left in the solidified track — are empirically controlled by a small set
+of dimensionless groups.  The reference dimensionless numbers used for
+validation are the two supplied with the dataset (five alloys: Al2024,
+Al6061, Cu, SS304, Ti64):
 
-    Pi = (Lv * rho * A * P * V) / (k^2 * (Tb - Tm)^2)
+    Pe_vap = (Lv * rho * A * P * V) / (k^2 * (Tb - Tm) * (Tm - T0))
+    Pr     = eta * Cp / k
 
 with seven physical inputs:
 
@@ -26,15 +26,16 @@ with seven physical inputs:
     | Superheat (Tb-Tm)       | dT     | K         | K                 |
 
 Four fundamental dimensions (M, L, T, K) in seven inputs give
-``7 - 4 = 3`` independent dimensionless groups (Buckingham Pi).  ``Pi``
-is one of them; for a single-output porosity problem one group suffices
-to capture the leading-order collapse seen in the notebook.
+``7 - 4 = 3`` independent dimensionless groups (Buckingham Pi); over the
+full 10-variable list, ``Pe_vap`` lies in their span (``Pr`` involves the
+per-material properties eta and Cp, which are not columns of the
+dimension matrix, so it is carried as a supplied feature instead).
 
 The scaling symmetry is therefore: any continuous rescaling of
-(P, V, A, rho, k, Lv, dT) that leaves ``Pi`` unchanged must also leave
-the pore fraction unchanged.  The Stage1 pipeline recovers this
-invariance directly from the experimental data without being told the
-formula for ``Pi``.
+(P, V, A, rho, k, Lv, dT) that leaves ``Pe_vap`` (and ``Pr``) unchanged
+must also leave the pore fraction unchanged.  The Stage1 pipeline
+recovers this invariance directly from the experimental data without
+being told the formulas.
 
 This script runs the full PyDimension dimensionless-learning flow:
 
@@ -44,7 +45,7 @@ This script runs the full PyDimension dimensionless-learning flow:
      candidates* fed to the encoder.
   1. Feed the reduced candidates (log10 of each Pi group) into a
      multilayer encoder alongside the raw variables, and confirm pore
-     fraction depends on a single latent (the normalised enthalpy Pi).
+     fraction depends on a low-dimensional latent.
   2. Identify the symmetry type is **scaling** via competitive training.
   3. Extract the Lie-algebra generators of the scaling group — the
      simultaneous unit rescalings that preserve Pi and hence porosity.
@@ -154,10 +155,12 @@ DIMENSION_MATRIX = np.array([
 ], dtype=float)
 DIMENSION_NAMES = ["Mass", "Length", "Time", "Temperature"]
 
-# Pi (normalised enthalpy) known exponents, now over 10 variables.
-# (Lv·rho·A·P·V) / (k^2·dT^2) — γ, Tb and Tm-T0 have zero exponent here.
-#                              P    V    A    rho    k    Lv   dT   γ    Tb  Tm-T0
-KNOWN_PI_EXPONENTS = np.array([1.0, 1.0, 1.0, 1.0, -2.0, 1.0, -2.0, 0.0, 0.0, 0.0])
+# Pe_vap (vaporisation Peclet number) exponents over the 10 variables:
+# (Lv·rho·A·P·V) / (k^2·dT·(Tm−T0)) — γ and Tb have zero exponent here.
+# Pr = η·Cp/k cannot be written in this basis (η, Cp are per-material
+# properties, not dimension-matrix columns) and is carried as a feature.
+#                            P    V    A    rho    k    Lv   dT   γ    Tb  Tm-T0
+PE_VAP_EXPONENTS = np.array([1.0, 1.0, 1.0, 1.0, -2.0, 1.0, -1.0, 0.0, 0.0, -1.0])
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Per-material thermophysical properties used to evaluate Pe_vap and Pr
@@ -182,7 +185,7 @@ T_AMBIENT = 298.0   # K   (room temperature, used in Pe_vap)
 
 
 def compute_pi(X: np.ndarray) -> np.ndarray:
-    """Compute the notebook's normalised-enthalpy Pi from the 9-column X."""
+    """Compute the legacy normalised-enthalpy value (used only for row masking)."""
     P, V, A, rho, k, Lv, dT = (X[:, i] for i in range(7))
     return (Lv * rho * A * P * V) / (k ** 2 * dT ** 2)
 
@@ -410,7 +413,7 @@ def load_data(args):
     -------
     X          : (n, 9)      physical inputs (P, V, A, rho, k, Lv, dT, γ, Tb)
     y          : (n,)        pore fraction, clipped to [0, 1]
-    Pi         : (n,)        notebook's normalised enthalpy (reference)
+    Pi         : (n,)        legacy normalised enthalpy (row masking only)
     Pe_vap     : (n,)        vaporisation Péclet (manuscript formula)
     Pr_thermal : (n,)        thermal Prandtl η·Cp/k
     materials  : (n,)        material name per row, for plot colouring
@@ -623,13 +626,13 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     print(f"  Basis vectors shape (repo): {pi_basis.shape}")
     for line in repo_res["expressions"]:
         print(f"    {line}")
-    # Verify the known normalised-enthalpy Pi lies in the null-space span.
-    coords, *_ = np.linalg.lstsq(pi_basis, KNOWN_PI_EXPONENTS, rcond=None)
+    # Verify the supplied Pe_vap lies in the null-space span.
+    coords, *_ = np.linalg.lstsq(pi_basis, PE_VAP_EXPONENTS, rcond=None)
     recon = pi_basis @ coords
-    ref_n = KNOWN_PI_EXPONENTS / (np.linalg.norm(KNOWN_PI_EXPONENTS) + 1e-12)
+    ref_n = PE_VAP_EXPONENTS / (np.linalg.norm(PE_VAP_EXPONENTS) + 1e-12)
     recon_cos = float(np.dot(recon, ref_n) / (np.linalg.norm(recon) + 1e-12))
-    print(f"  Known Pi exponents projected onto null-space basis: cos = {recon_cos:+.4f}  "
-          f"(±1 means the notebook Pi lies in the Pi-group span)")
+    print(f"  Pe_vap exponents projected onto null-space basis: cos = {recon_cos:+.4f}  "
+          f"(±1 means Pe_vap lies in the Pi-group span)")
     pi_features = compute_pi_features(X, pi_basis)
     pi_feature_names = [f"Pi{i+1} (DA)" for i in range(pi_basis.shape[1])]
 
@@ -843,10 +846,9 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
 
     # --- Report the winning encoder's weight vector ---
     # In pi-only mode Step 3 runs on the centred Pi values, so W is a
-    # direction in log-Pi space.  Two known references there:
-    #   (a) the notebook normalised-enthalpy Pi expressed in the DA basis
-    #       (coords from lstsq, zero-padded over Pe_vap / Pr), and
-    #   (b) the pure Pe_vap axis — Pe_vap IS the known collapse variable.
+    # direction in log-Pi space.  The references are the two supplied
+    # dimensionless numbers, which are literal feature axes there:
+    #   (a) the pure Pe_vap axis, and (b) the pure Pr axis.
     W = winner_encoder.weight_matrix  # (n_latent, n_inputs)
     names_for_W = names_step3
     print("=" * 60)
@@ -854,15 +856,14 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     print("=" * 60)
     name_w = max(7, max(len(n) for n in names_for_W))
     if pi_only:
-        known_coords, *_ = np.linalg.lstsq(pi_basis, KNOWN_PI_EXPONENTS, rcond=None)
         refs = {
-            "known-Pi (DA coords)": np.concatenate([known_coords, [0.0, 0.0]]),
-            "pure Pe_vap axis":     np.eye(len(names_for_W))[len(names_for_W) - 2],
+            "pure Pe_vap axis": np.eye(len(names_for_W))[len(names_for_W) - 2],
+            "pure Pr axis":     np.eye(len(names_for_W))[len(names_for_W) - 1],
         }
     else:
         ref = np.zeros(len(names_for_W))
-        ref[: len(KNOWN_PI_EXPONENTS)] = KNOWN_PI_EXPONENTS
-        refs = {"known-Pi-exponents": ref}
+        ref[: len(PE_VAP_EXPONENTS)] = PE_VAP_EXPONENTS
+        refs = {"Pe_vap-exponents": ref}
     for i in range(W.shape[0]):
         row = W[i]
         denom = np.linalg.norm(row) + 1e-12
@@ -1027,14 +1028,14 @@ def plot_discovered_law_and_generators(y, results, output_dir):
 
     Four panels (requires pi-only mode and a scaling winner):
       A. Coefficient heatmap: the k* winning encoder rows (L2-normalised)
-         stacked above the two known references — the notebook Pi expressed
-         in DA coordinates, and the pure Pe_vap axis.
+         stacked above the two supplied references — the pure Pe_vap axis
+         and the pure Pr axis.
       B. Latent collapse: for k* = 2 a scatter of (z1, z2) colored by pore
          fraction; for k* = 1 a scatter of pore fraction vs z1.
       C. Heatmap of the null-space generators (rows) × Pi features (cols).
-      D. Orbit invariance: Pi(ε) = Pi0 · exp(ε·g).  The known normalised-
-         enthalpy Pi moves by exp(ε · c·g) exactly (c = its DA coordinates,
-         zero-padded over Pe_vap/Pr); the latent z stays flat by null(W).
+      D. Orbit invariance: Pi(ε) = Pi0 · exp(ε·g).  Pe_vap and Pr are
+         literal feature axes, so they move by exp(ε·g[-2]) and
+         exp(ε·g[-1]) exactly; the latent z stays flat by null(W).
     """
     os.makedirs(output_dir, exist_ok=True)
     winner_encoder = results["winner_encoder"]
@@ -1047,11 +1048,10 @@ def plot_discovered_law_and_generators(y, results, output_dir):
     n_lat          = W.shape[0]
     n_gen          = len(generators)
 
-    known_coords, *_ = np.linalg.lstsq(pi_basis, KNOWN_PI_EXPONENTS, rcond=None)
-    c_pad = np.concatenate([known_coords, [0.0, 0.0]])     # over the 8 features
-    c_dir = c_pad / (np.linalg.norm(c_pad) + 1e-12)
     pe_axis = np.zeros(n_pi)
     pe_axis[n_pi - 2] = 1.0
+    pr_axis = np.zeros(n_pi)
+    pr_axis[n_pi - 1] = 1.0
 
     W_dirs = W / (np.linalg.norm(W, axis=1, keepdims=True) + 1e-12)
 
@@ -1061,10 +1061,14 @@ def plot_discovered_law_and_generators(y, results, output_dir):
 
     # Orbits from the geometric centre (centred Pi ⇒ start point = 1s)
     eps_grid = np.linspace(-0.5, 0.5, 41)
-    orbit_pi_known = np.zeros((n_gen, eps_grid.size))
-    orbit_dz_max   = np.zeros((n_gen, eps_grid.size))
+    orbit_pe_vap = np.zeros((n_gen, eps_grid.size))
+    orbit_pr     = np.zeros((n_gen, eps_grid.size))
+    orbit_dz_max = np.zeros((n_gen, eps_grid.size))
     for k, g in enumerate(generators):
-        orbit_pi_known[k] = np.exp(eps_grid * float(c_pad @ g))
+        # Pe_vap and Pr are the last two feature axes, so their change
+        # along the orbit is exactly exp(ε · g_component).
+        orbit_pe_vap[k] = np.exp(eps_grid * float(g[n_pi - 2]))
+        orbit_pr[k]     = np.exp(eps_grid * float(g[n_pi - 1]))
         Pi_orbit = np.exp(np.outer(eps_grid, g))
         Zo = np.log(np.clip(Pi_orbit, 0.1, None)) @ W.T    # (n_eps, k*)
         orbit_dz_max[k] = np.abs(Zo).max(axis=1)           # z(0) = 0 at centre
@@ -1076,8 +1080,8 @@ def plot_discovered_law_and_generators(y, results, output_dir):
 
     # ── Panel A: coefficient heatmap, W rows vs known references ────────────
     ax = fig.add_subplot(gs[0, 0])
-    rows   = [W_dirs[i] for i in range(n_lat)] + [c_dir, pe_axis]
-    labels = [f"W row {i+1}" for i in range(n_lat)] + ["known Pi (DA)", "Pe_vap axis"]
+    rows   = [W_dirs[i] for i in range(n_lat)] + [pe_axis, pr_axis]
+    labels = [f"W row {i+1}" for i in range(n_lat)] + ["Pe_vap axis", "Pr axis"]
     M = np.stack(rows, axis=0)
     vmax = float(np.max(np.abs(M))) or 1.0
     im = ax.imshow(M, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="auto")
@@ -1095,9 +1099,10 @@ def plot_discovered_law_and_generators(y, results, output_dir):
                         fontsize=14)
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     cos_txt = "   ".join(
-        f"cos(W{i+1},knownPi)={float(W_dirs[i] @ c_dir):+.2f}"
+        f"cos(W{i+1},Pe)={float(W_dirs[i] @ pe_axis):+.2f} "
+        f"cos(W{i+1},Pr)={float(W_dirs[i] @ pr_axis):+.2f}"
         for i in range(n_lat))
-    ax.set_title(f"Discovered coefficients (L2-n) vs known references\n{cos_txt}")
+    ax.set_title(f"Discovered coefficients (L2-n) vs supplied Pi references\n{cos_txt}")
 
     # ── Panel B: latent collapse ─────────────────────────────────────────────
     ax = fig.add_subplot(gs[0, 1])
@@ -1141,21 +1146,24 @@ def plot_discovered_law_and_generators(y, results, output_dir):
     ax = fig.add_subplot(gs[1, 1])
     cmap = plt.get_cmap("tab10")
     for k in range(n_gen):
-        ax.plot(eps_grid, orbit_pi_known[k], "-", color=cmap(k % 10),
-                lw=1.8, label=f"known Pi, g{k+1}")
+        ax.plot(eps_grid, orbit_pe_vap[k], "-", color=cmap(k % 10),
+                lw=1.8, label=f"Pe_vap, g{k+1}")
+        ax.plot(eps_grid, orbit_pr[k], ":", color=cmap(k % 10), lw=1.8,
+                label=f"Pr, g{k+1}")
     if n_gen > 0:
         ax.plot(eps_grid, 1.0 + orbit_dz_max.max(axis=0), "k--", lw=2.2,
                 alpha=0.9, label="1 + max|Δz|")
     ax.axhline(1.0, color="grey", ls=":", lw=1.2)
     ax.set_xlabel("Orbit parameter  ε   (Pi → Pi · exp(ε·g))")
     ax.set_ylabel("ratio to ε=0")
-    ax.set_title("Invariance check along each orbit")
-    ax.legend(loc="best", ncol=2, fontsize=13)
-    dev = float(np.max(np.abs(orbit_pi_known - 1.0))) if n_gen else 0.0
+    ax.set_title("Invariance check along each orbit\n(solid: Pe_vap, dotted: Pr)")
+    ax.legend(loc="best", ncol=3, fontsize=10)
+    dev_pe = float(np.max(np.abs(orbit_pe_vap - 1.0))) if n_gen else 0.0
+    dev_pr = float(np.max(np.abs(orbit_pr - 1.0))) if n_gen else 0.0
     ax.text(0.03, 0.03,
-            f"max |ΔPi/Pi|={dev:.2f} at |ε|=0.5\n"
-            "z flat by null(W); known-Pi drift reflects W–Pi misalignment\n"
-            "and the Pe_vap/DA-group collinearity (gauge directions)",
+            f"max |ΔPe_vap/Pe_vap|={dev_pe:.2f}, max |ΔPr/Pr|={dev_pr:.2f} at |ε|=0.5\n"
+            "z flat by null(W); reference drift reflects W-reference\n"
+            "misalignment and Pe_vap/DA-group collinearity (gauge directions)",
             transform=ax.transAxes, va="bottom", ha="left", fontsize=13,
             color="#333333")
 
