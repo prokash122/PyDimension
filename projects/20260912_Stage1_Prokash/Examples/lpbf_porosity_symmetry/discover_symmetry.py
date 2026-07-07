@@ -1026,19 +1026,23 @@ def plot_pi_candidates(X, y, results, output_dir):
 def plot_discovered_law_and_generators(y, results, output_dir):
     """Visualize the discovered coefficients and generators in Pi space.
 
-    Four panels (requires pi-only mode and a scaling winner):
+    Four panels (requires pi-only mode and a scaling or translational
+    winner):
       A. Coefficient heatmap: the k* winning encoder rows (L2-normalised)
          stacked above the two supplied references — the pure Pe_vap axis
          and the pure Pr axis.
       B. Latent collapse: for k* = 2 a scatter of (z1, z2) colored by pore
          fraction; for k* = 1 a scatter of pore fraction vs z1.
       C. Heatmap of the null-space generators (rows) × Pi features (cols).
-      D. Orbit invariance: Pi(ε) = Pi0 · exp(ε·g).  Pe_vap and Pr are
-         literal feature axes, so they move by exp(ε·g[-2]) and
-         exp(ε·g[-1]) exactly; the latent z stays flat by null(W).
+      D. Orbit invariance.  Scaling winner: Pi(ε) = Pi0 · exp(ε·g), so the
+         supplied references move by exp(ε·g[-2]) / exp(ε·g[-1]) exactly.
+         Translational winner: Pi(ε) = Pi0 + ε·g (additive in centred Pi
+         space, Pi0 = 1), so they move by 1 + ε·g[-2] / 1 + ε·g[-1].
+         Either way the latent z stays flat by null(W).
     """
     os.makedirs(output_dir, exist_ok=True)
     winner_encoder = results["winner_encoder"]
+    winner_type    = results["winner_type"]
     generators     = results["generators"]
     W              = winner_encoder.weight_matrix          # (k*, n_pi)
     pi_centred     = results["pi_centred"]
@@ -1055,23 +1059,33 @@ def plot_discovered_law_and_generators(y, results, output_dir):
 
     W_dirs = W / (np.linalg.norm(W, axis=1, keepdims=True) + 1e-12)
 
-    # Latent coordinates (encoder-equivalent, incl. the 0.1 clamp)
-    log_pi = np.log(np.clip(np.abs(pi_centred), 0.1, None))
-    Z = log_pi @ W.T                                       # (n, k*)
+    # Latent coordinates, matching the winning encoder's transform:
+    # scaling sees clamped log(Pi); translational sees Pi directly.
+    if winner_type == "scaling":
+        Z = np.log(np.clip(np.abs(pi_centred), 0.1, None)) @ W.T   # (n, k*)
+    else:
+        Z = pi_centred @ W.T                                       # (n, k*)
 
-    # Orbits from the geometric centre (centred Pi ⇒ start point = 1s)
+    # Orbits from the geometric centre (centred Pi ⇒ start point = 1s).
+    # Pe_vap and Pr are the last two feature axes, so their change along
+    # the orbit is exact for both winner types.
     eps_grid = np.linspace(-0.5, 0.5, 41)
     orbit_pe_vap = np.zeros((n_gen, eps_grid.size))
     orbit_pr     = np.zeros((n_gen, eps_grid.size))
     orbit_dz_max = np.zeros((n_gen, eps_grid.size))
     for k, g in enumerate(generators):
-        # Pe_vap and Pr are the last two feature axes, so their change
-        # along the orbit is exactly exp(ε · g_component).
-        orbit_pe_vap[k] = np.exp(eps_grid * float(g[n_pi - 2]))
-        orbit_pr[k]     = np.exp(eps_grid * float(g[n_pi - 1]))
-        Pi_orbit = np.exp(np.outer(eps_grid, g))
-        Zo = np.log(np.clip(Pi_orbit, 0.1, None)) @ W.T    # (n_eps, k*)
-        orbit_dz_max[k] = np.abs(Zo).max(axis=1)           # z(0) = 0 at centre
+        if winner_type == "scaling":
+            orbit_pe_vap[k] = np.exp(eps_grid * float(g[n_pi - 2]))
+            orbit_pr[k]     = np.exp(eps_grid * float(g[n_pi - 1]))
+            Pi_orbit = np.exp(np.outer(eps_grid, g))
+            Zo = np.log(np.clip(Pi_orbit, 0.1, None)) @ W.T   # (n_eps, k*)
+            orbit_dz_max[k] = np.abs(Zo).max(axis=1)          # z(0) = 0 at centre
+        else:  # translational: Pi → Pi + ε·g, ratio to the centre value 1
+            orbit_pe_vap[k] = 1.0 + eps_grid * float(g[n_pi - 2])
+            orbit_pr[k]     = 1.0 + eps_grid * float(g[n_pi - 1])
+            Pi_orbit = 1.0 + np.outer(eps_grid, g)
+            Zo = (Pi_orbit - 1.0) @ W.T                       # Δz from centre
+            orbit_dz_max[k] = np.abs(Zo).max(axis=1)
 
     fig = plt.figure(figsize=(19, 14))
     gs  = fig.add_gridspec(2, 2, hspace=0.7, wspace=0.5)
@@ -1098,24 +1112,26 @@ def plot_discovered_law_and_generators(y, results, output_dir):
                         color="white" if abs(v) > 0.6 * vmax else "black",
                         fontsize=14)
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-    cos_txt = "   ".join(
-        f"cos(W{i+1},Pe)={float(W_dirs[i] @ pe_axis):+.2f} "
+    cos_txt = "\n".join(
+        f"cos(W{i+1},Pe_vap)={float(W_dirs[i] @ pe_axis):+.2f}   "
         f"cos(W{i+1},Pr)={float(W_dirs[i] @ pr_axis):+.2f}"
         for i in range(n_lat))
-    ax.set_title(f"Discovered coefficients (L2-n) vs supplied Pi references\n{cos_txt}")
+    ax.set_title("Discovered coefficients (L2-n) vs supplied Pi references\n"
+                 f"{cos_txt}", fontsize=15)
 
     # ── Panel B: latent collapse ─────────────────────────────────────────────
     ax = fig.add_subplot(gs[0, 1])
+    z_expr = "log(Pi_centred)" if winner_type == "scaling" else "Pi_centred"
     if n_lat >= 2:
         sc = ax.scatter(Z[:, 0], Z[:, 1], c=y, cmap="Blues", s=30,
                         edgecolors="#666666", linewidths=0.4)
         fig.colorbar(sc, ax=ax, fraction=0.046, pad=0.04, label="pore fraction")
-        ax.set_xlabel("z₁ = W₁ · log(Pi_centred)")
-        ax.set_ylabel("z₂ = W₂ · log(Pi_centred)")
+        ax.set_xlabel(f"z₁ = W₁ · {z_expr}")
+        ax.set_ylabel(f"z₂ = W₂ · {z_expr}")
         ax.set_title("Pore fraction over the 2-D discovered latent")
     else:
         ax.scatter(Z[:, 0], y, c="#4C72B0", s=25, alpha=0.75, edgecolors="none")
-        ax.set_xlabel("z = W · log(Pi_centred)")
+        ax.set_xlabel(f"z = W · {z_expr}")
         ax.set_ylabel("pore fraction")
         ax.set_title("Pore fraction vs the discovered latent")
 
@@ -1154,7 +1170,9 @@ def plot_discovered_law_and_generators(y, results, output_dir):
         ax.plot(eps_grid, 1.0 + orbit_dz_max.max(axis=0), "k--", lw=2.2,
                 alpha=0.9, label="1 + max|Δz|")
     ax.axhline(1.0, color="grey", ls=":", lw=1.2)
-    ax.set_xlabel("Orbit parameter  ε   (Pi → Pi · exp(ε·g))")
+    orbit_expr = ("Pi → Pi · exp(ε·g)" if winner_type == "scaling"
+                  else "Pi → Pi + ε·g")
+    ax.set_xlabel(f"Orbit parameter  ε   ({orbit_expr})")
     ax.set_ylabel("ratio to ε=0")
     ax.set_title("Invariance check along each orbit\n(solid: Pe_vap, dotted: Pr)")
     ax.legend(loc="best", ncol=3, fontsize=10)
@@ -1274,11 +1292,11 @@ def main():
     print("=" * 60)
     plot_pi_candidates(X, y, results, args.output_dir)
     plot_results(X, y, results, args.output_dir)
-    if args.pi_only and results["winner_type"] == "scaling":
+    if args.pi_only and results["winner_type"] in ("scaling", "translational"):
         plot_discovered_law_and_generators(y, results, args.output_dir)
     else:
         print("Skipping Pi-space coefficients/generator figure "
-              "(requires pi-only mode and a scaling winner).")
+              "(requires pi-only mode and a scaling or translational winner).")
 
     print()
     print("=" * 60)
