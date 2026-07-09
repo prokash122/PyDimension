@@ -1103,6 +1103,7 @@ def plot_discovered_law_and_generators(y, results, output_dir):
     n_lat          = W.shape[0]
     n_gen          = len(generators)
     da_only        = results.get("da_only", False)
+    known_mode     = results.get("known_basis", False)
 
     if da_only:
         # Pe_vap is not a feature axis; log(Pe_vap) lies exactly in the DA
@@ -1196,7 +1197,7 @@ def plot_discovered_law_and_generators(y, results, output_dir):
             f"cos(W{i+1},Pr)={float(W_dirs[i] @ pr_axis):+.2f}"
             for i in range(n_lat))
     ax.set_title("Discovered coefficients (L2-n) vs supplied Pi references\n"
-                 f"{cos_txt}", fontsize=15)
+                 f"{cos_txt}", fontsize=15 if n_lat <= 2 else 11)
 
     # ── Panel B: latent collapse ─────────────────────────────────────────────
     ax = fig.add_subplot(gs[0, 1])
@@ -1266,6 +1267,10 @@ def plot_discovered_law_and_generators(y, results, output_dir):
         note = (f"max |ΔPe_vap/Pe_vap|={dev_pe:.2f} at |ε|=0.5\n"
                 "z flat by null(W); Pe_vap drift measures how far the\n"
                 "discovered row space is from the known invariant direction")
+    elif known_mode:
+        note = (f"max |ΔPe_vap/Pe_vap|={dev_pe:.2f}, max |ΔPr/Pr|={dev_pr:.2f} at |ε|=0.5\n"
+                "z flat by null(W); full-rank feature set (no gauge directions) —\n"
+                "drift measures null(W) misalignment with the known axes")
     else:
         note = (f"max |ΔPe_vap/Pe_vap|={dev_pe:.2f}, max |ΔPr/Pr|={dev_pr:.2f} at |ε|=0.5\n"
                 "z flat by null(W); reference drift reflects W-reference\n"
@@ -1288,13 +1293,21 @@ def plot_discovered_law_and_generators(y, results, output_dir):
             "Pe_vap = (Lv·rho·A·P·V) / (k²·dT·(Tm−T0))",
             "Pr = η·Cp / k   (η, Cp per material)",
         ]
-    n_half = (len(da_exprs) + 1) // 2
-    fig.text(0.05, 0.055, "\n".join(da_exprs[:n_half]),
-             ha="left", va="top", fontsize=14, color="#444444")
-    fig.text(0.37, 0.055, "\n".join(da_exprs[n_half:]),
-             ha="left", va="top", fontsize=14, color="#444444")
-    fig.text(0.69, 0.055, "\n".join(known_exprs),
-             ha="left", va="top", fontsize=14, color="#444444")
+    if known_mode:
+        # Complement-group expressions have long fractional exponents —
+        # single column, smaller font, so they don't overlap.
+        fig.text(0.05, 0.055, "\n".join(da_exprs),
+                 ha="left", va="top", fontsize=9, color="#444444")
+        fig.text(0.69, 0.055, "\n".join(known_exprs),
+                 ha="left", va="top", fontsize=12, color="#444444")
+    else:
+        n_half = (len(da_exprs) + 1) // 2
+        fig.text(0.05, 0.055, "\n".join(da_exprs[:n_half]),
+                 ha="left", va="top", fontsize=14, color="#444444")
+        fig.text(0.37, 0.055, "\n".join(da_exprs[n_half:]),
+                 ha="left", va="top", fontsize=14, color="#444444")
+        fig.text(0.69, 0.055, "\n".join(known_exprs),
+                 ha="left", va="top", fontsize=14, color="#444444")
 
     plt.tight_layout(rect=[0, 0.07, 1, 0.95])
     out_path = os.path.join(output_dir, "lpbf_discovered_law_generators.png")

@@ -1,0 +1,194 @@
+Loading LPBF porosity data from dataset_lpbf.csv...
+  Loaded: ['P', 'V', 'A', 'rho', 'k', 'Lv', 'dT', 'gamma (from source)', 'Tb (from source)'] -> Pore
+  Unique materials: ['Al2024', 'Al6061', 'Cu', 'SS304', 'Ti64']
+  Samples: 232
+  Pi range:     [4.13, 9.274e+04]
+  Pe_vap range: [12.36, 9.307e+04]   (Lv·ρ·A·P·V)/(k²·(Tb-Tm)·(Tm-T0))
+  Pr range:     [0.01397, 0.1741]   (η·Cp/k, thermal Prandtl)
+  Pore range:   [0.0000, 0.8613]
+
+============================================================
+Step 0: Dimensional analysis (Buckingham-Pi reduction)
+============================================================
+  Dimension matrix shape: (4, 10)  (rows = ['Mass', 'Length', 'Time', 'Temperature'], cols = ['P', 'V', 'A', 'rho', 'k', 'Lv', 'dT', 'gamma', 'Tb', 'Tm_minus_T0'])
+  Rank: 4   Expected Pi groups: 6
+  Using pydimension.data_preprocessing.DataPreprocessor (enriched CSV: output_lpbf_known_basis/_da_repo/dataset_lpbf_enriched.csv)
+=== Data Preprocessing ===
+✅ Loaded data from: output_lpbf_known_basis/_da_repo/dataset_lpbf_enriched.csv
+   Shape: (232, 14)
+   Columns: ['case', 'source', 'P', 'V', 'A', 'rho', 'k', 'Lv', 'dT', 'Pi', 'Pore', 'gamma', 'Tb', 'Tm_minus_T0']
+✅ Detected variables:
+   Input variables (10): ['P', 'V', 'A', 'rho', 'k', 'Lv', 'dT', 'gamma', 'Tb', 'Tm_minus_T0']
+   Output variables (1): ['Pore']
+   Pore: not in matrix, assuming dimensionless
+✅ Loaded dimension matrix from file
+✅ Normalized data
+   Shape: (232, 11)
+   Value range: [0.0000, 1.0000]
+
+=== Preprocessing Complete ===
+=== Dimensional Analysis ===
+   Input variables: ['P', 'V', 'A', 'rho', 'k', 'Lv', 'dT', 'gamma', 'Tb', 'Tm_minus_T0']
+   Output variable: Pore
+   Active dimensions: ['Mass', 'Length', 'Time', 'Temperature']
+   Matrix shape: (4, 10)
+   Matrix rank: 4
+   Variables: 10
+   Expected null space dimension: 6
+
+=== Finding Null Space ===
+Dimension matrix shape: (4, 10)
+Null space shape: (10, 6)
+
+=== Simplifying Basis Vectors ===
+Simplified basis vectors shape: (10, 6)
+
+=== Created Dimensionless Variables ===
+Number of dimensionless groups: 6
+  π1 = A
+  π2 = V^2 × Lv^(-1)
+  π3 = P × V^3 × rho × k^-2 × dT^-2
+  π4 = P × V × rho × gamma^-2
+  π5 = P × V^3 × rho × k^-2 × Tb^-2
+  π6 = P × V^3 × rho × k^-2 × Tm_minus_T0^-2
+
+=== Dimensional Analysis Complete ===
+  Basis vectors shape (repo): (10, 6)
+    π1 = A
+    π2 = V^2 × Lv^(-1)
+    π3 = P × V^3 × rho × k^-2 × dT^-2
+    π4 = P × V × rho × gamma^-2
+    π5 = P × V^3 × rho × k^-2 × Tb^-2
+    π6 = P × V^3 × rho × k^-2 × Tm_minus_T0^-2
+  Pe_vap exponents projected onto null-space basis: cos = +1.0000  (±1 means Pe_vap lies in the Pi-group span)
+  --known-basis: DA basis rotated so Pe_vap is an explicit direction; 5 complement groups:
+    Pi⊥1 = P^(+0.516) · V^(+0.516) · A^(-0.775) · rho^(+0.516) · k^(-1.033) · Lv^(+0.516) · dT^(-0.516) · Tm_minus_T0^(-0.516)
+    Pi⊥2 = P^(-1.155) · V^(-4.619) · rho^(-1.155) · k^(+2.309) · Lv^(+0.577) · dT^(+1.155) · Tm_minus_T0^(+1.155)
+    Pi⊥3 = dT^(+1.414) · Tm_minus_T0^(-1.414)
+    Pi⊥4 = P^-1 · V^-1 · rho^-1 · gamma^2
+    Pi⊥5 = P^-1 · V^-3 · rho^-1 · k^2 · Tb^2
+  Reduced candidates (pi_features) shape: (232, 7)  range: [0.000, 1.000]
+  Feature list: ['Pi⊥1 (DA-comp)', 'Pi⊥2 (DA-comp)', 'Pi⊥3 (DA-comp)', 'Pi⊥4 (DA-comp)', 'Pi⊥5 (DA-comp)', 'Pe_vap (known)', 'Pr (known)']
+  (Pe_vap and Pr appended as known extra Pi features)
+  Centred Pi values for Step 3: shape (232, 7)  range: [0.00121, 1.66e+04]
+
+============================================================
+Step 1: Normalizing data
+============================================================
+  --pi-only: Step 2 input = 7 dimensionless features; Step 3 input = raw physical X (10 variables)
+  X_raw range: [0.000, 1.000]
+  X_pi  range: [0.000, 1.000]
+
+============================================================
+Step 2: Discovering intrinsic latent dimension
+============================================================
+  --pi-only: Step 2 encoder input = 7 dimensionless features (no [X, X², log|X|] augmentation)
+  Multilayer encoder hidden dims: [64, 32]
+  Multi-layer encoder: [64, 32]
+  raw_input=True: [X, X², log|X|] augmentation is disabled
+
+  Optimal latent dimension: 4
+    k=1: R2_train=0.9186, R2_test=0.7636, MSE=0.023753
+    k=2: R2_train=0.9200, R2_test=0.7641, MSE=0.023705
+    k=3: R2_train=0.9397, R2_test=0.7636, MSE=0.023760
+    k=4: R2_train=0.9008, R2_test=0.7718, MSE=0.022930
+
+============================================================
+Step 2b: Checking whether z encodes Pe_vap and Pr
+============================================================
+  z (shape (232, 4)) -> log10(Pe_vap): R2 = 0.8715  (discovered)
+  z (shape (232, 4)) -> log10(Pr):     R2 = 0.7447  (NOT in latent span)
+  → Pe_vap and Pr are Step 2/3 encoder inputs (pi-only mode); no bottleneck injection.
+
+============================================================
+Step 3: Identifying symmetry type
+============================================================
+  Encoder input: 7 geometric-mean-centred Pi values (['Pi⊥1', 'Pi⊥2', 'Pi⊥3', 'Pi⊥4', 'Pi⊥5', 'Pe_vap', 'Pr'])
+  Centring is purely multiplicative → the scaling encoder's internal log sees centred log-Pi coordinates;
+  generators live in dimensionless Pi space.
+
+  Detected symmetry: scaling
+    scaling        : 0.026737 <--
+    translational  : 0.037098
+    rotational     : 0.040228
+  Loss gap: 1.4x
+
+============================================================
+Step 4: Extracting Lie-algebra generators
+============================================================
+  Symmetry type: scaling
+  Generators: 3
+
+============================================================
+  Winning encoder weight vector(s)
+============================================================
+  Row 1 (scaling):
+       Pi⊥1     Pi⊥2     Pi⊥3     Pi⊥4     Pi⊥5   Pe_vap       Pr
+  raw :    -0.0266  -0.1626  -0.3174  -0.4448  -0.0278  -0.1880  +0.0201
+  L2-n:    -0.0442  -0.2702  -0.5274  -0.7390  -0.0462  -0.3123  +0.0335
+  cos<row, pure Pe_vap axis> = -0.3123  (±1 means perfect alignment)
+  cos<row, pure Pr axis> = +0.0335  (±1 means perfect alignment)
+  Row 2 (scaling):
+       Pi⊥1     Pi⊥2     Pi⊥3     Pi⊥4     Pi⊥5   Pe_vap       Pr
+  raw :    +0.0209  -0.1686  -0.0621  -0.1969  +0.3438  +0.5412  -0.7015
+  L2-n:    +0.0212  -0.1707  -0.0629  -0.1995  +0.3482  +0.5482  -0.7105
+  cos<row, pure Pe_vap axis> = +0.5482  (±1 means perfect alignment)
+  cos<row, pure Pr axis> = -0.7105  (±1 means perfect alignment)
+  Row 3 (scaling):
+       Pi⊥1     Pi⊥2     Pi⊥3     Pi⊥4     Pi⊥5   Pe_vap       Pr
+  raw :    +0.0924  +0.1357  +0.6140  -0.4313  +0.3229  +0.6473  +0.1135
+  L2-n:    +0.0871  +0.1278  +0.5786  -0.4064  +0.3042  +0.6100  +0.1069
+  cos<row, pure Pe_vap axis> = +0.6100  (±1 means perfect alignment)
+  cos<row, pure Pr axis> = +0.1069  (±1 means perfect alignment)
+  Row 4 (scaling):
+       Pi⊥1     Pi⊥2     Pi⊥3     Pi⊥4     Pi⊥5   Pe_vap       Pr
+  raw :    -0.1723  +0.3562  +0.4434  -0.2136  +0.3193  -0.3073  +0.1812
+  L2-n:    -0.2174  +0.4495  +0.5596  -0.2695  +0.4028  -0.3878  +0.2286
+  cos<row, pure Pe_vap axis> = -0.3878  (±1 means perfect alignment)
+  cos<row, pure Pr axis> = +0.2286  (±1 means perfect alignment)
+
+============================================================
+Step 5: Physical interpretation of generators
+============================================================
+  Each generator is a direction in log-Pi space along which the
+  pore fraction is preserved: simultaneously rescaling the
+  dimensionless groups along g keeps the LPBF physics invariant.
+
+  Generator 1:
+    Pi⊥1 x exp(+0.538*eps), Pi⊥2 x exp(+0.335*eps), Pi⊥3 x exp(-0.460*eps), Pi⊥4 x exp(+0.127*eps), Pi⊥5 x exp(+0.550*eps), Pe_vap x exp(+0.056*eps), Pr x exp(+0.253*eps)
+    Meaning: increase Pi⊥5 while increase Pi⊥1, increase Pi⊥2, decrease Pi⊥3, increase Pi⊥4, increase Pe_vap, increase Pr
+             to keep Pi (and pore fraction) unchanged
+
+  Generator 2:
+    Pi⊥1 x exp(-0.692*eps), Pi⊥2 x exp(+0.436*eps), Pi⊥3 x exp(-0.393*eps), Pe_vap x exp(+0.379*eps), Pr x exp(+0.177*eps)
+    Meaning: decrease Pi⊥1 while increase Pi⊥2, decrease Pi⊥3, increase Pe_vap, increase Pr
+             to keep Pi (and pore fraction) unchanged
+
+  Generator 3:
+    Pi⊥1 x exp(-0.343*eps), Pi⊥2 x exp(-0.658*eps), Pi⊥4 x exp(+0.234*eps), Pi⊥5 x exp(+0.520*eps), Pr x exp(+0.352*eps)
+    Meaning: decrease Pi⊥2 while decrease Pi⊥1, increase Pi⊥4, increase Pi⊥5, increase Pr
+             to keep Pi (and pore fraction) unchanged
+
+
+============================================================
+Creating visualizations
+============================================================
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry/discover_symmetry.py:1070: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  plt.tight_layout(rect=[0, 0, 1, 0.93])
+Pi candidates figure saved to output_lpbf_known_basis/lpbf_pi_candidates.png
+Figure saved to output_lpbf_known_basis/lpbf_porosity_symmetry_discovery.png
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry/discover_symmetry.py:1312: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  plt.tight_layout(rect=[0, 0.07, 1, 0.95])
+Discovered-coefficients & generators figure saved to output_lpbf_known_basis/lpbf_discovered_law_generators.png
+
+============================================================
+COMPLETE
+============================================================
+  Symmetry: scaling
+  Generators: 3
+  These generators show how the dimensionless Pi groups (incl. the
+  known Pe_vap and Pr) can be simultaneously rescaled while
+  preserving the LPBF pore fraction.
+  Step 2 (latent dim) used 5 DA-complement groups + Pe_vap, Pr (--known-basis, full rank).
+  Step 3 (symmetry type) used geometric-mean-centred Pi values.
+
