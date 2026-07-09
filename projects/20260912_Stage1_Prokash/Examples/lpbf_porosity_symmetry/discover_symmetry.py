@@ -634,12 +634,36 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     print(f"  Pe_vap exponents projected onto null-space basis: cos = {recon_cos:+.4f}  "
           f"(±1 means Pe_vap lies in the Pi-group span)")
     results["pe_coords_da"] = coords  # Pe_vap expressed in DA log-Pi coordinates
-    pi_features = compute_pi_features(X, pi_basis)
-    pi_feature_names = [f"Pi{i+1} (DA)" for i in range(pi_basis.shape[1])]
 
     da_only = getattr(args, "da_only", False)
+    known_basis = getattr(args, "known_basis", False)
     results["da_only"] = da_only
+    results["known_basis"] = known_basis
     known_pi_vals = np.column_stack([Pe_vap, Pr_thermal])
+
+    if known_basis:
+        # Rotate the DA coordinate basis so Pe_vap is an explicit basis
+        # direction.  log(Pe_vap) lies exactly in the DA log-Pi span
+        # (cos = +1), so {Pe_vap, 5 orthogonal-complement combinations}
+        # spans the same 6-D space with no redundancy; adding Pr (which
+        # involves η, Cp — not in the DA span) gives a FULL-RANK 7-feature
+        # set with the known groups as literal axes and no gauge directions.
+        c_n = np.asarray(coords, dtype=float)
+        c_n = c_n / (np.linalg.norm(c_n) + 1e-12)
+        Qfull, _ = np.linalg.qr(np.column_stack([c_n, np.eye(c_n.size)]))
+        comp = Qfull[:, 1:c_n.size]              # (6, 5): complement of Pe_vap dir
+        comp_basis = pi_basis @ comp             # (10, 5) exponent vectors
+        results["pi_basis_step3"] = comp_basis
+        pi_features = compute_pi_features(X, comp_basis)
+        pi_feature_names = [f"Pi⊥{i+1} (DA-comp)" for i in range(comp.shape[1])]
+        print(f"  --known-basis: DA basis rotated so Pe_vap is an explicit "
+              f"direction; 5 complement groups:")
+        for i in range(comp_basis.shape[1]):
+            print(f"    Pi⊥{i+1} = "
+                  f"{format_pi_expression(comp_basis[:, i], VARIABLE_NAMES)}")
+    else:
+        pi_features = compute_pi_features(X, pi_basis)
+        pi_feature_names = [f"Pi{i+1} (DA)" for i in range(pi_basis.shape[1])]
     if da_only:
         print(f"  --da-only: Pe_vap and Pr are NOT appended as encoder features; "
               f"they remain diagnostics/references only.")
@@ -673,6 +697,11 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     if da_only:
         log10_all_pi = np.log10(X_pos) @ pi_basis
         pi_names_step3 = [f"Pi{i+1}" for i in range(pi_basis.shape[1])]
+    elif known_basis:
+        log10_all_pi = np.hstack([np.log10(X_pos) @ comp_basis,
+                                  np.log10(np.maximum(known_pi_vals, 1e-30))])
+        pi_names_step3 = ([f"Pi⊥{i+1}" for i in range(comp_basis.shape[1])]
+                          + ["Pe_vap", "Pr"])
     else:
         log10_all_pi = np.hstack([np.log10(X_pos) @ pi_basis,
                                   np.log10(np.maximum(known_pi_vals, 1e-30))])
@@ -1069,7 +1098,7 @@ def plot_discovered_law_and_generators(y, results, output_dir):
     W              = winner_encoder.weight_matrix          # (k*, n_pi)
     pi_centred     = results["pi_centred"]
     pi_names       = results["pi_names_step3"]
-    pi_basis       = results["pi_basis"]
+    pi_basis       = results.get("pi_basis_step3", results["pi_basis"])
     n_pi           = pi_centred.shape[1]
     n_lat          = W.shape[0]
     n_gen          = len(generators)
@@ -1340,6 +1369,12 @@ def main():
     parser.add_argument("--encoder-hidden", type=int, nargs="+", default=[64, 32],
                         help="Hidden layer widths for the multilayer encoder "
                              "(default: 64 32)")
+    parser.add_argument("--known-basis", action="store_true",
+                        help="Keep Pe_vap and Pr as encoder features but rotate the DA "
+                             "Pi basis so Pe_vap is an explicit basis direction: features "
+                             "= 5 orthogonal-complement DA combinations + Pe_vap + Pr. "
+                             "Full rank — removes the Pe_vap/DA-span gauge directions of "
+                             "the default 8-feature set.")
     parser.add_argument("--da-only", action="store_true",
                         help="Use only the DA-discovered Pi groups as Step 2/3 encoder "
                              "features (do not append the known Pe_vap and Pr columns). "
@@ -1353,6 +1388,8 @@ def main():
                              "the scaling encoder's internal log(X) act as centred log-physical "
                              "coordinates, so discovered slopes map 1:1 onto power-law exponents.")
     args = parser.parse_args()
+    if args.da_only and args.known_basis:
+        parser.error("--da-only and --known-basis are mutually exclusive")
     args.pi_only = not args.no_pi_only
 
     X, y, Pi, Pe_vap, Pr_thermal, materials = load_data(args)
@@ -1387,6 +1424,9 @@ def main():
     if args.pi_only:
         if args.da_only:
             print(f"  Step 2 (latent dim) used the DA Pi groups only (--da-only).")
+        elif args.known_basis:
+            print(f"  Step 2 (latent dim) used 5 DA-complement groups + Pe_vap, Pr "
+                  f"(--known-basis, full rank).")
         else:
             print(f"  Step 2 (latent dim) used the DA Pi groups + known Pe_vap, Pr.")
         print(f"  Step 3 (symmetry type) used geometric-mean-centred Pi values.")
