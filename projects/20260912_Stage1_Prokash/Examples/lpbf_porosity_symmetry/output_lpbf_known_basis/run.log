@@ -177,7 +177,7 @@ Creating visualizations
   plt.tight_layout(rect=[0, 0, 1, 0.93])
 Pi candidates figure saved to output_lpbf_known_basis/lpbf_pi_candidates.png
 Figure saved to output_lpbf_known_basis/lpbf_porosity_symmetry_discovery.png
-/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry/discover_symmetry.py:1312: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry/discover_symmetry.py:1316: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   plt.tight_layout(rect=[0, 0.07, 1, 0.95])
 Discovered-coefficients & generators figure saved to output_lpbf_known_basis/lpbf_discovered_law_generators.png
 
