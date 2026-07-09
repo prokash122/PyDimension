@@ -1208,7 +1208,11 @@ def plot_discovered_law_and_generators(y, results, output_dir):
         fig.colorbar(sc, ax=ax, fraction=0.046, pad=0.04, label="pore fraction")
         ax.set_xlabel(f"z₁ = W₁ · {z_expr}")
         ax.set_ylabel(f"z₂ = W₂ · {z_expr}")
-        ax.set_title("Pore fraction over the 2-D discovered latent")
+        if n_lat > 2:
+            ax.set_title(f"Pore fraction over the discovered latent\n"
+                         f"(first 2 of {n_lat} coordinates shown)")
+        else:
+            ax.set_title("Pore fraction over the 2-D discovered latent")
     else:
         ax.scatter(Z[:, 0], y, c="#4C72B0", s=25, alpha=0.75, edgecolors="none")
         ax.set_xlabel(f"z = W · {z_expr}")
