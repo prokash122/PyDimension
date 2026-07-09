@@ -299,32 +299,59 @@ def _write_dimension_matrix_csv(out_path: str, variable_names, dim_matrix: np.nd
 
 
 def run_repo_dimensional_analysis(csv_path: str, input_vars, output_var: str,
-                                  dim_matrix: np.ndarray, output_dir: str) -> dict:
+                                  dim_matrix: np.ndarray, output_dir: str,
+                                  variable_units=None) -> dict:
     """Drive the repo's ``DataPreprocessor.process_with_dimensional_analysis``.
 
-    We pass an explicit dimension-matrix CSV (built from our hand-checked
-    integer matrix) so the result doesn't depend on the unit-string parser
-    in ``DataPreprocessor`` — that parser mishandles e.g. ``W/(m·K)``.
-    Returns a dict with the basis vectors, dimensionless expressions, and
-    the ``afterDA`` dataframe of Pi groups.
+    Default (``variable_units`` given): the FULL pydimension path — the
+    dimension matrix is derived from the unit strings by the package's
+    compositional unit parser, and the hand-checked ``dim_matrix`` is used
+    only as a cross-check by the caller.
+
+    Fallback (``variable_units=None``): write ``dim_matrix`` to an explicit
+    dimension-matrix CSV and load it, bypassing the unit parser entirely.
+
+    Returns a dict with the derived dimension matrix, basis vectors,
+    dimensionless expressions, and the ``afterDA`` dataframe of Pi groups.
     """
     os.makedirs(output_dir, exist_ok=True)
-    dim_csv = os.path.join(output_dir, "dimension_matrix.csv")
-    _write_dimension_matrix_csv(dim_csv, input_vars, dim_matrix)
-
-    cfg = DataPreprocessingConfig(
-        input_file=str(csv_path),
-        input_variables=list(input_vars),
-        output_variables=[output_var],
-        dimension_matrix_file=dim_csv,
-        normalize=True,
-        normalize_basis=False,    # keep primitive integer basis vectors
-        output_dir=output_dir,
-    )
+    if variable_units is None:
+        dim_csv = os.path.join(output_dir, "dimension_matrix.csv")
+        _write_dimension_matrix_csv(dim_csv, input_vars, dim_matrix)
+        cfg = DataPreprocessingConfig(
+            input_file=str(csv_path),
+            input_variables=list(input_vars),
+            output_variables=[output_var],
+            dimension_matrix_file=dim_csv,
+            normalize=True,
+            normalize_basis=False,    # keep primitive integer basis vectors
+            output_dir=output_dir,
+        )
+    else:
+        # load_dimension_matrix() searches default file locations before
+        # falling back to units — remove stale matrix CSVs (from previous
+        # explicit-matrix runs) so the units path really is exercised.
+        for stale in ("dimension_matrix.csv", "dimension_matrix_synthetic.csv",
+                      os.path.join("data", "dimension_matrix.csv"),
+                      os.path.join("data", "dimension_matrix_synthetic.csv")):
+            p = os.path.join(output_dir, stale)
+            if os.path.exists(p):
+                os.remove(p)
+        cfg = DataPreprocessingConfig(
+            input_file=str(csv_path),
+            input_variables=list(input_vars),
+            output_variables=[output_var],
+            dimension_matrix_file=None,
+            variable_units=dict(variable_units),
+            normalize=True,
+            normalize_basis=False,    # keep primitive integer basis vectors
+            output_dir=output_dir,
+        )
     pre = DataPreprocessor(cfg)
     pre.process_with_dimensional_analysis(verbose=True)
     return {
         "preprocessor": pre,
+        "dimension_matrix": dict(pre.dimension_matrix),
         "basis_vectors": np.asarray(pre.basis_vectors, dtype=float),
         "expressions":   list(pre.dimensionless_expressions),
         "afterDA":       pre.afterDA_data,
@@ -614,13 +641,29 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     _enrich_lpbf_csv(args.data, enriched_csv)
     print(f"  Using pydimension.data_preprocessing.DataPreprocessor "
           f"(enriched CSV: {enriched_csv})")
+    units_map = dict(zip(VARIABLE_NAMES, VARIABLE_UNITS))
+    units_map["Pore"] = "-"
+    print(f"  Dimension matrix derived from unit strings by pydimension's "
+          f"unit parser: {units_map}")
     repo_res = run_repo_dimensional_analysis(
         csv_path=enriched_csv,
         input_vars=VARIABLE_NAMES,
         output_var="Pore",
         dim_matrix=DIMENSION_MATRIX,
         output_dir=repo_out_dir,
+        variable_units=units_map,
     )
+    # Cross-check the parser-derived matrix against the hand-checked one.
+    derived = np.array([repo_res["dimension_matrix"][v][:DIMENSION_MATRIX.shape[0]]
+                        for v in VARIABLE_NAMES], dtype=float).T
+    if not np.array_equal(derived, DIMENSION_MATRIX):
+        print("  ERROR: unit-parser dimension matrix != hand-checked matrix")
+        print(f"  parser-derived:\n{derived}")
+        print(f"  hand-checked:\n{DIMENSION_MATRIX}")
+        raise SystemExit(1)
+    print(f"  Unit-parser matrix == hand-checked matrix ✓ "
+          f"({DIMENSION_MATRIX.shape[0]}x{DIMENSION_MATRIX.shape[1]}, "
+          f"all entries match)")
     pi_basis = repo_res["basis_vectors"]
     results["repo_da"] = repo_res
     print(f"  Basis vectors shape (repo): {pi_basis.shape}")

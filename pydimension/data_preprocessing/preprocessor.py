@@ -220,77 +220,8 @@ class DataPreprocessor:
     
     def _parse_dimensions(self, unit: str) -> List[int]:
         """Parse unit string to get fundamental dimensions [Mass, Length, Time, Temperature, Current, Amount, Luminous]."""
-        dimensions = [0, 0, 0, 0, 0, 0, 0]
-        
-        unit_lower = unit.lower().replace(' ', '').replace('·', '').replace('⋅', '').replace('*', '')
-        
-        # Handle dimensionless
-        if 'dimensionless' in unit_lower or unit == '1':
-            return dimensions
-        
-        # Quick exact pattern for specific heat capacity: J/(kg·K)
-        cp_patterns = [
-            'j/(kgk)', 'j/kg/k', 'jkg^-1k^-1', 'jkg-1k-1', 'j/(kg·k)', 'j/(kg*k)'
-        ]
-        if any(p in unit_lower for p in cp_patterns):
-            return [0, 2, -2, -1, 0, 0, 0]
-        
-        # Mass (kg)
-        if 'kg' in unit_lower:
-            if '/kg' in unit_lower:
-                dimensions[0] = -1
-            else:
-                dimensions[0] = 1
-        
-        # Length (m) - be careful not to count 'mol'
-        if 'kg/m³' in unit_lower or 'kg/m^3' in unit_lower:
-            dimensions[1] = -3
-        elif 'm²/s' in unit_lower or 'm^2/s' in unit_lower:
-            dimensions[1] = 2
-        elif 'm³' in unit_lower or 'm^3' in unit_lower:
-            dimensions[1] = 3
-        elif 'm²' in unit_lower or 'm^2' in unit_lower:
-            dimensions[1] = 2
-        elif 'm/s' in unit_lower:
-            dimensions[1] = 1
-        elif unit_lower == 'm':
-            dimensions[1] = 1
-        
-        # Time (s)
-        if '/s²' in unit_lower or '/s^2' in unit_lower:
-            dimensions[2] = -2
-        elif '/s³' in unit_lower or '/s^3' in unit_lower:
-            dimensions[2] = -3
-        elif '/s' in unit_lower:
-            dimensions[2] = -1
-        
-        # Temperature (K)
-        if '(kg·k)' in unit_lower or '/(kg·k)' in unit_lower:
-            dimensions[3] = -1
-        elif unit_lower.endswith('k') or 'k)' in unit_lower or unit_lower == 'k':
-            dimensions[3] = 1
-        
-        # Handle Watts (W = J/s = kg⋅m²/s³)
-        if 'w' in unit_lower and 'j' not in unit_lower:
-            dimensions[0] = 1
-            dimensions[1] = 2
-            dimensions[2] = -3
-        # Handle Joules
-        elif 'j/(kg·k)' in unit_lower or 'j/(kg*k)' in unit_lower or 'j/kg/k' in unit_lower or 'j/(kgk)' in unit_lower:
-            dimensions[0] = 0
-            dimensions[1] = 2
-            dimensions[2] = -2
-            dimensions[3] = -1
-        elif 'j/kg' in unit_lower:
-            dimensions[0] = 0
-            dimensions[1] = 2
-            dimensions[2] = -2
-        elif 'j' in unit_lower:
-            dimensions[0] = 1
-            dimensions[1] = 2
-            dimensions[2] = -2
-        
-        return dimensions
+        from .unit_parser import parse_dimensions
+        return parse_dimensions(unit)
     
     def normalize_data(self) -> pd.DataFrame:
         """Normalize data by dividing by maximum (values ≤ 1)."""

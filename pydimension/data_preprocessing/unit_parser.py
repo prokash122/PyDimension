@@ -3,6 +3,7 @@ Unit string parsing: convert human-readable unit strings into fundamental
 dimension vectors [Mass, Length, Time, Temperature, Current, Amount, Luminous].
 """
 
+import re
 from typing import Dict, List
 
 
@@ -39,11 +40,151 @@ def infer_units(variables: List[str]) -> Dict[str, str]:
     return units
 
 
+# ── Compositional unit-expression parser ────────────────────────────────────
+# Grammar (after normalisation):
+#   expr   := term ("/" term)*            each "/" divides by the whole term
+#   term   := factor ("·"? factor)*       adjacency = multiplication
+#   factor := "(" expr ")" exp? | symbols exp?
+#   exp    := "^"? signed integer         (superscripts are pre-translated)
+# Alphabetic runs are split greedily into known unit symbols, so "kgm" parses
+# as kg·m and an exponent binds to the last symbol of the run ("ms-1" = m·s⁻¹).
+
+_UNIT_VECTORS: Dict[str, tuple] = {
+    # base units             M  L  T  Θ  I  N  J
+    "kg":  (1, 0, 0, 0, 0, 0, 0),
+    "g":   (1, 0, 0, 0, 0, 0, 0),
+    "m":   (0, 1, 0, 0, 0, 0, 0),
+    "s":   (0, 0, 1, 0, 0, 0, 0),
+    "k":   (0, 0, 0, 1, 0, 0, 0),
+    "a":   (0, 0, 0, 0, 1, 0, 0),
+    "mol": (0, 0, 0, 0, 0, 1, 0),
+    "cd":  (0, 0, 0, 0, 0, 0, 1),
+    # derived units
+    "n":   (1, 1, -2, 0, 0, 0, 0),   # newton
+    "w":   (1, 2, -3, 0, 0, 0, 0),   # watt
+    "j":   (1, 2, -2, 0, 0, 0, 0),   # joule
+    "pa":  (1, -1, -2, 0, 0, 0, 0),  # pascal
+    "hz":  (0, 0, -1, 0, 0, 0, 0),   # hertz
+}
+_SYMBOLS_BY_LENGTH = sorted(_UNIT_VECTORS, key=len, reverse=True)
+
+_SUPERSCRIPT_MAP = str.maketrans({
+    "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4",
+    "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9",
+    "⁻": "-", "⁺": "+",
+})
+
+_TOKEN_RE = re.compile(r"\^[+-]?\d+|[+-]?\d+|[a-z]+|[()·/]")
+
+_DIMENSIONLESS_STRINGS = {"", "-", "1", "dimensionless", "none", "unitless"}
+
+
+class _UnitParseError(ValueError):
+    """Internal: the compositional parser could not handle the string."""
+
+
+def _vec_add(a, b, scale=1):
+    return [x + scale * y for x, y in zip(a, b)]
+
+
+def _split_symbols(run: str) -> List[str]:
+    """Greedily split an alphabetic run into known unit symbols."""
+    symbols = []
+    rest = run
+    while rest:
+        for sym in _SYMBOLS_BY_LENGTH:
+            if rest.startswith(sym):
+                symbols.append(sym)
+                rest = rest[len(sym):]
+                break
+        else:
+            raise _UnitParseError(f"unknown unit symbol in {run!r}")
+    return symbols
+
+
+def _maybe_exponent(tokens: List[str], i: int):
+    if i < len(tokens) and re.fullmatch(r"\^[+-]?\d+|[+-]?\d+", tokens[i]):
+        return int(tokens[i].lstrip("^")), i + 1
+    return 1, i
+
+
+def _parse_factor(tokens: List[str], i: int):
+    if i >= len(tokens):
+        raise _UnitParseError("unexpected end of unit string")
+    tok = tokens[i]
+    if tok == "(":
+        vec, i = _parse_expr(tokens, i + 1)
+        if i >= len(tokens) or tokens[i] != ")":
+            raise _UnitParseError("unbalanced parentheses")
+        exp, i = _maybe_exponent(tokens, i + 1)
+        return [v * exp for v in vec], i
+    if re.fullmatch(r"[a-z]+", tok):
+        symbols = _split_symbols(tok)
+        vec = [0] * 7
+        for sym in symbols[:-1]:
+            vec = _vec_add(vec, _UNIT_VECTORS[sym])
+        exp, i = _maybe_exponent(tokens, i + 1)
+        vec = _vec_add(vec, _UNIT_VECTORS[symbols[-1]], scale=exp)
+        return vec, i
+    raise _UnitParseError(f"unexpected token {tok!r}")
+
+
+def _parse_term(tokens: List[str], i: int):
+    vec, i = _parse_factor(tokens, i)
+    while i < len(tokens) and (tokens[i] == "·" or tokens[i] == "("
+                               or re.fullmatch(r"[a-z]+", tokens[i])):
+        if tokens[i] == "·":
+            i += 1
+        rhs, i = _parse_factor(tokens, i)
+        vec = _vec_add(vec, rhs)
+    return vec, i
+
+
+def _parse_expr(tokens: List[str], i: int):
+    vec, i = _parse_term(tokens, i)
+    while i < len(tokens) and tokens[i] == "/":
+        rhs, i = _parse_term(tokens, i + 1)
+        vec = _vec_add(vec, rhs, scale=-1)
+    return vec, i
+
+
+def _parse_dimensions_compositional(unit: str) -> List[int]:
+    normalized = (unit.strip().translate(_SUPERSCRIPT_MAP).lower()
+                  .replace(" ", "").replace("⋅", "·").replace("*", "·")
+                  .replace("×", "·"))
+    if normalized in _DIMENSIONLESS_STRINGS:
+        return [0] * 7
+    tokens = []
+    pos = 0
+    while pos < len(normalized):
+        match = _TOKEN_RE.match(normalized, pos)
+        if match is None:
+            raise _UnitParseError(f"cannot tokenize {unit!r} at {normalized[pos:]!r}")
+        tokens.append(match.group())
+        pos = match.end()
+    vec, i = _parse_expr(tokens, 0)
+    if i != len(tokens):
+        raise _UnitParseError(f"trailing tokens in {unit!r}: {tokens[i:]}")
+    return vec
+
+
 def parse_dimensions(unit: str) -> List[int]:
     """Parse a unit string into a 7-element dimension vector.
 
     Order: [Mass, Length, Time, Temperature, Current, Amount, Luminous].
+
+    Uses a compositional parser (products, quotients, parentheses, and
+    integer exponents over SI base and common derived units), falling back
+    to the legacy keyword heuristics for strings it cannot interpret.
     """
+    try:
+        return _parse_dimensions_compositional(unit)
+    except _UnitParseError:
+        return _parse_dimensions_legacy(unit)
+
+
+def _parse_dimensions_legacy(unit: str) -> List[int]:
+    """Legacy keyword-heuristic parser (kept as a fallback)."""
     dims = [0, 0, 0, 0, 0, 0, 0]
     unit_lower = unit.lower().replace(" ", "").replace("·", "").replace("⋅", "").replace("*", "")
 

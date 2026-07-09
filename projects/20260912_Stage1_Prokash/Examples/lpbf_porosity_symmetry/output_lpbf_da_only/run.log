@@ -13,6 +13,7 @@ Step 0: Dimensional analysis (Buckingham-Pi reduction)
   Dimension matrix shape: (4, 10)  (rows = ['Mass', 'Length', 'Time', 'Temperature'], cols = ['P', 'V', 'A', 'rho', 'k', 'Lv', 'dT', 'gamma', 'Tb', 'Tm_minus_T0'])
   Rank: 4   Expected Pi groups: 6
   Using pydimension.data_preprocessing.DataPreprocessor (enriched CSV: output_lpbf_da_only/_da_repo/dataset_lpbf_enriched.csv)
+  Dimension matrix derived from unit strings by pydimension's unit parser: {'P': 'W', 'V': 'm/s', 'A': '-', 'rho': 'kg/m³', 'k': 'W/(m·K)', 'Lv': 'J/kg', 'dT': 'K', 'gamma': 'N/m', 'Tb': 'K', 'Tm_minus_T0': 'K', 'Pore': '-'}
 === Data Preprocessing ===
 ✅ Loaded data from: output_lpbf_da_only/_da_repo/dataset_lpbf_enriched.csv
    Shape: (232, 14)
@@ -20,8 +21,8 @@ Step 0: Dimensional analysis (Buckingham-Pi reduction)
 ✅ Detected variables:
    Input variables (10): ['P', 'V', 'A', 'rho', 'k', 'Lv', 'dT', 'gamma', 'Tb', 'Tm_minus_T0']
    Output variables (1): ['Pore']
-   Pore: not in matrix, assuming dimensionless
-✅ Loaded dimension matrix from file
+⚠️ No dimension matrix file found. Generating from units...
+✅ Generated dimension matrix from units
 ✅ Normalized data
    Shape: (232, 11)
    Value range: [0.0000, 1.0000]
@@ -53,6 +54,7 @@ Number of dimensionless groups: 6
   π6 = P × V^3 × rho × k^-2 × Tm_minus_T0^-2
 
 === Dimensional Analysis Complete ===
+  Unit-parser matrix == hand-checked matrix ✓ (4x10, all entries match)
   Basis vectors shape (repo): (10, 6)
     π1 = A
     π2 = V^2 × Lv^(-1)
@@ -158,11 +160,11 @@ Step 5: Physical interpretation of generators
 ============================================================
 Creating visualizations
 ============================================================
-/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry/discover_symmetry.py:1041: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry/discover_symmetry.py:1113: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   plt.tight_layout(rect=[0, 0, 1, 0.93])
 Pi candidates figure saved to output_lpbf_da_only/lpbf_pi_candidates.png
 Figure saved to output_lpbf_da_only/lpbf_porosity_symmetry_discovery.png
-/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry/discover_symmetry.py:1270: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/lpbf_porosity_symmetry/discover_symmetry.py:1359: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   plt.tight_layout(rect=[0, 0.07, 1, 0.95])
 Discovered-coefficients & generators figure saved to output_lpbf_da_only/lpbf_discovered_law_generators.png
 

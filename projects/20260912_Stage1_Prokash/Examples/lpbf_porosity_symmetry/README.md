@@ -91,11 +91,24 @@ Pr     = (η · Cp) / k                                              thermal Pra
 1. Enriches the CSV at runtime by appending `gamma` and `Tb` columns (looked
    up from `PRESSURE_PROPS` by material name), writing
    `_da_repo/dataset_lpbf_enriched.csv`.
-2. Calls `pydimension.data_preprocessing.DataPreprocessor` with an explicit
-   `dimension_matrix.csv` (bypasses the unit-string parser which mishandles
-   `W/(m·K)`). This is the only Pi-basis path the script supports — the
-   import is hard-required, so a missing `seaborn` raises rather than
-   silently swapping in a fallback.
+2. Runs the **full pydimension pipeline path**: the per-variable unit
+   strings (`W`, `m/s`, `kg/m³`, `W/(m·K)`, `J/kg`, `N/m`, `K`, …) are
+   handed to `pydimension.data_preprocessing.DataPreprocessor`, whose
+   compositional unit parser derives the dimension matrix, and whose
+   null-space + SymPy primitive-integer reduction discovers the Pi groups.
+   The script's hand-checked dimension matrix is kept only as a runtime
+   **cross-check** — the run aborts if the parser-derived matrix differs
+   (`Unit-parser matrix == hand-checked matrix ✓` in the log). The
+   `pydimension` import is hard-required, so a missing `seaborn` raises
+   rather than silently swapping in a fallback.
+
+   > Historical note: the parser previously mishandled compound units like
+   > `W/(m·K)` and `N/m`, which forced this example to pass an explicit
+   > `dimension_matrix.csv`. The parser was rewritten as a proper
+   > compositional unit-expression parser (products, quotients,
+   > parentheses, integer exponents over SI base + derived units) in
+   > `pydimension/data_preprocessing/unit_parser.py`, so the units path is
+   > now the default.
 
 **Actual output — 6 Pi groups discovered:**
 
@@ -413,8 +426,12 @@ All outputs go to `output_lpbf_porosity_symmetry/` (configurable via
 | `lpbf_porosity_symmetry_discovery.png` | 3-panel: Pi-collapse, symmetry-type bar chart, discovered iso-invariant orbits in (log V, log P) |
 | `lpbf_discovered_law_generators.png` | 4-panel (Pi space): coefficient heatmap of the two `W` rows vs the known-Pi DA coordinates and pure `Pe_vap` axis, pore fraction over the 2-D discovered latent `(z₁, z₂)`, heatmap of the 6 null-space generators, and orbit-invariance check (latent `z` exactly flat; known Pi drifts, reflecting W–Pi misalignment and gauge directions) |
 | `_da_repo/dataset_lpbf_enriched.csv` | CSV enriched with `gamma`, `Tb` columns |
-| `_da_repo/dimension_matrix.csv` | Explicit dimension matrix fed to `DataPreprocessor` |
-| `_da_repo/basis_vectors.csv` | Integer Pi-group exponent vectors |
+
+The dimension matrix itself is no longer written to disk: it is derived in
+memory from the unit strings by pydimension's unit parser (and verified
+against the hand-checked matrix in the run log). The integer Pi-group
+exponent vectors appear in the run log and in the `lpbf_pi_candidates.png`
+heatmap.
 
 ---
 
