@@ -289,6 +289,63 @@ them are data-limited. Only `P`- and `V`-driven variation (entering
 
 ---
 
+## DA-Only Ablation (`--da-only`)
+
+Running the pipeline on **only the 6 DA-discovered Pi groups** — without
+appending the known `Pe_vap` and `Pr` columns — removes the collinearity
+caveat entirely (`log(Pe_vap)` lies exactly in the DA span, so the
+8-feature input has rank ≤ 7 and gauge directions in its null space; the
+6-feature input has none):
+
+```bash
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 PYTHONHASHSEED=0 \
+  python discover_symmetry.py --data dataset_lpbf.csv --seed 42 --da-only \
+  --output-dir output_lpbf_da_only
+```
+
+`Pe_vap` and `Pr` are still computed: Step 2b keeps its diagnostic role,
+and `Pe_vap` appears in reports/figures through its **exact coordinate
+representation in the DA log-Pi basis** (the lstsq solution of
+`pi_basis · c = Pe_vap-exponents`, which is exact since cos = +1.0000).
+`Pr` has no exact DA representation (`η`, `Cp` are not pipeline
+variables), so it is omitted from the DA-only figures.
+
+**Observed results (locked-environment runs, seeds 42 / 0 / 1):**
+
+| Aspect | DA-only (6 Pi) | Default (8 Pi incl. Pe_vap, Pr) |
+|---|---|---|
+| k* (seed 42) | **1** — test R² 0.755 (k=2: 0.738) | 2 — test R² 0.768 (k=1: 0.747) |
+| k* across seeds | 1 / 1 / 3 | 2 (seed 42) |
+| Step 3 winner, seed 42 | **scaling** (1.2×) | scaling (1.3×) |
+| Step 3 winner, seed 0 | **scaling** (1.1×) | translational (~1.0×) |
+| Step 3 winner, seed 1 | **scaling** (1.1×) | translational (~1.1×) |
+| Rotational | always last or clearly beaten | always excluded (2–4×) |
+| Generators | 5 (6 − 1), no gauge directions | 6 (8 − 2), some gauge |
+| cos(W, Pe_vap ref) | +0.07 / −0.31 / −0.88 by seed | weak (rows seed-dependent) |
+
+Two observations worth noting:
+
+1. **The scaling-vs-translational tie resolves in favour of scaling.**
+   With the redundant known-Pi columns removed, *scaling wins on all three
+   hash-locked seeds* (margins 1.1–1.2×), whereas the 8-feature input
+   flips winner across seeds. The margins remain modest, but the
+   direction is now consistent.
+2. **A single discovered coordinate collapses the data better than the
+   hand-derived group.** A logistic fit of pore fraction against the
+   DA-only 1-D latent `z = W · log(Pi_centred)` gives **R² = 0.75**,
+   versus 0.46 for `log10(Pe_vap)` on the same 232 points (and ≤ 0.55
+   for every individual DA Pi candidate). The discovered direction is
+   *not* aligned with Pe_vap (cos = +0.07 at seed 42; sample-wise
+   Pearson corr(z, log₁₀Pe_vap) = +0.60) — the pipeline finds a
+   different, better-collapsing invariant coordinate rather than
+   rediscovering the textbook one. The W direction itself remains
+   seed-dependent; the collapse quality is the stable statement.
+
+Outputs are committed under `output_lpbf_da_only/` (figures + `run.log`
+from the locked seed-42 run above).
+
+---
+
 ## Output Files
 
 All outputs go to `output_lpbf_porosity_symmetry/` (configurable via
@@ -320,6 +377,9 @@ python discover_symmetry.py --data dataset_lpbf.csv
 
 # Deeper encoder:
 python discover_symmetry.py --data dataset_lpbf.csv --encoder-hidden 128 64 32
+
+# Ablation: only the 6 DA Pi groups as encoder features (no Pe_vap/Pr columns)
+python discover_symmetry.py --data dataset_lpbf.csv --da-only
 
 # Ablation: disable pi-only — feed [X, X², log|X|, Pi] augmented input to Step 2
 python discover_symmetry.py --data dataset_lpbf.csv --no-pi-only

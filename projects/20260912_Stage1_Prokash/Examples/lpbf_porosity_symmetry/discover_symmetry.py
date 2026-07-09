@@ -633,21 +633,28 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     recon_cos = float(np.dot(recon, ref_n) / (np.linalg.norm(recon) + 1e-12))
     print(f"  Pe_vap exponents projected onto null-space basis: cos = {recon_cos:+.4f}  "
           f"(±1 means Pe_vap lies in the Pi-group span)")
+    results["pe_coords_da"] = coords  # Pe_vap expressed in DA log-Pi coordinates
     pi_features = compute_pi_features(X, pi_basis)
     pi_feature_names = [f"Pi{i+1} (DA)" for i in range(pi_basis.shape[1])]
 
-    # Append the two KNOWN dimensionless numbers from the keyhole-transition
-    # literature as extra Pi features: the vaporisation Péclet Pe_vap
-    # (normalised enthalpy) and the thermal Prandtl Pr.  Same treatment as
-    # the DA groups: log10 then min-max to [0, 1].
+    da_only = getattr(args, "da_only", False)
+    results["da_only"] = da_only
     known_pi_vals = np.column_stack([Pe_vap, Pr_thermal])
-    log_known = np.log10(np.maximum(known_pi_vals, 1e-30))
-    mn_k = log_known.min(axis=0, keepdims=True)
-    mx_k = log_known.max(axis=0, keepdims=True)
-    rng_k = np.where(mx_k - mn_k > 1e-12, mx_k - mn_k, 1.0)
-    known_features = (log_known - mn_k) / rng_k
-    pi_features = np.hstack([pi_features, known_features])
-    pi_feature_names += ["Pe_vap (known)", "Pr (known)"]
+    if da_only:
+        print(f"  --da-only: Pe_vap and Pr are NOT appended as encoder features; "
+              f"they remain diagnostics/references only.")
+    else:
+        # Append the two KNOWN dimensionless numbers from the keyhole-transition
+        # literature as extra Pi features: the vaporisation Péclet Pe_vap
+        # (normalised enthalpy) and the thermal Prandtl Pr.  Same treatment as
+        # the DA groups: log10 then min-max to [0, 1].
+        log_known = np.log10(np.maximum(known_pi_vals, 1e-30))
+        mn_k = log_known.min(axis=0, keepdims=True)
+        mx_k = log_known.max(axis=0, keepdims=True)
+        rng_k = np.where(mx_k - mn_k > 1e-12, mx_k - mn_k, 1.0)
+        known_features = (log_known - mn_k) / rng_k
+        pi_features = np.hstack([pi_features, known_features])
+        pi_feature_names += ["Pe_vap (known)", "Pr (known)"]
 
     results["pi_basis"] = pi_basis
     results["pi_features"] = pi_features
@@ -655,17 +662,23 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     print(f"  Reduced candidates (pi_features) shape: {pi_features.shape}  "
           f"range: [{pi_features.min():.3f}, {pi_features.max():.3f}]")
     print(f"  Feature list: {pi_feature_names}")
-    print(f"  (Pe_vap and Pr appended as known extra Pi features)")
+    if not da_only:
+        print(f"  (Pe_vap and Pr appended as known extra Pi features)")
 
-    # Geometric-mean-centred Pi VALUES for Step 3 (DA groups + Pe_vap + Pr):
-    # a purely multiplicative rescaling, so the scaling encoder's internal
-    # log sees centred log-Pi coordinates and generators live in Pi space.
+    # Geometric-mean-centred Pi VALUES for Step 3 (DA groups, plus Pe_vap and
+    # Pr unless --da-only): a purely multiplicative rescaling, so the scaling
+    # encoder's internal log sees centred log-Pi coordinates and generators
+    # live in Pi space.
     X_pos = np.maximum(X, 1e-30)
-    log10_all_pi = np.hstack([np.log10(X_pos) @ pi_basis,
-                              np.log10(np.maximum(known_pi_vals, 1e-30))])
+    if da_only:
+        log10_all_pi = np.log10(X_pos) @ pi_basis
+        pi_names_step3 = [f"Pi{i+1}" for i in range(pi_basis.shape[1])]
+    else:
+        log10_all_pi = np.hstack([np.log10(X_pos) @ pi_basis,
+                                  np.log10(np.maximum(known_pi_vals, 1e-30))])
+        pi_names_step3 = [f"Pi{i+1}" for i in range(pi_basis.shape[1])] + ["Pe_vap", "Pr"]
     log10_all_pi = log10_all_pi - log10_all_pi.mean(axis=0, keepdims=True)
     pi_centred = 10.0 ** log10_all_pi
-    pi_names_step3 = [f"Pi{i+1}" for i in range(pi_basis.shape[1])] + ["Pe_vap", "Pr"]
     results["pi_centred"] = pi_centred
     results["pi_names_step3"] = pi_names_step3
     print(f"  Centred Pi values for Step 3: shape {pi_centred.shape}  "
@@ -790,8 +803,12 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     # whether the latent z actually absorbed them.
     if pi_only:
         names_step3 = list(pi_names_step3)
-        print(f"  → Pe_vap and Pr are Step 2/3 encoder inputs (pi-only mode); "
-              f"no bottleneck injection.")
+        if da_only:
+            print(f"  → --da-only: Pe_vap and Pr are diagnostics only, "
+                  f"NOT encoder inputs.")
+        else:
+            print(f"  → Pe_vap and Pr are Step 2/3 encoder inputs (pi-only mode); "
+                  f"no bottleneck injection.")
     else:
         names_step3 = list(VARIABLE_NAMES)
     results["feature_names_step3"] = names_step3
@@ -856,10 +873,15 @@ def run_pipeline(X, y, Pi, Pe_vap, Pr_thermal, materials, args):
     print("=" * 60)
     name_w = max(7, max(len(n) for n in names_for_W))
     if pi_only:
-        refs = {
-            "pure Pe_vap axis": np.eye(len(names_for_W))[len(names_for_W) - 2],
-            "pure Pr axis":     np.eye(len(names_for_W))[len(names_for_W) - 1],
-        }
+        if da_only:
+            # Pe_vap is not a feature axis here, but log(Pe_vap) lies exactly
+            # in the DA log-Pi span — use its coordinate vector as reference.
+            refs = {"Pe_vap in DA-Pi coords": np.asarray(results["pe_coords_da"])}
+        else:
+            refs = {
+                "pure Pe_vap axis": np.eye(len(names_for_W))[len(names_for_W) - 2],
+                "pure Pr axis":     np.eye(len(names_for_W))[len(names_for_W) - 1],
+            }
     else:
         ref = np.zeros(len(names_for_W))
         ref[: len(PE_VAP_EXPONENTS)] = PE_VAP_EXPONENTS
@@ -1051,11 +1073,21 @@ def plot_discovered_law_and_generators(y, results, output_dir):
     n_pi           = pi_centred.shape[1]
     n_lat          = W.shape[0]
     n_gen          = len(generators)
+    da_only        = results.get("da_only", False)
 
-    pe_axis = np.zeros(n_pi)
-    pe_axis[n_pi - 2] = 1.0
-    pr_axis = np.zeros(n_pi)
-    pr_axis[n_pi - 1] = 1.0
+    if da_only:
+        # Pe_vap is not a feature axis; log(Pe_vap) lies exactly in the DA
+        # log-Pi span, so use its coordinate vector there.  Pr has no exact
+        # DA representation (η, Cp are not pipeline variables) — omitted.
+        pe_coords = np.asarray(results["pe_coords_da"], dtype=float)
+        pe_axis = pe_coords / (np.linalg.norm(pe_coords) + 1e-12)
+        pr_axis = None
+    else:
+        pe_coords = None
+        pe_axis = np.zeros(n_pi)
+        pe_axis[n_pi - 2] = 1.0
+        pr_axis = np.zeros(n_pi)
+        pr_axis[n_pi - 1] = 1.0
 
     W_dirs = W / (np.linalg.norm(W, axis=1, keepdims=True) + 1e-12)
 
@@ -1075,15 +1107,24 @@ def plot_discovered_law_and_generators(y, results, output_dir):
     orbit_dz_max = np.zeros((n_gen, eps_grid.size))
     for k, g in enumerate(generators):
         if winner_type == "scaling":
-            orbit_pe_vap[k] = np.exp(eps_grid * float(g[n_pi - 2]))
-            orbit_pr[k]     = np.exp(eps_grid * float(g[n_pi - 1]))
+            if da_only:
+                # log Pe_vap = Σ c_i log Pi_i  ⇒  Δlog Pe_vap = ε (c · g)
+                orbit_pe_vap[k] = np.exp(eps_grid * float(pe_coords @ g))
+            else:
+                orbit_pe_vap[k] = np.exp(eps_grid * float(g[n_pi - 2]))
+                orbit_pr[k]     = np.exp(eps_grid * float(g[n_pi - 1]))
             Pi_orbit = np.exp(np.outer(eps_grid, g))
             Zo = np.log(np.clip(Pi_orbit, 0.1, None)) @ W.T   # (n_eps, k*)
             orbit_dz_max[k] = np.abs(Zo).max(axis=1)          # z(0) = 0 at centre
         else:  # translational: Pi → Pi + ε·g, ratio to the centre value 1
-            orbit_pe_vap[k] = 1.0 + eps_grid * float(g[n_pi - 2])
-            orbit_pr[k]     = 1.0 + eps_grid * float(g[n_pi - 1])
             Pi_orbit = 1.0 + np.outer(eps_grid, g)
+            if da_only:
+                # Pe_vap ratio = Π (1 + ε g_i)^{c_i} along the additive orbit
+                orbit_pe_vap[k] = np.prod(
+                    np.clip(Pi_orbit, 1e-6, None) ** pe_coords, axis=1)
+            else:
+                orbit_pe_vap[k] = 1.0 + eps_grid * float(g[n_pi - 2])
+                orbit_pr[k]     = 1.0 + eps_grid * float(g[n_pi - 1])
             Zo = (Pi_orbit - 1.0) @ W.T                       # Δz from centre
             orbit_dz_max[k] = np.abs(Zo).max(axis=1)
 
@@ -1094,8 +1135,12 @@ def plot_discovered_law_and_generators(y, results, output_dir):
 
     # ── Panel A: coefficient heatmap, W rows vs known references ────────────
     ax = fig.add_subplot(gs[0, 0])
-    rows   = [W_dirs[i] for i in range(n_lat)] + [pe_axis, pr_axis]
-    labels = [f"W row {i+1}" for i in range(n_lat)] + ["Pe_vap axis", "Pr axis"]
+    if da_only:
+        rows   = [W_dirs[i] for i in range(n_lat)] + [pe_axis]
+        labels = [f"W row {i+1}" for i in range(n_lat)] + ["Pe_vap (DA coords)"]
+    else:
+        rows   = [W_dirs[i] for i in range(n_lat)] + [pe_axis, pr_axis]
+        labels = [f"W row {i+1}" for i in range(n_lat)] + ["Pe_vap axis", "Pr axis"]
     M = np.stack(rows, axis=0)
     vmax = float(np.max(np.abs(M))) or 1.0
     im = ax.imshow(M, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="auto")
@@ -1112,10 +1157,15 @@ def plot_discovered_law_and_generators(y, results, output_dir):
                         color="white" if abs(v) > 0.6 * vmax else "black",
                         fontsize=14)
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-    cos_txt = "\n".join(
-        f"cos(W{i+1},Pe_vap)={float(W_dirs[i] @ pe_axis):+.2f}   "
-        f"cos(W{i+1},Pr)={float(W_dirs[i] @ pr_axis):+.2f}"
-        for i in range(n_lat))
+    if da_only:
+        cos_txt = "\n".join(
+            f"cos(W{i+1},Pe_vap)={float(W_dirs[i] @ pe_axis):+.2f}"
+            for i in range(n_lat))
+    else:
+        cos_txt = "\n".join(
+            f"cos(W{i+1},Pe_vap)={float(W_dirs[i] @ pe_axis):+.2f}   "
+            f"cos(W{i+1},Pr)={float(W_dirs[i] @ pr_axis):+.2f}"
+            for i in range(n_lat))
     ax.set_title("Discovered coefficients (L2-n) vs supplied Pi references\n"
                  f"{cos_txt}", fontsize=15)
 
@@ -1164,8 +1214,9 @@ def plot_discovered_law_and_generators(y, results, output_dir):
     for k in range(n_gen):
         ax.plot(eps_grid, orbit_pe_vap[k], "-", color=cmap(k % 10),
                 lw=1.8, label=f"Pe_vap, g{k+1}")
-        ax.plot(eps_grid, orbit_pr[k], ":", color=cmap(k % 10), lw=1.8,
-                label=f"Pr, g{k+1}")
+        if not da_only:
+            ax.plot(eps_grid, orbit_pr[k], ":", color=cmap(k % 10), lw=1.8,
+                    label=f"Pr, g{k+1}")
     if n_gen > 0:
         ax.plot(eps_grid, 1.0 + orbit_dz_max.max(axis=0), "k--", lw=2.2,
                 alpha=0.9, label="1 + max|Δz|")
@@ -1174,14 +1225,23 @@ def plot_discovered_law_and_generators(y, results, output_dir):
                   else "Pi → Pi + ε·g")
     ax.set_xlabel(f"Orbit parameter  ε   ({orbit_expr})")
     ax.set_ylabel("ratio to ε=0")
-    ax.set_title("Invariance check along each orbit\n(solid: Pe_vap, dotted: Pr)")
+    if da_only:
+        ax.set_title("Invariance check along each orbit\n"
+                     "(Pe_vap via its exact DA-coordinate representation)")
+    else:
+        ax.set_title("Invariance check along each orbit\n(solid: Pe_vap, dotted: Pr)")
     ax.legend(loc="best", ncol=3, fontsize=10)
     dev_pe = float(np.max(np.abs(orbit_pe_vap - 1.0))) if n_gen else 0.0
     dev_pr = float(np.max(np.abs(orbit_pr - 1.0))) if n_gen else 0.0
-    ax.text(0.03, 0.03,
-            f"max |ΔPe_vap/Pe_vap|={dev_pe:.2f}, max |ΔPr/Pr|={dev_pr:.2f} at |ε|=0.5\n"
-            "z flat by null(W); reference drift reflects W-reference\n"
-            "misalignment and Pe_vap/DA-group collinearity (gauge directions)",
+    if da_only:
+        note = (f"max |ΔPe_vap/Pe_vap|={dev_pe:.2f} at |ε|=0.5\n"
+                "z flat by null(W); Pe_vap drift measures how far the\n"
+                "discovered row space is from the known invariant direction")
+    else:
+        note = (f"max |ΔPe_vap/Pe_vap|={dev_pe:.2f}, max |ΔPr/Pr|={dev_pr:.2f} at |ε|=0.5\n"
+                "z flat by null(W); reference drift reflects W-reference\n"
+                "misalignment and Pe_vap/DA-group collinearity (gauge directions)")
+    ax.text(0.03, 0.03, note,
             transform=ax.transAxes, va="bottom", ha="left", fontsize=13,
             color="#333333")
 
@@ -1189,10 +1249,16 @@ def plot_discovered_law_and_generators(y, results, output_dir):
     da_exprs = [f"{pi_names[i]} = "
                 f"{format_pi_expression(pi_basis[:, i], VARIABLE_NAMES)}"
                 for i in range(pi_basis.shape[1])]
-    known_exprs = [
-        "Pe_vap = (Lv·rho·A·P·V) / (k²·dT·(Tm−T0))",
-        "Pr = η·Cp / k   (η, Cp per material)",
-    ]
+    if da_only:
+        known_exprs = [
+            "--da-only: Pe_vap, Pr not encoder inputs;",
+            "Pe_vap shown via its exact DA-coordinate representation",
+        ]
+    else:
+        known_exprs = [
+            "Pe_vap = (Lv·rho·A·P·V) / (k²·dT·(Tm−T0))",
+            "Pr = η·Cp / k   (η, Cp per material)",
+        ]
     n_half = (len(da_exprs) + 1) // 2
     fig.text(0.05, 0.055, "\n".join(da_exprs[:n_half]),
              ha="left", va="top", fontsize=14, color="#444444")
@@ -1274,6 +1340,11 @@ def main():
     parser.add_argument("--encoder-hidden", type=int, nargs="+", default=[64, 32],
                         help="Hidden layer widths for the multilayer encoder "
                              "(default: 64 32)")
+    parser.add_argument("--da-only", action="store_true",
+                        help="Use only the DA-discovered Pi groups as Step 2/3 encoder "
+                             "features (do not append the known Pe_vap and Pr columns). "
+                             "Pe_vap/Pr are still computed for the Step 2b diagnostic and "
+                             "as references in reports and figures.")
     parser.add_argument("--no-pi-only", action="store_true",
                         help="Disable the default pi-only mode: feed [X, X², log|X|, Pi] "
                              "to the Step 2 encoder instead of Pi groups alone.")
@@ -1306,11 +1377,18 @@ def main():
     print(f"  Symmetry: {sym_type}")
     print(f"  Generators: {len(results['generators'])}")
     if sym_type == "scaling":
-        print(f"  These generators show how the dimensionless Pi groups (incl. the")
-        print(f"  known Pe_vap and Pr) can be simultaneously rescaled while")
-        print(f"  preserving the LPBF pore fraction.")
+        if args.da_only:
+            print(f"  These generators show how the DA-discovered Pi groups can be")
+            print(f"  simultaneously rescaled while preserving the LPBF pore fraction.")
+        else:
+            print(f"  These generators show how the dimensionless Pi groups (incl. the")
+            print(f"  known Pe_vap and Pr) can be simultaneously rescaled while")
+            print(f"  preserving the LPBF pore fraction.")
     if args.pi_only:
-        print(f"  Step 2 (latent dim) used the DA Pi groups + known Pe_vap, Pr.")
+        if args.da_only:
+            print(f"  Step 2 (latent dim) used the DA Pi groups only (--da-only).")
+        else:
+            print(f"  Step 2 (latent dim) used the DA Pi groups + known Pe_vap, Pr.")
         print(f"  Step 3 (symmetry type) used geometric-mean-centred Pi values.")
     print()
 
