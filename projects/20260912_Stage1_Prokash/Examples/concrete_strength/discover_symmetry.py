@@ -62,8 +62,8 @@ plt.rcParams.update({
     "font.size":             13,
     "axes.titlesize":        16,
     "axes.labelsize":        15,
-    "xtick.labelsize":       13,
-    "ytick.labelsize":       13,
+    "xtick.labelsize":       15,
+    "ytick.labelsize":       15,
     "legend.fontsize":       13,
     "legend.title_fontsize": 14,
     "figure.titlesize":      19,
@@ -324,7 +324,10 @@ def plot_results(X, y, results, output_dir):
         ax.set_title(f"Latent Variable vs Strength (R²={r2:.3f})")
         ax.legend()
     else:
-        ax.scatter(z[:, 0], z[:, 1], c=y, cmap="viridis", s=12, alpha=0.5)
+        sc = ax.scatter(z[:, 0], z[:, 1], c=y, cmap="viridis", s=12, alpha=0.5)
+        cbar = fig.colorbar(sc, ax=ax, pad=0.02)
+        cbar.set_label("Compressive Strength (MPa)", fontsize=15)
+        cbar.ax.tick_params(labelsize=15)
         ax.set_xlabel("z₁")
         ax.set_ylabel("z₂")
         ax.set_title("Latent Variables (colored by strength)")
