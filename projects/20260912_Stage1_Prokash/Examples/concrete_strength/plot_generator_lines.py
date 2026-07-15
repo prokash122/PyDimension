@@ -50,12 +50,12 @@ BASE = "#c3c2b7"
 
 plt.rcParams.update({
     "font.family":     "sans-serif",
-    "font.size":       11,
-    "axes.titlesize":  12,
-    "axes.labelsize":  11.5,
-    "xtick.labelsize": 10,
-    "ytick.labelsize": 10,
-    "legend.fontsize": 10,
+    "font.size":       15,
+    "axes.titlesize":  17,
+    "axes.labelsize":  16,
+    "xtick.labelsize": 14,
+    "ytick.labelsize": 14,
+    "legend.fontsize": 14,
     "text.color":      INK,
     "axes.labelcolor": INK2,
     "xtick.color":     INK2,
@@ -146,10 +146,10 @@ def main():
 
     eps = np.linspace(-args.eps_max, args.eps_max, 61)
 
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4.6), sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5.4), sharey=True)
     fig.suptitle("Take a real mix, change its recipe along a generator, ask the model its strength:\n"
                  "the predicted strength does not move (flat lines)",
-                 fontweight="bold", fontsize=13.5)
+                 fontweight="bold", fontsize=18)
 
     for gi, ax in enumerate(axes):
         g = g_unit[gi]
@@ -167,9 +167,9 @@ def main():
 
         rng = predict(X[idx_lo][None, :] + eps[:, None] * g[None, :])
         chg = rng.max() - rng.min()
-        ax.set_title(f"generator g{gi+1}\n{describe(g)}", fontsize=10.5)
+        ax.set_title(f"generator g{gi+1}\n{describe(g)}", fontsize=15)
         ax.text(0.5, 0.06, f"strength change along g{gi+1}: {chg:.0e}",
-                transform=ax.transAxes, ha="center", color=INK2, fontsize=9.5)
+                transform=ax.transAxes, ha="center", color=INK2, fontsize=13)
         ax.axvline(0, color=BASE, lw=0.8, ls=":")
         ax.set_xlabel("how far we change the recipe  (ε)")
         ax.grid(color=GRID, lw=0.6)
@@ -178,13 +178,14 @@ def main():
             ax.spines[s].set_visible(False)
 
     axes[0].set_ylabel("model-predicted strength\n(σc ÷ baseline)")
-    axes[0].legend(loc="center left", frameon=False, fontsize=9.5)
-    axes[0].set_ylim(0.3, 1.6)
+    axes[0].set_ylim(0.3, 1.85)
+    axes[0].legend(loc="upper left", frameon=False, fontsize=14, ncol=1,
+                   handlelength=2.4, borderaxespad=0.3)
 
     fig.text(0.5, -0.02,
              "★ = a real mix from the dataset (ε=0).  Solid = walk along a generator (strength held).  "
              "Dashed = walk along the strength direction (strength changes).",
-             ha="center", fontsize=9.5, color=INK2)
+             ha="center", fontsize=13, color=INK2)
 
     plt.tight_layout(rect=[0, 0.02, 1, 0.90])
     os.makedirs(args.output_dir, exist_ok=True)
