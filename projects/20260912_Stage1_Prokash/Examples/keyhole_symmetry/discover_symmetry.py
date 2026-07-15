@@ -839,6 +839,21 @@ def main():
     X, y, Ke = load_data(args)
     results = run_pipeline(X, y, Ke, args)
 
+    # Save artifacts for downstream generator plots (mirrors the concrete example).
+    if args.pi_only and results["winner_type"] == "scaling":
+        os.makedirs(args.output_dir, exist_ok=True)
+        np.savez(
+            os.path.join(args.output_dir, "pipeline_artifacts.npz"),
+            pi_centred=results["X_step3"],           # (n, n_pi) centred Pi values
+            y=y,                                     # measured e*
+            Ke=Ke,
+            W=results["winner_encoder"].weight_matrix,   # scaling encoder (n_latent, n_pi)
+            generators=np.array(results["generators"]),  # (n_pi - n_latent, n_pi), log-Pi
+            ke_pi_coords=np.asarray(results["ke_pi_coords"], dtype=float),
+            pi_names=np.array(results["feature_names_step3"]),
+        )
+        print(f"Artifacts saved to {args.output_dir}/pipeline_artifacts.npz")
+
     print("=" * 60)
     print("Creating visualizations")
     print("=" * 60)
