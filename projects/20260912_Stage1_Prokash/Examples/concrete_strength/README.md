@@ -271,6 +271,39 @@ The full analysis is reproduced by
 `output_concrete_dimensionless/generator_validation.png` and
 `validation.log`.
 
+### 6.3 Publication figure
+
+`make_publication_figure.py` condenses Sections 5.3 and 6.2 into a
+single three-panel figure
+(`output_concrete_dimensionless/publication_figure.png` / `.pdf`,
+300 dpi). Suggested caption:
+
+> **Figure X. Data-driven discovery and validation of
+> strength-preserving directions in concrete mix design.**
+> **(a)** The three Lie-algebra generators identified by the
+> translational symmetry pipeline, shown as signed components in the
+> standardized dimensionless mix-ratio space (binder-referenced ratios
+> and log age). Each generator is a composition change predicted to
+> leave the 28-day-normalized strength residual σc/σideal unchanged,
+> where σideal = 13.83·(w/b)^(−1.269)·(0.268·ln t + 0.136) MPa is the
+> regression baseline of Yeh (1998).
+> **(b)** Validation on measured data only: each point compares the
+> measured strength residuals of two *actual* mixes from the UCI
+> dataset (1030 samples). Blue: 582 pairs whose composition difference
+> is aligned (|cos| ≥ 0.9) with a discovered generator — they
+> concentrate on the 1:1 line. Red: 149 pairs aligned with the model's
+> most strength-relevant direction — they depart from it. Pair
+> separations are matched (0.5–2.5 standardized units); no model
+> prediction is used.
+> **(c)** Mean measured |Δ(σc/σideal)| per pair type with bootstrap
+> 95% confidence intervals. Mixes differing along a generator change
+> strength by 0.21 on average — significantly less than pairs along
+> the strength direction (0.37) and below random pairs of equal
+> separation (0.22) — approaching the repeatability floor set by
+> replicate mixes (0.06). The discovered generators therefore identify
+> approximate invariances of the real strength surface, not artifacts
+> of the fitted network.
+
 ## 7. Reproducibility
 
 ### Environment
@@ -303,6 +336,7 @@ and the measured-pair validation (Section 6.2):
 ```bash
 python plot_generator_orbits.py
 python validate_generators.py
+python make_publication_figure.py
 ```
 
 Output is written to `output_concrete_dimensionless/`:
@@ -316,6 +350,8 @@ Output is written to `output_concrete_dimensionless/`:
   generator orbits (Section 6.1).
 - `generator_validation.png`, `validation.log` — real-data pair test
   (Section 6.2).
+- `publication_figure.png` / `publication_figure.pdf` — condensed
+  three-panel figure with suggested caption (Section 6.3).
 
 ## 8. Discussion
 
