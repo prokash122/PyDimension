@@ -1,36 +1,37 @@
-# Data-Driven Discovery of Translational Symmetry in Concrete Compressive Strength
+# Data-Driven Discovery of Translational Symmetry in Concrete Compressive Strength Using Dimensionless Variables
 
 ## Abstract
 
 We apply the PyDimension Stage&nbsp;1 symmetry-discovery pipeline to the UCI
 Concrete Compressive Strength dataset (Yeh, 1998; 1030 samples, 8 mix-design
-inputs) to test whether the governing functional form is consistent with an
-**additive (translational)** symmetry. A multilayer perceptron (MLP) encoder
-with hidden widths `[64, 32]` is trained jointly with a paired decoder. The
-encoder consumes the eight standardised mix-design inputs **directly**
-(`raw_input=True`, no `[X, X², log|X|]` augmentation); the MLP is expected
-to compose any non-linearity it needs internally. The intrinsic latent
-dimension is identified via held-out reconstruction performance, and the
-symmetry type is determined by a competitive encoder-training step over
-translational, rotational, and scaling candidates. The translational
-candidate is selected with a **3.3&times;** validation-MSE gap over the
-next-best (scaling) candidate, and **six** independent Lie-algebra
-generators are extracted. Each generator corresponds to a physically
-interpretable **mix substitution** that preserves compressive strength.
+inputs) using a **dimensionless (Buckingham-Pi) representation**. All seven
+mix quantities share the dimension [M&nbsp;L⁻³], so they are reduced to six
+ratios by the total binder mass; curing age enters as the logarithm of the
+dimensionless age ratio `ln(t/28 d)`. The target is the dimensionless
+strength residual `σ_c/σ_ideal`, where `σ_ideal` is the regression baseline
+published in the source paper (Yeh, 1998, Table&nbsp;6). The frozen baseline
+alone explains R²&nbsp;=&nbsp;0.762 of the strength variance; the pipeline
+then models the residual with a multilayer-perceptron autoencoder (hidden
+widths `[64, 32]`, `raw_input=True`). The intrinsic latent dimension is
+identified as `k = 4`, and competitive encoder training selects the
+**translational** symmetry candidate with a **1.9×** validation-MSE gap over
+the next-best (rotational) candidate. Three independent Lie-algebra
+generators are extracted, each a physically interpretable
+strength-preserving substitution in mix-ratio space.
 
 ## 1. Problem Statement
 
 Concrete compressive strength is governed predominantly by additive
-mix-proportion relationships:
+mix-proportion relationships expressed through dimensionless ratios:
 
-- Total binder mass: `m_binder = m_cement + m_slag + m_fly_ash`
-- Water-to-binder ratio: `w/b = m_water / m_binder`
-- Strength model: `σ_c ≈ f(a₁·m_cement + a₂·m_slag + a₃·m_fly_ash + a₄·m_water + …)`
+- Total binder mass: `b = m_cement + m_slag + m_fly_ash`
+- Water-to-binder ratio: `w/b`
+- Strength model: `σ_c ≈ f(a₁·π₁ + a₂·π₂ + …)` for dimensionless groups `πᵢ`
 
 Under the additive ansatz, the output depends on the data only through a
-linear combination `z = W x`, so any shift `x → x + ε g` with `W g = 0`
-leaves `σ_c` invariant. The null space of `W` therefore parametrizes the
-**translational symmetry generators** of the strength surface.
+linear combination `z = W π`, so any shift `π → π + ε g` with `W g = 0`
+leaves the strength residual invariant. The null space of `W` parametrizes
+the **translational symmetry generators** of the residual strength surface.
 
 ## 2. Dataset
 
@@ -50,99 +51,154 @@ leaves `σ_c` invariant. The null space of `W` therefore parametrizes the
 ([archive.ics.uci.edu/dataset/165](https://archive.ics.uci.edu/dataset/165)),
 1030 samples.
 
-## 3. Methodology
+## 3. Non-Dimensionalization
 
-The pipeline implements five sequential stages:
+### 3.1 Input features (Buckingham Pi)
 
-1. **Normalization.** Standard scaling (zero mean, unit variance) of the
-   eight inputs and of the output.
-2. **Intrinsic-dimension discovery.** A latent-bottleneck autoencoder is
+The seven mass quantities all carry the dimension [M L⁻³]; by the
+Buckingham-Pi theorem they reduce to six dimensionless ratios with respect
+to one reference quantity. Following Yeh (1998), the reference is the
+**total binder mass** `b = m_c + m_s + m_f`, and — per the convention
+reverse-engineered from Table&nbsp;7 of that paper — the superplasticizer
+dose is counted as water in the w/b numerator:
+
+| Feature | Definition |
+|---|---|
+| `π₁` | `w/b = (m_w + m_p) / b` |
+| `π₂` | `m_f / b` (fly-ash replacement fraction) |
+| `π₃` | `m_s / b` (slag replacement fraction) |
+| `π₄` | `m_p / b` (superplasticizer dosage) |
+| `π₅` | `m_{ca} / b` |
+| `π₆` | `m_{fa} / b` |
+| `π₇` | `ln(t / 28 d)` (dimensionless age) |
+
+Age carries the only [T] dimension among the inputs and cannot be
+non-dimensionalized against other columns; it is referenced to the
+industry-standard 28-day curing age. The logarithm is applied to the age
+ratio only: it symmetrizes the heavily skewed 1–365-day range around
+`π₇ = 0` at 28 days and matches the logarithmic age kinetics of the
+baseline model. The strength is left untransformed.
+
+### 3.2 Baseline and target
+
+Yeh (1998) fitted the regression `f′c = a·(w/b)^β·(c·ln t + d)` to his
+database; averaging the coefficients of the four random-split experiments
+(Table&nbsp;6, rows R1–R4) gives the frozen baseline
+
+```
+σ_ideal = 13.83 · (w/b)^(−1.269) · (0.268·ln t + 0.136)   [MPa, t in days]
+```
+
+The learning target is the **dimensionless strength residual**
+
+```
+y = σ_c / σ_ideal
+```
+
+Because `σ_ideal` already carries the dominant w/b and age effects, the
+pipeline models only the residual chemistry (SCM substitution,
+superplasticizer, aggregates). The coefficients come from the 1998
+publication, not from this dataset, so no train/test leakage is possible.
+
+On the full 1030-row dataset the frozen baseline alone achieves
+**R² = 0.762** (the paper reports ≈0.77 on its 727 records), and the
+residual is well-centred: `mean(σ_c/σ_ideal) = 0.971 ± 0.233`.
+
+## 4. Methodology
+
+The pipeline implements six sequential stages:
+
+1. **Non-dimensionalization.** Construction of `π₁ … π₇` and
+   `y = σ_c/σ_ideal` as defined in Section 3.
+2. **Normalization.** Standard scaling (zero mean, unit variance) of the
+   seven dimensionless features and of the residual target.
+3. **Intrinsic-dimension discovery.** A latent-bottleneck autoencoder is
    trained for `k ∈ {1, 2, 3, 4}`. The encoder is a multilayer perceptron
    with hidden widths `[64, 32]` and `Tanh` activations operating on the
-   raw standardised inputs (`raw_input=True`, no `[X, X², log|X|]`
+   raw standardised features (`raw_input=True`, no `[X, X², log|X|]`
    augmentation); the decoder is a paired MLP of matching capacity. Each
    `k` is repeated over `n_restarts = 3` random seeds and 600 epochs, and
    the latent dimension minimising the held-out reconstruction MSE is
    selected.
-3. **Symmetry-type identification.** Three competing encoder families are
-   trained against the Step&nbsp;2 decoder:
-   - **Translational:** `z = W x`,
-   - **Scaling:** `z = W · log|x|`,
-   - **Rotational:** `z = W · ½ x⊙x` (quadratic).
+4. **Symmetry-type identification.** Three competing encoder families are
+   trained against the Step&nbsp;3 decoder:
+   - **Translational:** `z = W π`,
+   - **Scaling:** `z = W · log|π|`,
+   - **Rotational:** `z = W · ½ π⊙π` (quadratic).
 
    Each is trained for 1500 epochs with `n_restarts = 3`. The candidate
    with the lowest held-out MSE is declared the winner.
-4. **Generator extraction.** For the translational winner, the Lie-algebra
-   generators are the null-space basis of `W`: any vector `g` with `W g = 0`
-   defines an infinitesimal shift `x → x + ε g` that preserves `σ_c`.
-5. **Physical interpretation.** Each generator is rendered as a signed
-   list of mix components, identifying the substitution it represents
-   (e.g. "increase superplasticizer while decreasing fly ash").
+5. **Generator extraction.** For the translational winner, the Lie-algebra
+   generators are the null-space basis of `W`: any vector `g` with
+   `W g = 0` defines an infinitesimal shift `π → π + ε g` that preserves
+   the strength residual.
+6. **Physical interpretation.** Each generator is rendered as a signed
+   list of mix ratios, identifying the substitution it represents.
 
 All randomness is seeded (`seed = 42`); the complete configuration is
-captured in `output_concrete_symmetry/run.log`.
+captured in `output_concrete_dimensionless/run.log`.
 
-## 4. Results
+## 5. Results
 
-### 4.1 Latent dimension
+### 5.1 Latent dimension
 
-The intrinsic latent dimension is `k = 2`. The held-out coefficient of
-determination peaks at `R² = 0.892` for `k = 2` and degrades slightly
-for both lower and higher `k`:
+The intrinsic latent dimension of the residual is `k = 4`:
 
 | `k` | `R²_train` | `R²_test` | MSE |
 |---|---|---|---|
-| 1 | 0.952 | 0.879 | 0.1123 |
-| 2 | 0.953 | **0.892** | **0.0999** |
-| 3 | 0.959 | 0.885 | 0.1066 |
-| 4 | 0.957 | 0.875 | 0.1157 |
+| 1 | 0.729 | 0.488 | 0.4645 |
+| 2 | 0.747 | 0.505 | 0.4493 |
+| 3 | 0.738 | 0.545 | 0.4134 |
+| 4 | 0.749 | **0.556** | **0.4032** |
 
-### 4.2 Symmetry type
+The R² values refer to the *residual* `σ_c/σ_ideal`, i.e. to the variance
+left over after the analytic baseline has removed the dominant w/b and
+age effects.
 
-Competitive training cleanly selects the translational candidate:
+### 5.2 Symmetry type
+
+Competitive training selects the translational candidate:
 
 | Symmetry candidate | Held-out MSE |
 |---|---|
-| **translational** | **0.1514** |
-| scaling | 0.4993 |
-| rotational | 0.6206 |
+| **translational** | **0.3079** |
+| rotational | 0.5985 |
+| scaling | 0.6380 |
 
-The translational candidate beats the second-best (scaling) candidate by a
-factor of **3.3&times;** in validation MSE, confirming that the governing
-combination of inputs is additive rather than multiplicative.
+The translational candidate beats the second-best (rotational) candidate
+by a factor of **1.9×** in validation MSE: the strength residual is
+additive in the binder-referenced mix ratios.
 
-### 4.3 Generators
+### 5.3 Generators
 
-With `n = 8` inputs and `k = 2` latent directions, there are
-`n − k = 6` independent translational generators. The dominant components
-of each are listed below (only `|g_j| > 0.05` shown):
+With `n = 7` dimensionless features and `k = 4` latent directions, there
+are `n − k = 3` independent translational generators (components with
+`|g_j| > 0.05` shown):
 
 | Generator | Dominant components | Physical reading |
 |---|---|---|
-| `g₁` | Fly Ash (+0.99), Cement (−0.08), Age (−0.06), Slag (−0.06) | Replace cement with fly ash at fixed strength |
-| `g₂` | Water (+0.85), Slag (+0.48), Superplast. (+0.18), Age (−0.08) | Co-vary water and slag while reducing age |
-| `g₃` | Superplast. (+0.80), Slag (−0.55), Water (+0.18), Cement (−0.07) | Replace slag/cement with superplasticizer + water |
-| `g₄` | Coarse Agg. (+0.96), Slag (+0.22), Age (−0.10), Water (−0.08) | Replace water/age with coarse aggregate + slag |
-| `g₅` | Fine Agg. (+0.93), Slag (+0.31), Superplast. (+0.13), Age (−0.12) | Replace water/age with fine aggregate + slag |
-| `g₆` | Cement (−0.79), Slag (+0.39), Superplast. (+0.27), Water (−0.24) | Replace cement + water with slag + superplasticizer |
+| `g₁` | Slag/b (+0.62), SP/b (+0.49), CoarseAgg/b (+0.42), FlyAsh/b (−0.29), ln(t/28) (+0.25), FineAgg/b (−0.22) | Replace fly ash and fine aggregate with slag, superplasticizer, and coarse aggregate at longer curing |
+| `g₂` | FineAgg/b (+0.75), SP/b (+0.61), CoarseAgg/b (−0.24) | Exchange coarse for fine aggregate with added superplasticizer |
+| `g₃` | w/b (−0.56), FlyAsh/b (+0.44), Slag/b (−0.47), SP/b (+0.30), CoarseAgg/b (+0.33), ln(t/28) (+0.25) | Trade lower w/b and slag against fly ash, superplasticizer, and curing age |
 
-Each generator is a constant-strength direction in mix-design space:
+Each generator is a constant-residual direction in mix-ratio space:
 moving the composition along `g_i` (within physical limits) leaves the
-predicted compressive strength unchanged.
+predicted strength residual `σ_c/σ_ideal` unchanged.
 
-### 4.4 Figure
+### 5.4 Figure
 
-`output_concrete_symmetry/concrete_symmetry_discovery.png` reports:
-(left) the learned latent embedding coloured by `σ_c`, showing a clear
-strength gradient along the first latent direction; (right) the
-validation-MSE bar chart of the three competing symmetry candidates.
+`output_concrete_dimensionless/concrete_symmetry_dimensionless.png`
+reports: (left) measured strength against the Yeh baseline `σ_ideal`
+with the 1:1 line (R² = 0.762); (centre) the learned latent embedding
+coloured by the strength residual; (right) the validation-MSE bar chart
+of the three competing symmetry candidates.
 
-## 5. Reproducibility
+## 6. Reproducibility
 
 ### Environment
 
 ```bash
-pip install torch numpy matplotlib pandas openpyxl xlrd
+pip install torch numpy scipy matplotlib pandas openpyxl xlrd
 ```
 
 ### Data
@@ -154,7 +210,7 @@ Download the UCI Concrete Compressive Strength dataset
 ### Reproduce the reported results
 
 ```bash
-python discover_symmetry.py \
+python discover_symmetry_dimensionless.py \
     --data Concrete_Data.xls \
     --seed 42 \
     --latent-epochs 600 \
@@ -162,81 +218,30 @@ python discover_symmetry.py \
     --n-restarts 3
 ```
 
-The script defaults to `--encoder-hidden 64 32` and `raw_input=True`
-(no `[X, X², log|X|]` augmentation at Step 2), so no extra flags are
-required.
+The script defaults to `--encoder-hidden 64 32` and `raw_input=True`, so
+no extra flags are required.
 
-Output is written to `output_concrete_symmetry/`:
+Output is written to `output_concrete_dimensionless/`:
 
-- `concrete_symmetry_discovery.png` — two-panel summary figure.
-- `run.log` — full console transcript (config, per-`k` metrics, symmetry
-  losses, generator decomposition).
+- `concrete_symmetry_dimensionless.png` — three-panel summary figure.
+- `run.log` — full console transcript (config, baseline fit, per-`k`
+  metrics, symmetry losses, generator decomposition).
 
-A baseline run with a single-layer linear encoder is obtained by omitting
-`--encoder-hidden`.
+## 7. Discussion
 
-## 6. Discussion
-
-The translational fingerprint recovered here is consistent with the
-domain understanding that compressive strength is governed by
-*water-to-binder ratio* and *total binder mass*, both of which are linear
-combinations of the mix components. The multilayer encoder lifts the
-restrictive single-direction assumption of a linear encoder and resolves
-a two-dimensional latent manifold, while still preserving the
-translational character of the symmetry. Disabling the
-`[X, X², log|X|]` augmentation (`raw_input=True`) lets the MLP discover
-the correct nonlinear combinations on its own; the resulting six
-generators provide an interpretable, data-driven catalogue of
-strength-preserving mix substitutions that can guide constrained
-mix-design optimisation (e.g. supplementary cementitious material
-substitution at fixed target strength).
-
-## 7. Dimensionless (Buckingham-Pi) Variant
-
-`discover_symmetry_dimensionless.py` repeats the experiment on a
-non-dimensionalized representation instead of raw standardized kg/m³
-inputs. All seven mix quantities share the dimension [M L⁻³], so ratios
-by the total binder mass `b = cement + slag + fly ash` are dimensionless.
-Following Yeh (1998): Table 7 shows his w/b convention counts the
-superplasticizer dose as water, and Table 6 (random-split experiments
-R1–R4, averaged) provides a regression baseline used to form a residual
-target:
-
-- **Features:** `w/b = (water+SP)/b`, `flyash/b`, `slag/b`, `SP/b`,
-  `coarse/b`, `fine/b`, `ln(t/28 d)` — seven pure numbers. The log is
-  applied to the age ratio only (it symmetrizes the heavily skewed
-  1–365 day range and matches the log-law age kinetics in Yeh's model);
-  the strength is left untransformed.
-- **Baseline:** `σ_ideal = 13.83·(w/b)^(−1.269)·(0.268·ln t + 0.136)` MPa
-  (Yeh's published fitted form, kept verbatim).
-- **Target:** `y = σ_c / σ_ideal` — dimensionless strength residual,
-  no logarithm.
-
-### Results (seed 42, same pipeline settings as Section 5)
-
-| Quantity | Raw-input run (Sec. 4) | Dimensionless run |
-|---|---|---|
-| Target | standardized σ_c | σ_c/σ_ideal |
-| Yeh baseline R² (no ML) | — | **0.762** (paper: ≈0.77) |
-| Mean σ_c/σ_ideal | — | 0.971 ± 0.233 |
-| Optimal latent dim | 2 | 4 |
-| Held-out R² | 0.892 (of σ_c) | 0.556 (of the *residual*) |
-| Symmetry winner | translational (3.3×) | **translational (1.9×)** |
-| Generators | 6 | 3 |
-
-The translational fingerprint survives the change of coordinates: the
-strength residual is additive in the binder-referenced mix ratios. The
-R² values are not comparable across columns — the dimensionless run
-models only the variance *left over* after the analytic baseline has
-removed the dominant w/b and age effects. The three residual generators
-describe strength-preserving substitutions in ratio space, e.g.
-generator 3 trades w/b and slag against fly ash and age
-(`w/b: −0.56, slag/b: −0.47, flyash/b: +0.44, ln(t/28): +0.25`) and
-generator 2 exchanges coarse for fine aggregate with added
-superplasticizer (`fine/b: +0.75, SP/b: +0.61, coarse/b: −0.24`).
-
-Output is written to `output_concrete_dimensionless/`
-(`concrete_symmetry_dimensionless.png`, `run.log`).
+Non-dimensionalization factorizes the problem into a citable analytic
+baseline and a learned dimensionless correction. The binder-referenced
+ratios quotient out the overall "scale the whole mix" direction
+analytically, and the Yeh baseline removes the two dominant physical
+effects (w/b and age), so the network's entire capacity is spent on the
+residual chemistry. The translational fingerprint recovered on these
+coordinates confirms that the residual strength surface is governed by
+additive combinations of the mix ratios. The three generators provide an
+interpretable, data-driven catalogue of strength-preserving mix
+substitutions — e.g. supplementary-cementitious-material exchange
+(`g₃`: fly ash for slag at reduced w/b) or aggregate grading shifts
+compensated by superplasticizer (`g₂`) — that can guide constrained
+mix-design optimisation at a fixed target strength.
 
 ## 8. References
 
