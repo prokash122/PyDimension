@@ -234,11 +234,6 @@ generator 3 trades w/b and slag against fly ash and age
 (`w/b: −0.56, slag/b: −0.47, flyash/b: +0.44, ln(t/28): +0.25`) and
 generator 2 exchanges coarse for fine aggregate with added
 superplasticizer (`fine/b: +0.75, SP/b: +0.61, coarse/b: −0.24`).
-Ablations on the same seed: an all-log variant (log target) reached
-residual R² 0.639 with a 1.7× margin, and a fully log-free variant
-(`t/28` raw) reached 0.555 with a 1.4× margin — the present
-configuration (log on the age ratio only) gives the widest symmetry
-margin of the three.
 
 Output is written to `output_concrete_dimensionless/`
 (`concrete_symmetry_dimensionless.png`, `run.log`).
