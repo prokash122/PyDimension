@@ -153,20 +153,18 @@ def main():
 
     for gi, ax in enumerate(axes):
         g = g_unit[gi]
-        # contrast: strength direction, from the weaker mix
-        pred_str = predict(X[idx_lo][None, :] + eps[:, None] * v1[None, :])
-        ax.plot(eps, pred_str, ls="--", lw=1.8, color=RED, alpha=0.9,
-                label="along strength direction" if gi == 0 else None)
-
+        chg = 0.0
         for name, idx, col in mixes:
-            pred = predict(X[idx][None, :] + eps[:, None] * g[None, :])
-            ax.plot(eps, pred, lw=3, color=col,
+            # solid: walk along the generator -> flat
+            pred_g = predict(X[idx][None, :] + eps[:, None] * g[None, :])
+            ax.plot(eps, pred_g, lw=3, color=col,
                     label=name if gi == 0 else None)
+            chg = max(chg, pred_g.max() - pred_g.min())
+            # dashed: walk along the strength direction -> bends
+            pred_s = predict(X[idx][None, :] + eps[:, None] * v1[None, :])
+            ax.plot(eps, pred_s, ls="--", lw=2, color=col, alpha=0.85)
             ax.scatter([0], [pred_all[idx]], color=col, marker="*", s=170,
                        zorder=6, edgecolors="white", linewidths=0.8)
-
-        rng = predict(X[idx_lo][None, :] + eps[:, None] * g[None, :])
-        chg = rng.max() - rng.min()
         ax.set_title(f"generator g{gi+1}\n{describe(g)}", fontsize=15)
         ax.text(0.5, 0.06, f"strength change along g{gi+1}: {chg:.0e}",
                 transform=ax.transAxes, ha="center", color=INK2, fontsize=13)
@@ -177,10 +175,17 @@ def main():
         for s in ("top", "right"):
             ax.spines[s].set_visible(False)
 
+    from matplotlib.lines import Line2D
+    handles = [
+        Line2D([0], [0], color=BLUE, lw=3, label="weaker real mix"),
+        Line2D([0], [0], color=BLUE_DK, lw=3, label="stronger real mix"),
+        Line2D([0], [0], color=INK2, lw=3, ls="-", label="along a generator (flat)"),
+        Line2D([0], [0], color=INK2, lw=2, ls="--", label="along strength direction"),
+    ]
     axes[0].set_ylabel("model-predicted strength\n(σc ÷ baseline)")
-    axes[0].set_ylim(0.3, 1.85)
-    axes[0].legend(loc="upper left", frameon=False, fontsize=14, ncol=1,
-                   handlelength=2.4, borderaxespad=0.3)
+    axes[0].set_ylim(0.3, 1.95)
+    axes[0].legend(handles=handles, loc="upper left", frameon=False,
+                   fontsize=13, ncol=1, handlelength=2.4, borderaxespad=0.3)
 
     fig.text(0.5, -0.02,
              "★ = a real mix from the dataset (ε=0).  Solid = walk along a generator (strength held).  "
