@@ -201,14 +201,18 @@ The simplest confirmation that the model embodies these generators
 (`output_keyhole_symmetry/generator_lines.png` / `.pdf`): take two real
 keyhole cases (a low-`e*` and a high-`e*` one), **rescale their Pi
 groups along each generator**, `πᵢ → πᵢ·exp(ε·gᵢ)`, and feed every
-rescaled point to the trained model. The four solid lines are **flat** —
-the predicted `e*` moves by ~10⁻⁶ (numerical zero) as the Pi groups are
-rescaled along a generator. For contrast, each panel also rescales along
-the **Ke direction** (dashed): `e*` then swings across the full 0–13
-range of the dataset. Because the scaling encoder computes
+rescaled point through the **genuine trained model end-to-end** —
+`e* = decoder(encoder(π))`, using the saved scaling encoder and its
+jointly trained decoder (`trained_model.pt`), no refit (the model
+reproduces measured `e*` at R² ≈ 0.98). The four solid lines are
+**flat** — the predicted `e*` moves by ~10⁻⁶ (numerical zero) as the Pi
+groups are rescaled along a generator. For contrast, each panel also
+rescales along the **Ke direction** (dashed): `e*` then swings across
+the full 0–13 range of the dataset. Because the scaling encoder computes
 `z = W·log(π)` with `W·g = 0`, the flatness is exact by construction —
-this is the model-side consistency check that the discovered scaling
-symmetry (the rediscovered keyhole number `Ke`) is faithfully
+the Pi values go straight into the real model and the output does not
+move. This is the model-side consistency check that the discovered
+scaling symmetry (the rediscovered keyhole number `Ke`) is faithfully
 represented. Run it after `discover_symmetry.py`:
 
 ```bash
@@ -227,7 +231,8 @@ All outputs go to `output_keyhole_symmetry/` (configurable via `--output-dir`).
 | `keyhole_symmetry_discovery.png` | 3-panel: Pi-collapse, symmetry-type bar chart, discovered iso-invariant orbits in log-space |
 | `keyhole_discovered_law_generators.png` | 4-panel (Pi space): discovered `W` vs known Ke Pi-exponents `[0.5, 1, 1]`, `e*` collapse onto the discovered latent, heatmap of the 2 null-space generators, and orbit-invariance check (`z` exactly flat, textbook `Ke` drift < 3%) |
 | `generator_lines.png` / `.pdf` | Two real cases rescaled along each generator: four flat `e*` lines (change ~10⁻⁶) vs the bending Ke-direction contrast |
-| `pipeline_artifacts.npz` | Centred Pi values, `e*`, `Ke`, encoder `W`, generators, and Ke exponents (input to `plot_generator_lines.py`) |
+| `pipeline_artifacts.npz` | Centred Pi values, `e*`, `Ke`, encoder `W`, generators, Ke exponents, and the `e*` min-max scaling (input to `plot_generator_lines.py`) |
+| `trained_model.pt` | The genuine trained model: winning scaling encoder + its jointly trained decoder (used end-to-end by `plot_generator_lines.py`) |
 | `_da_repo/dimension_matrix.csv` | Explicit dimension matrix fed to `DataPreprocessor` |
 | `_da_repo/basis_vectors.csv` | Integer Pi-group exponent vectors |
 

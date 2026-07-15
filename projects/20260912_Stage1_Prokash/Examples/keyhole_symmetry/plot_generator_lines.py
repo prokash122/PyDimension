@@ -14,13 +14,19 @@ generator. For contrast, each panel also rescales along the Ke direction
 (the physics direction the model IS sensitive to); those dashed lines
 bend sharply.
 
+This uses the GENUINE trained model saved by discover_symmetry.py
+(trained_model.pt: the winning scaling encoder + its jointly trained
+decoder) -- no refit. The prediction is
+    e* = inverse_minmax( decoder(encoder(Pi)) ),
+i.e. the Pi values go straight into the model and e* comes out.
+
 Note on interpretation
 ----------------------
 The scaling encoder computes z = W * log(Pi), and each generator
-satisfies W * g = 0, so f(W*log(Pi)) cannot see a move along g -- the
-flat lines are exact by construction. This confirms the trained model
-embodies the discovered scaling symmetry (the rediscovered keyhole
-number Ke); it is the model-side consistency check.
+satisfies W * g = 0, so decoder(encoder(Pi)) cannot see a move along g
+-- the flat lines are exact by construction. This confirms the trained
+model embodies the discovered scaling symmetry (the rediscovered
+keyhole number Ke); it is the model-side consistency check.
 
 Usage
 -----
@@ -28,11 +34,21 @@ Usage
 """
 
 import os
+import sys
 import argparse
 
 import numpy as np
 import torch
 import torch.nn as nn
+
+# Make the Stage1 package importable so torch.load can unpickle SymmetryEncoder.
+_here0 = os.path.dirname(os.path.abspath(__file__))
+for _c in [os.path.join(_here0, "..", ".."),
+           os.path.join(_here0, "..", "..", "projects", "20260912_Stage1_Prokash")]:
+    _c = os.path.abspath(_c)
+    if os.path.isdir(os.path.join(_c, "symmetry_discovery")):
+        sys.path.insert(0, _c)
+        break
 
 try:
     import matplotlib
@@ -68,31 +84,6 @@ plt.rcParams.update({
 _here = os.path.dirname(os.path.abspath(__file__))
 
 
-def fit_head(z, y, seed=0):
-    """Refit the decoder head f(z) -> e* on the frozen latent z = W*log(Pi)."""
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    model = nn.Sequential(
-        nn.Linear(z.shape[1], 64), nn.Tanh(),
-        nn.Linear(64, 64), nn.Tanh(),
-        nn.Linear(64, 1),
-    )
-    zt = torch.tensor(z, dtype=torch.float32)
-    yt = torch.tensor(y, dtype=torch.float32).unsqueeze(1)
-    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
-    loss_fn = nn.MSELoss()
-    for _ in range(4000):
-        opt.zero_grad()
-        loss_fn(model(zt), yt).backward()
-        opt.step()
-    model.eval()
-    with torch.no_grad():
-        pred = model(zt).numpy().ravel()
-    r2 = 1 - np.sum((y - pred) ** 2) / np.sum((y - y.mean()) ** 2)
-    print(f"Decoder head refit on frozen z: R2 = {r2:.4f}")
-    return model
-
-
 def describe(g, names):
     order = np.argsort(np.abs(g))[::-1]
     up = [names[j] for j in order if g[j] > 0.15]
@@ -119,23 +110,33 @@ def main():
     data = np.load(path, allow_pickle=True)
     pi = data["pi_centred"]                 # (n, 3) centred Pi values
     y = data["y"]                           # measured e*
-    W = data["W"]                           # (1, 3) scaling encoder
     gens = np.array(data["generators"])     # (2, 3) log-Pi directions
     ke = np.asarray(data["ke_pi_coords"], dtype=float)   # [0.5, 1, 1]
     names = [str(s) for s in data["pi_names"]]
+    y_min = float(np.asarray(data["y_min"]).ravel()[0])
+    y_range = float(np.asarray(data["y_range"]).ravel()[0])
 
-    logpi = np.log(pi)                       # scaling encoder sees log-Pi
-    head = fit_head(logpi @ W.T, y)
+    # Load the GENUINE trained model (scaling encoder + its decoder).
+    model_path = os.path.join(os.path.dirname(path), "trained_model.pt")
+    ckpt = torch.load(model_path, weights_only=False, map_location="cpu")
+    encoder = ckpt["encoder"].cpu().eval()
+    decoder = ckpt["decoder"].cpu().eval()
 
-    def predict(logpi_q):
+    def predict(pi_q):
+        """Feed centred Pi values straight through the real model -> e*."""
         with torch.no_grad():
-            z = torch.tensor(logpi_q @ W.T, dtype=torch.float32)
-            return head(z).numpy().ravel()
+            x = torch.tensor(np.asarray(pi_q), dtype=torch.float32)
+            y_norm = decoder(encoder(x)).numpy().ravel()
+        return y_norm * y_range + y_min      # invert minmax -> e*
+
+    # sanity: the model reproduces measured e*
+    r2 = 1 - np.sum((y - predict(pi)) ** 2) / np.sum((y - y.mean()) ** 2)
+    print(f"Genuine trained model on data: R2 = {r2:.4f}")
 
     g_unit = gens / np.linalg.norm(gens, axis=1, keepdims=True)
     ke_unit = ke / np.linalg.norm(ke)        # physics (Ke) direction, output changes
 
-    pred_all = predict(logpi)
+    pred_all = predict(pi)
     order = np.argsort(pred_all)
     idx_lo = order[int(len(order) * 0.15)]
     idx_hi = order[int(len(order) * 0.85)]
@@ -152,13 +153,13 @@ def main():
         g = g_unit[gi]
         chg = 0.0
         for name, idx, col in mixes:
-            # solid: rescale along the generator -> flat
-            path_g = logpi[idx][None, :] + eps[:, None] * g[None, :]
+            # solid: rescale Pi groups along the generator, Pi -> Pi*exp(eps*g) -> flat
+            path_g = pi[idx][None, :] * np.exp(eps[:, None] * g[None, :])
             pred_g = predict(path_g)
             ax.plot(eps, pred_g, lw=3, color=col)
             chg = max(chg, pred_g.max() - pred_g.min())
             # dashed: rescale along the Ke (physics) direction -> bends
-            path_k = logpi[idx][None, :] + eps[:, None] * ke_unit[None, :]
+            path_k = pi[idx][None, :] * np.exp(eps[:, None] * ke_unit[None, :])
             ax.plot(eps, predict(path_k), ls="--", lw=2, color=col, alpha=0.85)
             ax.scatter([0], [pred_all[idx]], color=col, marker="*", s=170,
                        zorder=6, edgecolors="white", linewidths=0.8)

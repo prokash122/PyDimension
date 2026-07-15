@@ -842,6 +842,7 @@ def main():
     # Save artifacts for downstream generator plots (mirrors the concrete example).
     if args.pi_only and results["winner_type"] == "scaling":
         os.makedirs(args.output_dir, exist_ok=True)
+        scaler_y = results["normalization"]["scaler_y"]
         np.savez(
             os.path.join(args.output_dir, "pipeline_artifacts.npz"),
             pi_centred=results["X_step3"],           # (n, n_pi) centred Pi values
@@ -851,8 +852,23 @@ def main():
             generators=np.array(results["generators"]),  # (n_pi - n_latent, n_pi), log-Pi
             ke_pi_coords=np.asarray(results["ke_pi_coords"], dtype=float),
             pi_names=np.array(results["feature_names_step3"]),
+            # y minmax-normalization, to invert the decoder output back to e*
+            y_min=np.asarray(getattr(scaler_y, "min_", 0.0), dtype=float),
+            y_range=np.asarray(getattr(scaler_y, "range_", 1.0), dtype=float),
+        )
+        # Save the GENUINE trained model: winning scaling encoder + its jointly
+        # trained decoder, so downstream plots run the real model end-to-end.
+        winner = results["winner_type"]
+        torch.save(
+            {
+                "encoder": results["symmetry"]["encoders"][winner],
+                "decoder": results["symmetry"]["decoders"][winner],
+                "symmetry_type": winner,
+            },
+            os.path.join(args.output_dir, "trained_model.pt"),
         )
         print(f"Artifacts saved to {args.output_dir}/pipeline_artifacts.npz")
+        print(f"Trained model saved to {args.output_dir}/trained_model.pt")
 
     print("=" * 60)
     print("Creating visualizations")

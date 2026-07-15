@@ -196,10 +196,12 @@ def identify_symmetry(
     sym_types = ("translational", "rotational", "scaling")
     best_losses   = {}
     best_encoders = {}
+    best_decoders = {}
 
     for sym_type in sym_types:
         best_loss    = np.inf
         best_encoder = None
+        best_decoder = None
 
         for restart in range(n_restarts):
             torch.manual_seed(seed + hash(sym_type) % 1000 + restart * 37)
@@ -216,9 +218,11 @@ def identify_symmetry(
             if val_loss < best_loss:
                 best_loss    = val_loss
                 best_encoder = enc
+                best_decoder = dec
 
         best_losses[sym_type]   = best_loss
         best_encoders[sym_type] = best_encoder
+        best_decoders[sym_type] = best_decoder
 
     # Winner = lowest validation MSE
     winner = min(best_losses, key=lambda t: best_losses[t])
@@ -228,4 +232,7 @@ def identify_symmetry(
         "coefficients":  best_encoders[winner].coefficients,
         "losses":        best_losses,
         "encoders":      best_encoders,
+        # The decoder jointly trained with each best encoder. Paired with the
+        # matching encoder it forms the full trained model decoder(encoder(X)).
+        "decoders":      best_decoders,
     }
