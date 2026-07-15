@@ -28,9 +28,18 @@ Usage
 import os
 import argparse
 
+import sys
 import numpy as np
 import torch
-import torch.nn as nn
+
+# Make the Stage1 package importable so torch.load can unpickle SymmetryEncoder.
+_here0 = os.path.dirname(os.path.abspath(__file__))
+for _c in [os.path.join(_here0, "..", ".."),
+           os.path.join(_here0, "..", "..", "projects", "20260912_Stage1_Prokash")]:
+    _c = os.path.abspath(_c)
+    if os.path.isdir(os.path.join(_c, "symmetry_discovery")):
+        sys.path.insert(0, _c)
+        break
 
 try:
     import matplotlib
@@ -70,30 +79,6 @@ PI_LABELS = ["cement/binder-side w/b", "fly ash", "slag", "superplasticizer",
 SHORT = ["w/b", "fly ash", "slag", "SP", "coarse agg", "fine agg", "age"]
 
 
-def fit_head(z, y, seed=0):
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    model = nn.Sequential(
-        nn.Linear(z.shape[1], 64), nn.Tanh(),
-        nn.Linear(64, 64), nn.Tanh(),
-        nn.Linear(64, 1),
-    )
-    zt = torch.tensor(z, dtype=torch.float32)
-    yt = torch.tensor(y, dtype=torch.float32).unsqueeze(1)
-    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
-    loss_fn = nn.MSELoss()
-    for _ in range(3000):
-        opt.zero_grad()
-        loss_fn(model(zt), yt).backward()
-        opt.step()
-    model.eval()
-    with torch.no_grad():
-        pred = model(zt).numpy().ravel()
-    r2 = 1 - np.sum((y - pred) ** 2) / np.sum((y - y.mean()) ** 2)
-    print(f"Decoder head refit on frozen z: R2 = {r2:.4f}")
-    return model
-
-
 def describe(g):
     """Plain-words summary of a generator's biggest moves."""
     order = np.argsort(np.abs(g))[::-1]
@@ -123,12 +108,24 @@ def main():
     y = data["y"]
     W = data["W"]
     gens = data["generators"]
+    y_mean = float(np.asarray(data["y_mean"]).ravel()[0])
+    y_std = float(np.asarray(data["y_std"]).ravel()[0])
 
-    head = fit_head(X @ W.T, y)
+    # Load the GENUINE trained model (translational encoder + its decoder).
+    model_path = os.path.join(os.path.dirname(path), "trained_model.pt")
+    ckpt = torch.load(model_path, weights_only=False, map_location="cpu")
+    encoder = ckpt["encoder"].cpu().eval()
+    decoder = ckpt["decoder"].cpu().eval()
 
     def predict(Xq):
+        """Feed standardized Pi features straight through the real model -> sigma/sigma_ideal."""
         with torch.no_grad():
-            return head(torch.tensor(Xq @ W.T, dtype=torch.float32)).numpy().ravel()
+            x = torch.tensor(np.asarray(Xq), dtype=torch.float32)
+            y_norm = decoder(encoder(x)).numpy().ravel()
+        return y_norm * y_std + y_mean      # invert standard-scaler -> residual
+
+    r2 = 1 - np.sum((y - predict(X)) ** 2) / np.sum((y - y.mean()) ** 2)
+    print(f"Genuine trained model on data: R2 = {r2:.4f}")
 
     g_unit = gens / np.linalg.norm(gens, axis=1, keepdims=True)
     _, _, Vt = np.linalg.svd(W)

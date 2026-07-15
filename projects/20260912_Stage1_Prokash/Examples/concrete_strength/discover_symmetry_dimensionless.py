@@ -341,6 +341,7 @@ def main():
     results = run_pipeline(Pi, y, args)
 
     os.makedirs(args.output_dir, exist_ok=True)
+    scaler_y = results["normalization"]["scaler_y"]
     np.savez(
         os.path.join(args.output_dir, "pipeline_artifacts.npz"),
         Pi=Pi, y=y, sigma=sigma, sigma_ideal=sigma_ideal,
@@ -348,8 +349,24 @@ def main():
         W=results["W"],
         generators=np.array(results["generators"]),
         pi_names=np.array(PI_NAMES),
+        # standard-scaler of the residual target y, to invert decoder output
+        y_mean=np.asarray(getattr(scaler_y, "mean_", 0.0), dtype=float),
+        y_std=np.asarray(getattr(scaler_y, "std_", 1.0), dtype=float),
+    )
+    # Save the GENUINE trained model: winning translational encoder + its
+    # jointly trained decoder, so downstream plots run the real model end-to-end.
+    winner = results["symmetry"]["symmetry_type"]
+    import torch
+    torch.save(
+        {
+            "encoder": results["symmetry"]["encoders"][winner],
+            "decoder": results["symmetry"]["decoders"][winner],
+            "symmetry_type": winner,
+        },
+        os.path.join(args.output_dir, "trained_model.pt"),
     )
     print(f"Artifacts saved to {args.output_dir}/pipeline_artifacts.npz")
+    print(f"Trained model saved to {args.output_dir}/trained_model.pt")
 
     print("=" * 60)
     print("Creating visualizations")
