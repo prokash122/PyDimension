@@ -329,6 +329,52 @@ Install with `pip install -r requirements.txt` from the repo root.
 
 ---
 
+## Full-Range Extension: Viscous + Inertial (`dataset_combined_ergun.csv`)
+
+The committed LBM data only probes the **viscous** branch (Re_p < 1e-3), so
+the inertial Forchheimer term (1.75) is invisible. To test what the pipeline
+does when the data spans **both** Ergun terms, `generate_combined_dataset.py`
+adds 144 **synthetic inertial-regime** rows (Re_p ≈ 10 – 1e4) drawn from the
+same *effective* two-term Ergun law fit to the LBM data
+(`A_eff ≈ 97.5 ≈ 0.65·150`, inertial constant scaled by the same factor,
+`B_eff ≈ 1.14`), with 5 % multiplicative noise and physically self-consistent
+six-input rows. Combined with the 144 real LBM rows this gives a 288-row set
+spanning the full curve; `plot_full_ergun_range.py` shows both datasets on the
+single collapse curve `Y = A_eff/X + B_eff` (`combined_ergun_full_range.png`).
+
+Running the pipeline on the combined set (`--output-dir output_porous_combined`)
+gives a physically telling result:
+
+| Quantity | LBM only (viscous) | Combined (viscous + inertial) |
+|---|---|---|
+| Symmetry winner | scaling | scaling (nominal) |
+| **Validation-MSE gap** | **3.7×** (clean) | **1.0×** (tied with translational) |
+| scaling / transl. / rot. MSE | 0.0005 / 0.0018 / 0.0030 | 0.0031 / 0.0032 / 0.0036 |
+
+The clean scaling symmetry **collapses** once the inertial branch is added.
+This is the correct physics: a single power law (`f ∝ 1/Re_p`, deep Darcy) is
+scale-invariant, but the **sum of two power laws** (`f = A/Re_p + B` in
+collapse coordinates) is *not* — no global rescaling of `(Re_p, φ)` preserves
+`f` across both regimes. The pipeline honestly signals this by the margin
+dropping from 3.7× to ~1.0× (scaling barely edges translational, and its own
+residual worsens 6×, 0.0005 → 0.0031). The lone recovered generator
+(`Re_p·exp(−0.92ε), φ·exp(+0.38ε)`) still aligns with the Darcy scaling
+(cos ≈ −0.98) but no longer holds the friction factor invariant on the
+inertial plateau. Takeaway: the method cleanly identifies a scaling symmetry
+**only within a single power-law regime**; spanning a crossover correctly
+reads out as "no clean symmetry."
+
+Reproduce:
+
+```bash
+python generate_combined_dataset.py
+python plot_full_ergun_range.py
+python discover_symmetry.py --data dataset_combined_ergun.csv \
+    --seed 42 --output-dir output_porous_combined
+```
+
+---
+
 ## Future Work
 
 1. **Add particle-size variation** — re-run LBM with r ∈ {4, 6, 8} to fully
