@@ -13,7 +13,7 @@ total binder mass b = cement + slag + fly ash are dimensionless:
     pi_4 = superplasticizer / b
     pi_5 = coarse_aggregate / b
     pi_6 = fine_aggregate / b
-    pi_7 = ln(t / 28 days)                  (dimensionless age)
+    pi_7 = t / 28 days                      (dimensionless age)
 
 The target is the residual strength ratio against Yeh's regression
 baseline (Table 6, average of random-split experiments R1-R4):
@@ -21,7 +21,7 @@ baseline (Table 6, average of random-split experiments R1-R4):
     sigma_ideal = a * (w/b)^b_exp * (c*ln(t) + d)     [MPa, t in days]
     a = 13.83, b_exp = -1.269, c = 0.268, d = 0.136
 
-    y = log(sigma / sigma_ideal)   (dimensionless "strength efficiency")
+    y = sigma / sigma_ideal        (dimensionless "strength efficiency")
 
 Because sigma_ideal already carries the dominant w/b and age effects,
 the ML pipeline only has to model the residual chemistry (SCM
@@ -93,7 +93,7 @@ T_REF = 28.0        # days
 
 PI_NAMES = [
     "w/b", "FlyAsh/b", "Slag/b", "SP/b",
-    "CoarseAgg/b", "FineAgg/b", "ln(t/28)",
+    "CoarseAgg/b", "FineAgg/b", "t/28",
 ]
 
 
@@ -121,7 +121,7 @@ def load_raw_data(path: str):
 def make_dimensionless(X_raw, sigma):
     """Buckingham-Pi features and Yeh-residual target.
 
-    Returns Pi (n, 7), y = log(sigma/sigma_ideal), and sigma_ideal.
+    Returns Pi (n, 7), y = sigma/sigma_ideal, and sigma_ideal.
     """
     cement, slag, flyash, water, sp, ca, fa, age = X_raw.T
     binder = cement + slag + flyash
@@ -134,11 +134,11 @@ def make_dimensionless(X_raw, sigma):
         sp / binder,
         ca / binder,
         fa / binder,
-        np.log(age / T_REF),
+        age / T_REF,
     ])
 
     sigma_ideal = YEH_A * wb**YEH_B * (YEH_C * np.log(age) + YEH_D)
-    y = np.log(sigma / sigma_ideal)
+    y = sigma / sigma_ideal
     return Pi, y, sigma_ideal
 
 
@@ -266,12 +266,12 @@ def plot_results(sigma, sigma_ideal, y, results, output_dir):
         z1 = z.ravel()
         ax.scatter(z1, y, c="#4C72B0", s=12, alpha=0.5, edgecolors="none")
         ax.set_xlabel("z = W·π (learned latent variable)")
-        ax.set_ylabel(r"$y = \log(\sigma/\sigma_{ideal})$")
+        ax.set_ylabel(r"$y = \sigma/\sigma_{ideal}$")
         ax.set_title("Latent Variable vs Strength Residual")
     else:
         sc = ax.scatter(z[:, 0], z[:, 1], c=y, cmap="viridis", s=12, alpha=0.6)
         cbar = fig.colorbar(sc, ax=ax, pad=0.02)
-        cbar.set_label(r"$\log(\sigma/\sigma_{ideal})$", fontsize=15)
+        cbar.set_label(r"$\sigma/\sigma_{ideal}$", fontsize=15)
         cbar.ax.tick_params(labelsize=15)
         ax.set_xlabel("z₁")
         ax.set_ylabel("z₂")
@@ -331,9 +331,8 @@ def main():
     print(f"  sigma_ideal = {YEH_A}*(w/b)^({YEH_B})*({YEH_C}*ln(t)+{YEH_D})  [MPa]")
     r2_base = 1 - np.sum((sigma - sigma_ideal) ** 2) / np.sum((sigma - sigma.mean()) ** 2)
     print(f"  Yeh baseline alone: R2 = {r2_base:.4f} on all {len(sigma)} rows")
-    print(f"  Residual target y = log(sigma/sigma_ideal): "
-          f"mean={y.mean():+.4f}, std={y.std():.4f} "
-          f"(geometric mean sigma* = {np.exp(y.mean()):.3f})")
+    print(f"  Residual target y = sigma/sigma_ideal: "
+          f"mean={y.mean():.4f}, std={y.std():.4f}")
     print()
 
     results = run_pipeline(Pi, y, args)

@@ -203,34 +203,37 @@ R1–R4, averaged) provides a regression baseline used to form a residual
 target:
 
 - **Features:** `w/b = (water+SP)/b`, `flyash/b`, `slag/b`, `SP/b`,
-  `coarse/b`, `fine/b`, `ln(t/28 d)` — seven pure numbers.
-- **Baseline:** `σ_ideal = 13.83·(w/b)^(−1.269)·(0.268·ln t + 0.136)` MPa.
-- **Target:** `y = log(σ_c / σ_ideal)` — dimensionless strength residual.
+  `coarse/b`, `fine/b`, `t/28 d` — seven pure numbers, no transforms
+  beyond the ratios themselves.
+- **Baseline:** `σ_ideal = 13.83·(w/b)^(−1.269)·(0.268·ln t + 0.136)` MPa
+  (the `ln t` here is Yeh's published fitted form, kept verbatim).
+- **Target:** `y = σ_c / σ_ideal` — dimensionless strength residual.
 
 ### Results (seed 42, same pipeline settings as Section 5)
 
 | Quantity | Raw-input run (Sec. 4) | Dimensionless run |
 |---|---|---|
-| Target | standardized σ_c | log(σ_c/σ_ideal) |
+| Target | standardized σ_c | σ_c/σ_ideal |
 | Yeh baseline R² (no ML) | — | **0.762** (paper: ≈0.77) |
-| Geometric mean σ*/σ_ideal | — | 0.941 |
-| Optimal latent dim | 2 | 4 |
-| Held-out R² | 0.892 (of σ_c) | 0.639 (of the *residual*) |
-| Symmetry winner | translational (3.3×) | **translational (1.7×)** |
-| Generators | 6 | 3 |
+| Mean σ_c/σ_ideal | — | 0.971 ± 0.233 |
+| Optimal latent dim | 2 | 3 |
+| Held-out R² | 0.892 (of σ_c) | 0.555 (of the *residual*) |
+| Symmetry winner | translational (3.3×) | **translational (1.4×)** |
+| Generators | 6 | 4 |
 
 The translational fingerprint survives the change of coordinates: the
 strength residual is additive in the binder-referenced mix ratios. The
 R² values are not comparable across columns — the dimensionless run
 models only the variance *left over* after the analytic baseline has
-removed the dominant w/b and age effects. The three residual generators
+removed the dominant w/b and age effects. The four residual generators
 describe strength-preserving substitutions in ratio space, e.g.
-generator 3 trades slag fraction against curing age
-(`slag/b: +0.54, ln(t/28): +0.70`), consistent with the slower
-pozzolanic strength development of slag concretes. The latent dimension
-reaching the search maximum (k = 4, with R² still rising) indicates the
-residual chemistry is higher-dimensional than the raw strength surface —
-the baseline soaks up the easy 2-D structure and leaves the harder part.
+generator 2 trades w/b against slag fraction and age
+(`w/b: −0.78, slag/b: +0.36, t/28: +0.27`) and generator 4 exchanges
+slag for fly ash (`flyash/b: +0.55, slag/b: −0.70`). Note that the
+untransformed `t/28` feature is strongly right-skewed (0.036–13) and
+the raw ratio target compresses the low-strength end relative to a
+log residual, which lowers the residual R² and narrows the symmetry
+margin compared to a logarithmic variant of the same experiment.
 
 Output is written to `output_concrete_dimensionless/`
 (`concrete_symmetry_dimensionless.png`, `run.log`).
