@@ -13,9 +13,10 @@ published in the source paper (Yeh, 1998, Table&nbsp;6). The frozen baseline
 alone explains R²&nbsp;=&nbsp;0.762 of the strength variance; the pipeline
 then models the residual with a multilayer-perceptron autoencoder (hidden
 widths `[64, 32]`, `raw_input=True`). The intrinsic latent dimension is
-identified as `k = 4`, and competitive encoder training selects the
+identified as `k = 4` (an interior optimum of a search over
+`k ∈ {1, …, 6}`), and competitive encoder training selects the
 **translational** symmetry candidate with a **1.9×** validation-MSE gap over
-the next-best (rotational) candidate. Three independent Lie-algebra
+the next-best (scaling) candidate. Three independent Lie-algebra
 generators are extracted, each a physically interpretable
 strength-preserving substitution in mix-ratio space.
 
@@ -113,7 +114,9 @@ The pipeline implements six sequential stages:
 2. **Normalization.** Standard scaling (zero mean, unit variance) of the
    seven dimensionless features and of the residual target.
 3. **Intrinsic-dimension discovery.** A latent-bottleneck autoencoder is
-   trained for `k ∈ {1, 2, 3, 4}`. The encoder is a multilayer perceptron
+   trained for `k ∈ {1, …, 6}` (with seven features, `k` must stay below
+   7 for translational generators to remain). The encoder is a
+   multilayer perceptron
    with hidden widths `[64, 32]` and `Tanh` activations operating on the
    raw standardised features (`raw_input=True`, no `[X, X², log|X|]`
    augmentation); the decoder is a paired MLP of matching capacity. Each
@@ -142,7 +145,9 @@ captured in `output_concrete_dimensionless/run.log`.
 
 ### 5.1 Latent dimension
 
-The intrinsic latent dimension of the residual is `k = 4`:
+The intrinsic latent dimension of the residual is `k = 4` — an interior
+optimum: held-out performance improves monotonically up to `k = 4` and
+degrades for both `k = 5` and `k = 6`:
 
 | `k` | `R²_train` | `R²_test` | MSE |
 |---|---|---|---|
@@ -150,10 +155,13 @@ The intrinsic latent dimension of the residual is `k = 4`:
 | 2 | 0.747 | 0.505 | 0.4493 |
 | 3 | 0.738 | 0.545 | 0.4134 |
 | 4 | 0.749 | **0.556** | **0.4032** |
+| 5 | 0.765 | 0.526 | 0.4307 |
+| 6 | 0.751 | 0.464 | 0.4863 |
 
 The R² values refer to the *residual* `σ_c/σ_ideal`, i.e. to the variance
 left over after the analytic baseline has removed the dominant w/b and
-age effects.
+age effects. The widening train–test gap beyond `k = 4` indicates the
+extra latent directions fit noise rather than structure.
 
 ### 5.2 Symmetry type
 
@@ -161,11 +169,11 @@ Competitive training selects the translational candidate:
 
 | Symmetry candidate | Held-out MSE |
 |---|---|
-| **translational** | **0.3079** |
-| rotational | 0.5985 |
-| scaling | 0.6380 |
+| **translational** | **0.3147** |
+| scaling | 0.5875 |
+| rotational | 0.5959 |
 
-The translational candidate beats the second-best (rotational) candidate
+The translational candidate beats the second-best (scaling) candidate
 by a factor of **1.9×** in validation MSE: the strength residual is
 additive in the binder-referenced mix ratios.
 
@@ -177,9 +185,9 @@ are `n − k = 3` independent translational generators (components with
 
 | Generator | Dominant components | Physical reading |
 |---|---|---|
-| `g₁` | Slag/b (+0.62), SP/b (+0.49), CoarseAgg/b (+0.42), FlyAsh/b (−0.29), ln(t/28) (+0.25), FineAgg/b (−0.22) | Replace fly ash and fine aggregate with slag, superplasticizer, and coarse aggregate at longer curing |
-| `g₂` | FineAgg/b (+0.75), SP/b (+0.61), CoarseAgg/b (−0.24) | Exchange coarse for fine aggregate with added superplasticizer |
-| `g₃` | w/b (−0.56), FlyAsh/b (+0.44), Slag/b (−0.47), SP/b (+0.30), CoarseAgg/b (+0.33), ln(t/28) (+0.25) | Trade lower w/b and slag against fly ash, superplasticizer, and curing age |
+| `g₁` | CoarseAgg/b (+0.49), w/b (−0.49), ln(t/28) (+0.42), SP/b (+0.35), Slag/b (−0.28), FineAgg/b (−0.27), FlyAsh/b (+0.27) | Reduce w/b and slag while adding coarse aggregate, superplasticizer, fly ash, and curing time |
+| `g₂` | FineAgg/b (+0.78), SP/b (+0.50), Slag/b (−0.29), FlyAsh/b (+0.17), CoarseAgg/b (−0.16) | Exchange coarse aggregate and slag for fine aggregate with added superplasticizer |
+| `g₃` | Slag/b (+0.62), SP/b (+0.58), FlyAsh/b (−0.39), CoarseAgg/b (+0.28), w/b (+0.21), ln(t/28) (+0.11) | Replace fly ash with slag and superplasticizer, tolerating slightly higher w/b |
 
 Each generator is a constant-residual direction in mix-ratio space:
 moving the composition along `g_i` (within physical limits) leaves the
@@ -239,9 +247,9 @@ coordinates confirms that the residual strength surface is governed by
 additive combinations of the mix ratios. The three generators provide an
 interpretable, data-driven catalogue of strength-preserving mix
 substitutions — e.g. supplementary-cementitious-material exchange
-(`g₃`: fly ash for slag at reduced w/b) or aggregate grading shifts
-compensated by superplasticizer (`g₂`) — that can guide constrained
-mix-design optimisation at a fixed target strength.
+(`g₃`: slag and superplasticizer for fly ash) or aggregate grading
+shifts compensated by superplasticizer (`g₂`) — that can guide
+constrained mix-design optimisation at a fixed target strength.
 
 ## 8. References
 

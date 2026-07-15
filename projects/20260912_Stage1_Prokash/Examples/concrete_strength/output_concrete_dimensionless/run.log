@@ -28,15 +28,17 @@ Step 2: Discovering intrinsic latent dimension
     k=2: R2_train=0.7465, R2_test=0.5052, MSE=0.449324
     k=3: R2_train=0.7377, R2_test=0.5447, MSE=0.413393
     k=4: R2_train=0.7488, R2_test=0.5560, MSE=0.403157
+    k=5: R2_train=0.7649, R2_test=0.5256, MSE=0.430722
+    k=6: R2_train=0.7511, R2_test=0.4644, MSE=0.486289
 
 ============================================================
 Step 3: Identifying symmetry type
 ============================================================
 
   Detected symmetry: translational
-    translational  : 0.307864 <--
-    rotational     : 0.598517
-    scaling        : 0.638022
+    translational  : 0.314662 <--
+    scaling        : 0.587539
+    rotational     : 0.595932
   Loss gap: 1.9x
 
 ============================================================
@@ -51,9 +53,9 @@ Step 5: Physical interpretation of generators
   Each generator g shifts the dimensionless mix ratios,
   pi -> pi + eps*g, without changing the strength residual y.
 
-  Generator 1: [w/b: -0.079, FlyAsh/b: -0.294, Slag/b: +0.624, SP/b: +0.488, CoarseAgg/b: +0.415, FineAgg/b: -0.218, ln(t/28): +0.246]
-  Generator 2: [Slag/b: -0.059, SP/b: +0.612, CoarseAgg/b: -0.242, FineAgg/b: +0.748]
-  Generator 3: [w/b: -0.558, FlyAsh/b: +0.435, Slag/b: -0.467, SP/b: +0.299, CoarseAgg/b: +0.333, FineAgg/b: -0.144, ln(t/28): +0.245]
+  Generator 1: [w/b: -0.488, FlyAsh/b: +0.266, Slag/b: -0.277, SP/b: +0.346, CoarseAgg/b: +0.492, FineAgg/b: -0.273, ln(t/28): +0.421]
+  Generator 2: [FlyAsh/b: +0.170, Slag/b: -0.285, SP/b: +0.502, CoarseAgg/b: -0.160, FineAgg/b: +0.781]
+  Generator 3: [w/b: +0.212, FlyAsh/b: -0.394, Slag/b: +0.617, SP/b: +0.575, CoarseAgg/b: +0.278, ln(t/28): +0.109]
 
 ============================================================
 Creating visualizations

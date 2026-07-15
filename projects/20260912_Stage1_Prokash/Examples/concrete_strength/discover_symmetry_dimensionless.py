@@ -165,7 +165,7 @@ def run_pipeline(Pi, y, args):
     print(f"  Multi-layer encoder hidden dims: {args.encoder_hidden}")
 
     res_latent = discover_latent_dimension(
-        X_norm, y_norm, max_latent=4,
+        X_norm, y_norm, max_latent=args.max_latent,
         n_epochs=args.latent_epochs, n_restarts=args.n_restarts, seed=args.seed,
         **enc_kwargs)
     results["latent"] = res_latent
@@ -306,6 +306,9 @@ def main():
     parser.add_argument("--latent-epochs", type=int, default=600)
     parser.add_argument("--sym-epochs", type=int, default=1500)
     parser.add_argument("--n-restarts", type=int, default=3)
+    parser.add_argument("--max-latent", type=int, default=6,
+                        help="Largest latent dimension to test (must be < 7 "
+                             "so that translational generators remain)")
     parser.add_argument("--output-dir", default="output_concrete_dimensionless")
     parser.add_argument("--encoder-hidden", type=int, nargs="+", default=[64, 32])
     args = parser.parse_args()
