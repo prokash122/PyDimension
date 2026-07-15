@@ -2,15 +2,17 @@
 Build a combined porous-media dataset that spans the FULL Ergun curve:
 
   * the real LBM runs (deep Darcy / viscous branch, Re_p < 1e-3), plus
-  * synthetic INERTIAL-regime points (Re_p ~ 10 .. 1e4) generated from the
-    Ergun equation with multiplicative noise.
+  * synthetic points over the REST of the range (Re_p ~ 1e-3 .. 1e6),
+    generated from the TEXTBOOK Ergun equation with multiplicative noise.
 
-The synthetic points follow the SAME effective law as the LBM data: the
-LBM effective viscous constant A_eff (~0.66 * 150) is fit from the LBM
-rows, and the inertial constant is scaled by the same factor, so both
-datasets lie on one continuous curve
+The synthetic points use the textbook constants (150, 1.75):
 
-    Y = f * phi^3 / (1-phi) = A_eff / X + B_eff,   X = Re_p / (1-phi).
+    Y = f * phi^3 / (1-phi) = 150 / X + 1.75,   X = Re_p / (1-phi).
+
+Note: the real LBM data sits at an EFFECTIVE viscous constant
+A_eff ~ 0.65 * 150 (LBM gives ~35% lower drag), so on this plot the LBM
+points lie slightly BELOW the textbook viscous branch — they are the
+real measured data and are marked distinctly.
 
 Every synthetic row carries a physically self-consistent set of the six
 inputs (dP_L, v, mu, rho, d, phi) so the Stage1 dimensional-analysis
@@ -54,17 +56,20 @@ def main():
     Y = lbm["f"].to_numpy() * phi**3 / (1.0 - phi)
     A_eff = float(np.median(Y * X))          # effective viscous constant (~99)
     ratio = A_eff / A_VISC                    # ~0.66
-    B_eff = B_INER * ratio                    # scale inertial term the same way
     print(f"LBM effective viscous constant A_eff = {A_eff:.1f} "
           f"(textbook {A_VISC:.0f}, ratio {ratio:.3f})")
-    print(f"Effective inertial constant B_eff = {B_eff:.3f}")
+    print(f"Synthetic data uses TEXTBOOK Ergun constants ({A_VISC:.0f}, {B_INER})")
 
-    # --- synthetic inertial-regime rows ---
+    # --- synthetic rows spanning the REST of the curve ---
+    # LBM already covers Re_p ~ 1e-7 .. 1e-3 (viscous). We fill everything
+    # above that with a WIDE range: the transition knee (Re_p ~ 85) and the
+    # full inertial plateau, so the combined data covers the whole Ergun
+    # curve. Synthetic f uses the TEXTBOOK Ergun equation (150, 1.75).
     phis = sorted(lbm["phi"].round(6).unique())        # 6 porosities
     ds = sorted(lbm["d"].unique())                     # {6, 10}
     rho0 = 1.0
     mu0 = float(np.median(lbm["mu"]))                  # ~0.133 (LBM viscosity)
-    Re_grid = np.logspace(1.0, 4.0, 12)                # 10 .. 1e4  (inertial)
+    Re_grid = np.logspace(-3.0, 6.0, 30)               # 1e-3 .. 1e6 (wide: transition+inertial)
     noise_sigma = 0.05                                 # 5% multiplicative noise
 
     rows = []
@@ -73,7 +78,7 @@ def main():
             for Re0 in Re_grid:
                 Re = float(Re0 * np.exp(rng.normal(0.0, 0.03)))   # jitter Re
                 v = Re * mu0 / (rho0 * dv)
-                f_clean = ergun_f(Re, phv, A_eff, B_eff)
+                f_clean = ergun_f(Re, phv, A_VISC, B_INER)        # TEXTBOOK Ergun
                 f_val = float(f_clean * np.exp(rng.normal(0.0, noise_sigma)))
                 dP_L = f_val * rho0 * v**2 / dv
                 f_ergun_txt = (A_VISC * (1.0 - phv) / Re + B_INER) * (1.0 - phv) / phv**3
@@ -84,7 +89,7 @@ def main():
                     "d": dv, "phi": phv, "f": f_val, "Re_p": Re,
                     "f_ergun": f_ergun_txt,
                     "steps": 0, "converged": "TRUE", "stalled": "FALSE",
-                    "source": "synthetic_inertial",
+                    "source": "synthetic",
                 })
     syn = pd.DataFrame(rows)
 

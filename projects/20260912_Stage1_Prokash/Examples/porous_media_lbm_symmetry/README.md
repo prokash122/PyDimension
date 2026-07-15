@@ -333,45 +333,51 @@ Install with `pip install -r requirements.txt` from the repo root.
 
 The committed LBM data only probes the **viscous** branch (Re_p < 1e-3), so
 the inertial Forchheimer term (1.75) is invisible. To test what the pipeline
-does when the data spans **both** Ergun terms, `generate_combined_dataset.py`
-adds 144 **synthetic inertial-regime** rows (Re_p ≈ 10 – 1e4) drawn from the
-same *effective* two-term Ergun law fit to the LBM data
-(`A_eff ≈ 97.5 ≈ 0.65·150`, inertial constant scaled by the same factor,
-`B_eff ≈ 1.14`), with 5 % multiplicative noise and physically self-consistent
-six-input rows. Combined with the 144 real LBM rows this gives a 288-row set
-spanning the full curve; `plot_full_ergun_range.py` shows both datasets on the
-single collapse curve `Y = A_eff/X + B_eff` (`combined_ergun_full_range.png`).
+does when the data spans the **whole** Ergun curve,
+`generate_combined_dataset.py` fills every Re_p region the LBM data does not
+cover: it adds 360 **synthetic** rows over a wide range Re_p ≈ 1e-3 – 1e6
+(the transition knee at Re_p ≈ 85 *and* the full inertial plateau), drawn from
+the **textbook Ergun equation** (`150/X + 1.75`) with 5 % multiplicative noise
+and physically self-consistent six-input rows. Combined with the 144 real LBM
+rows this is a **504-row** set covering the full curve. `plot_full_ergun_range.py`
+draws the textbook master curve with the synthetic points on it and the **real
+LBM points marked distinctly** — the LBM data sits ~0.65× below the textbook
+viscous branch (`A_eff ≈ 97.5`, LBM gives ~35 % lower drag), so the offset is
+shown explicitly (`combined_ergun_full_range.png`).
 
-Running the pipeline on the combined set (`--output-dir output_porous_combined`)
-gives a physically telling result:
-
-| Quantity | LBM only (viscous) | Combined (viscous + inertial) |
-|---|---|---|
-| Symmetry winner | scaling | scaling (nominal) |
-| **Validation-MSE gap** | **3.7×** (clean) | **1.0×** (tied with translational) |
-| scaling / transl. / rot. MSE | 0.0005 / 0.0018 / 0.0030 | 0.0031 / 0.0032 / 0.0036 |
-
-The clean scaling symmetry **collapses** once the inertial branch is added.
-This is the correct physics: a single power law (`f ∝ 1/Re_p`, deep Darcy) is
-scale-invariant, but the **sum of two power laws** (`f = A/Re_p + B` in
-collapse coordinates) is *not* — no global rescaling of `(Re_p, φ)` preserves
-`f` across both regimes. The pipeline honestly signals this by the margin
-dropping from 3.7× to ~1.0× (scaling barely edges translational, and its own
-residual worsens 6×, 0.0005 → 0.0031). The lone recovered generator
-(`Re_p·exp(−0.92ε), φ·exp(+0.38ε)`) still aligns with the Darcy scaling
-(cos ≈ −0.98) but no longer holds the friction factor invariant on the
-inertial plateau. Takeaway: the method cleanly identifies a scaling symmetry
-**only within a single power-law regime**; spanning a crossover correctly
-reads out as "no clean symmetry."
-
-Reproduce:
+**Run it (GPU):**
 
 ```bash
-python generate_combined_dataset.py
-python plot_full_ergun_range.py
-python discover_symmetry.py --data dataset_combined_ergun.csv \
-    --seed 42 --output-dir output_porous_combined
+python run_fullrange_check.py     # generate -> plot -> pipeline, tees a log
 ```
+
+This writes `output_porous_fullrange/fullrange_check_full.log` (share it back).
+Individual steps:
+
+```bash
+python generate_combined_dataset.py     # -> dataset_combined_ergun.csv (504 rows)
+python plot_full_ergun_range.py         # -> combined_ergun_full_range.png
+python discover_symmetry.py --data dataset_combined_ergun.csv \
+    --seed 42 --output-dir output_porous_fullrange
+```
+
+**Expected finding.** An earlier variant of this experiment (synthetic scaled
+to the LBM effective constant) already showed the key behaviour, and the
+textbook version is physically the same two-term sum, so the same pattern is
+expected: the clean scaling symmetry that governs the Darcy branch **does not
+survive** extension to the full curve. A single power law (`f ∝ 1/Re_p`, deep
+Darcy) is scale-invariant, but the **sum of two power laws**
+(`f = A/Re_p + B` in collapse coordinates) is *not* — no global rescaling (or
+shift) of `(Re_p, φ)` preserves `f` across both regimes. In the earlier runs
+the winning symmetry margin fell from **3.7×** (LBM only, clean scaling) to
+~**1.0–1.8×** on the full range, the winning **type flipped** scaling →
+translational, and the recovered generator stopped aligning with the Darcy
+scaling direction (cos −0.98 → −0.32). The friction-factor fit stays high
+(R² ≈ 0.997) because the flexible decoder still represents the curved law — it
+is the **symmetry structure**, not the regression, that degrades. Takeaway:
+the method cleanly identifies a symmetry **only within a single power-law
+regime**; across a crossover it correctly reports a weak, unstable symmetry.
+Fill in this section's exact numbers from your `fullrange_check_full.log`.
 
 ---
 

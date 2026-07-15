@@ -63,33 +63,38 @@ def main():
     Y = df["f"].to_numpy() * phi**3 / (1.0 - phi)
 
     lbm = (src == "lbm").to_numpy()
-    syn = (src == "synthetic_inertial").to_numpy()
+    syn = (src == "synthetic").to_numpy()
 
-    # effective constants fit from the LBM viscous branch
+    # effective constant fit from the LBM viscous branch (for the offset line)
     A_eff = float(np.median((Y * X)[lbm]))
     ratio = A_eff / A_VISC
-    B_eff = B_INER * ratio
 
-    fig, ax = plt.subplots(figsize=(11, 7.5))
-    fig.suptitle("Full Ergun curve — LBM (viscous) + synthetic (inertial) on one curve",
+    fig, ax = plt.subplots(figsize=(11.5, 7.5))
+    fig.suptitle("Full Ergun curve — textbook Ergun + LBM (real) + synthetic data",
                  fontweight="bold", fontsize=18)
 
     x_line = np.logspace(np.log10(X.min()) - 0.5, np.log10(X.max()) + 0.5, 500)
-    ax.loglog(x_line, A_eff / x_line + B_eff, "-", color=INK, lw=2.5, zorder=3,
-              label=f"effective Ergun:  {A_eff:.0f}/X + {B_eff:.2f}")
-    ax.loglog(x_line, A_eff / x_line, "--", color=INK2, lw=1.6, alpha=0.8, zorder=2,
-              label=f"viscous term:  {A_eff:.0f}/X")
-    ax.axhline(B_eff, ls=":", color=INK2, lw=1.6, alpha=0.8, zorder=2,
-               label=f"inertial plateau:  {B_eff:.2f}")
-    x_cross = A_eff / B_eff
+    # textbook Ergun master curve (what the synthetic data follows)
+    ax.loglog(x_line, A_VISC / x_line + B_INER, "-", color=INK, lw=2.5, zorder=3,
+              label=f"textbook Ergun:  {A_VISC:.0f}/X + {B_INER}")
+    ax.loglog(x_line, A_VISC / x_line, "--", color=INK2, lw=1.4, alpha=0.7, zorder=2,
+              label=f"textbook viscous:  {A_VISC:.0f}/X")
+    ax.axhline(B_INER, ls=":", color=INK2, lw=1.4, alpha=0.7, zorder=2,
+               label=f"inertial plateau:  {B_INER}")
+    # effective LBM viscous line (~0.65x textbook) — explains the LBM offset
+    ax.loglog(x_line, A_eff / x_line, "-", color=BLUE, lw=1.4, alpha=0.6, zorder=2,
+              label=f"LBM effective viscous:  {A_eff:.0f}/X  ({ratio:.2f}× textbook)")
+    x_cross = A_VISC / B_INER
     ax.axvline(x_cross, color=BASE, lw=1.2, zorder=1)
-    ax.text(x_cross * 1.3, Y.max() * 0.3, f"terms equal\nat X ≈ {x_cross:.0f}",
+    ax.text(x_cross * 1.3, Y.max() * 0.2, f"terms equal\nat X ≈ {x_cross:.0f}",
             fontsize=12, color=INK2)
 
-    ax.scatter(X[lbm], Y[lbm], s=34, color=BLUE, edgecolors="white", linewidths=0.4,
-               alpha=0.9, zorder=5, label=f"LBM data (viscous, n={lbm.sum()})")
-    ax.scatter(X[syn], Y[syn], s=34, color=ORANGE, edgecolors="white", linewidths=0.4,
-               alpha=0.9, zorder=5, label=f"synthetic Ergun (inertial, n={syn.sum()})")
+    ax.scatter(X[syn], Y[syn], s=30, color=ORANGE, edgecolors="white", linewidths=0.3,
+               alpha=0.85, zorder=4,
+               label=f"synthetic (textbook Ergun, n={syn.sum()})")
+    ax.scatter(X[lbm], Y[lbm], s=52, color=BLUE, edgecolors="black", linewidths=0.6,
+               marker="o", alpha=0.95, zorder=6,
+               label=f"LBM data — real (n={lbm.sum()})")
 
     ax.set_xlabel(r"$X = Re_p\,/\,(1-\phi)$")
     ax.set_ylabel(r"$Y = f\cdot\phi^3\,/\,(1-\phi)$")
@@ -105,7 +110,8 @@ def main():
     fig.savefig(out.replace(".png", ".pdf"), bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"Saved {out} (+ .pdf)")
-    print(f"A_eff={A_eff:.1f}, B_eff={B_eff:.3f}, X range {X.min():.1e}..{X.max():.1e}")
+    print(f"textbook Ergun ({A_VISC:.0f}, {B_INER}); LBM effective A_eff={A_eff:.1f} "
+          f"({ratio:.2f}x); X range {X.min():.1e}..{X.max():.1e}")
 
 
 if __name__ == "__main__":
