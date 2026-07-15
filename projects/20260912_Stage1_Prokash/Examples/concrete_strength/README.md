@@ -210,23 +210,26 @@ of the three competing symmetry candidates.
 
 ## 6. Validation of the Generators
 
-### 6.1 Feeding generator directions to the trained model
+### 6.1 Six flat lines: model output along each generator
 
-The simplest demonstration (`plot_generator_orbits.py`,
-`output_concrete_dimensionless/generator_orbits.png`): take three real
-mixes (a weak, a typical, and a strong one), shift them along each
-direction, `π(ε) = π₀ + ε·g`, and feed every shifted mix to the trained
-model. Along all three generators the predicted `σ/σ_ideal` is a **flat
-line** (maximum change ~10⁻⁷, i.e. zero to float precision), while the
-same sweep along the model's strength-relevant direction changes the
-prediction by **0.69** — roughly the full spread between a weak and a
-strong mix.
+The simplest check (`plot_generator_lines.py`,
+`output_concrete_dimensionless/generator_lines.png` / `.pdf`): take two
+real mixes from the dataset (a weaker and a stronger one), step each one
+along all three generators, `π(ε) = π₀ + ε·g`, and feed every synthetic
+recipe to the trained model. The result is **six flat lines** — the
+predicted strength moves by ~10⁻⁷ (numerical zero) as the recipe is
+changed along any generator. For contrast, each panel also steps the
+weaker mix along the model's strength-relevant direction (dashed): that
+line bends by ~0.35, the full weak-to-strong span.
 
 For the translational encoder this flatness is exact by construction:
 the model computes `f(W·π)`, and each generator satisfies `W·g = 0`, so
-`f(W·(π + ε·g)) = f(W·π)` for every ε. The plot makes the mechanism
-visible; whether the *real* strength surface shares this invariance is
-a question about measured data, answered next.
+`f(W·(π + ε·g)) = f(W·π)` for every ε. This confirms the trained model
+faithfully embodies the extracted generators — a consistency check on
+the model. Whether the *real* strength surface shares this invariance is
+a separate question about measured data, answered next.
+(`plot_generator_orbits.py` is an equivalent variant with three mixes
+and a separate control panel.)
 
 ### 6.2 Test against measured strengths only
 
@@ -334,7 +337,7 @@ no extra flags are required. Then produce the orbit plots (Section 6.1)
 and the measured-pair validation (Section 6.2):
 
 ```bash
-python plot_generator_orbits.py
+python plot_generator_lines.py
 python validate_generators.py
 python make_publication_figure.py
 ```
@@ -346,8 +349,8 @@ Output is written to `output_concrete_dimensionless/`:
   metrics, symmetry losses, generator decomposition).
 - `pipeline_artifacts.npz` — features, targets, encoder weights, and
   generators of the run of record (input to the validation scripts).
-- `generator_orbits.png`, `orbits.log` — model predictions along
-  generator orbits (Section 6.1).
+- `generator_lines.png` / `.pdf` — six flat lines: model output along
+  each generator (Section 6.1).
 - `generator_validation.png`, `validation.log` — real-data pair test
   (Section 6.2).
 - `publication_figure.png` / `publication_figure.pdf` — condensed
