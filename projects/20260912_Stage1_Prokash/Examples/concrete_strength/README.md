@@ -191,7 +191,51 @@ strength-preserving mix substitutions that can guide constrained
 mix-design optimisation (e.g. supplementary cementitious material
 substitution at fixed target strength).
 
-## 7. References
+## 7. Dimensionless (Buckingham-Pi) Variant
+
+`discover_symmetry_dimensionless.py` repeats the experiment on a
+non-dimensionalized representation instead of raw standardized kg/m³
+inputs. All seven mix quantities share the dimension [M L⁻³], so ratios
+by the total binder mass `b = cement + slag + fly ash` are dimensionless.
+Following Yeh (1998): Table 7 shows his w/b convention counts the
+superplasticizer dose as water, and Table 6 (random-split experiments
+R1–R4, averaged) provides a regression baseline used to form a residual
+target:
+
+- **Features:** `w/b = (water+SP)/b`, `flyash/b`, `slag/b`, `SP/b`,
+  `coarse/b`, `fine/b`, `ln(t/28 d)` — seven pure numbers.
+- **Baseline:** `σ_ideal = 13.83·(w/b)^(−1.269)·(0.268·ln t + 0.136)` MPa.
+- **Target:** `y = log(σ_c / σ_ideal)` — dimensionless strength residual.
+
+### Results (seed 42, same pipeline settings as Section 5)
+
+| Quantity | Raw-input run (Sec. 4) | Dimensionless run |
+|---|---|---|
+| Target | standardized σ_c | log(σ_c/σ_ideal) |
+| Yeh baseline R² (no ML) | — | **0.762** (paper: ≈0.77) |
+| Geometric mean σ*/σ_ideal | — | 0.941 |
+| Optimal latent dim | 2 | 4 |
+| Held-out R² | 0.892 (of σ_c) | 0.639 (of the *residual*) |
+| Symmetry winner | translational (3.3×) | **translational (1.7×)** |
+| Generators | 6 | 3 |
+
+The translational fingerprint survives the change of coordinates: the
+strength residual is additive in the binder-referenced mix ratios. The
+R² values are not comparable across columns — the dimensionless run
+models only the variance *left over* after the analytic baseline has
+removed the dominant w/b and age effects. The three residual generators
+describe strength-preserving substitutions in ratio space, e.g.
+generator 3 trades slag fraction against curing age
+(`slag/b: +0.54, ln(t/28): +0.70`), consistent with the slower
+pozzolanic strength development of slag concretes. The latent dimension
+reaching the search maximum (k = 4, with R² still rising) indicates the
+residual chemistry is higher-dimensional than the raw strength surface —
+the baseline soaks up the easy 2-D structure and leaves the harder part.
+
+Output is written to `output_concrete_dimensionless/`
+(`concrete_symmetry_dimensionless.png`, `run.log`).
+
+## 8. References
 
 1. I-C. Yeh, "Modeling of strength of high-performance concrete using
    artificial neural networks," *Cement and Concrete Research*,

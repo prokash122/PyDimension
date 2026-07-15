@@ -1,0 +1,68 @@
+Loading concrete data from Concrete_Data.xls...
+  Loaded Excel: ['Cement (component 1)(kg in a m^3 mixture)', 'Blast Furnace Slag (component 2)(kg in a m^3 mixture)', 'Fly Ash (component 3)(kg in a m^3 mixture)', 'Water  (component 4)(kg in a m^3 mixture)', 'Superplasticizer (component 5)(kg in a m^3 mixture)', 'Coarse Aggregate  (component 6)(kg in a m^3 mixture)', 'Fine Aggregate (component 7)(kg in a m^3 mixture)', 'Age (day)', 'Concrete compressive strength(MPa, megapascals) ']
+  Samples: 1030, Raw features: 8
+  Strength range: [2.3, 82.6] MPa
+
+============================================================
+Step 0: Buckingham-Pi non-dimensionalization
+============================================================
+  Features: ['w/b', 'FlyAsh/b', 'Slag/b', 'SP/b', 'CoarseAgg/b', 'FineAgg/b', 'ln(t/28)']
+  sigma_ideal = 13.83*(w/b)^(-1.269)*(0.268*ln(t)+0.136)  [MPa]
+  Yeh baseline alone: R2 = 0.7619 on all 1030 rows
+  Residual target y = log(sigma/sigma_ideal): mean=-0.0607, std=0.2587 (geometric mean sigma* = 0.941)
+
+============================================================
+Step 1: Normalizing dimensionless data
+============================================================
+  Pi range after scaling: [-2.658, 4.569]
+
+============================================================
+Step 2: Discovering intrinsic latent dimension
+============================================================
+  Multi-layer encoder hidden dims: [64, 32]
+  Multi-layer encoder: [64, 32]
+  raw_input=True: [X, X², log|X|] augmentation is disabled
+
+  Optimal latent dimension: 4
+    k=1: R2_train=0.7715, R2_test=0.5984, MSE=0.370532
+    k=2: R2_train=0.7673, R2_test=0.6086, MSE=0.361114
+    k=3: R2_train=0.7812, R2_test=0.6323, MSE=0.339201
+    k=4: R2_train=0.7877, R2_test=0.6390, MSE=0.333073
+
+============================================================
+Step 3: Identifying symmetry type
+============================================================
+
+  Detected symmetry: translational
+    translational  : 0.321710 <--
+    rotational     : 0.554953
+    scaling        : 0.585570
+  Loss gap: 1.7x
+
+============================================================
+Step 4: Extracting Lie-algebra generators
+============================================================
+  Symmetry type: translational
+  Generators: 3
+
+============================================================
+Step 5: Physical interpretation of generators
+============================================================
+  Each generator g shifts the dimensionless mix ratios,
+  pi -> pi + eps*g, without changing the strength residual y.
+
+  Generator 1: [w/b: -0.224, FlyAsh/b: +0.108, Slag/b: -0.112, SP/b: +0.686, CoarseAgg/b: +0.553, FineAgg/b: -0.383]
+  Generator 2: [w/b: -0.479, FlyAsh/b: +0.069, Slag/b: +0.325, SP/b: +0.441, CoarseAgg/b: -0.292, FineAgg/b: +0.591, ln(t/28): -0.177]
+  Generator 3: [w/b: -0.062, FlyAsh/b: -0.357, Slag/b: +0.544, SP/b: +0.123, CoarseAgg/b: -0.110, FineAgg/b: -0.244, ln(t/28): +0.697]
+
+============================================================
+Creating visualizations
+============================================================
+Figure saved to output_concrete_dimensionless/concrete_symmetry_dimensionless.png
+
+============================================================
+COMPLETE
+============================================================
+  Symmetry: translational
+  Generators: 3
+
