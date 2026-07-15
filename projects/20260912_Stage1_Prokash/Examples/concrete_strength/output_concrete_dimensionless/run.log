@@ -36,10 +36,10 @@ Step 3: Identifying symmetry type
 ============================================================
 
   Detected symmetry: translational
-    translational  : 0.314662 <--
-    scaling        : 0.587539
-    rotational     : 0.595932
-  Loss gap: 1.9x
+    translational  : 0.357475 <--
+    rotational     : 0.549907
+    scaling        : 0.590719
+  Loss gap: 1.5x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
@@ -53,10 +53,11 @@ Step 5: Physical interpretation of generators
   Each generator g shifts the dimensionless mix ratios,
   pi -> pi + eps*g, without changing the strength residual y.
 
-  Generator 1: [w/b: -0.488, FlyAsh/b: +0.266, Slag/b: -0.277, SP/b: +0.346, CoarseAgg/b: +0.492, FineAgg/b: -0.273, ln(t/28): +0.421]
-  Generator 2: [FlyAsh/b: +0.170, Slag/b: -0.285, SP/b: +0.502, CoarseAgg/b: -0.160, FineAgg/b: +0.781]
-  Generator 3: [w/b: +0.212, FlyAsh/b: -0.394, Slag/b: +0.617, SP/b: +0.575, CoarseAgg/b: +0.278, ln(t/28): +0.109]
+  Generator 1: [w/b: +0.145, FlyAsh/b: -0.287, Slag/b: +0.055, SP/b: -0.338, CoarseAgg/b: +0.870, FineAgg/b: -0.099, ln(t/28): +0.115]
+  Generator 2: [w/b: +0.191, FlyAsh/b: -0.062, Slag/b: -0.077, SP/b: -0.455, CoarseAgg/b: -0.102, FineAgg/b: +0.834, ln(t/28): -0.202]
+  Generator 3: [w/b: +0.173, FlyAsh/b: +0.425, Slag/b: -0.796, SP/b: -0.257, CoarseAgg/b: +0.053, FineAgg/b: -0.253, ln(t/28): -0.153]
 
+Artifacts saved to output_concrete_dimensionless/pipeline_artifacts.npz
 ============================================================
 Creating visualizations
 ============================================================

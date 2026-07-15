@@ -340,6 +340,17 @@ def main():
 
     results = run_pipeline(Pi, y, args)
 
+    os.makedirs(args.output_dir, exist_ok=True)
+    np.savez(
+        os.path.join(args.output_dir, "pipeline_artifacts.npz"),
+        Pi=Pi, y=y, sigma=sigma, sigma_ideal=sigma_ideal,
+        X_norm=results["normalization"]["X_normalized"],
+        W=results["W"],
+        generators=np.array(results["generators"]),
+        pi_names=np.array(PI_NAMES),
+    )
+    print(f"Artifacts saved to {args.output_dir}/pipeline_artifacts.npz")
+
     print("=" * 60)
     print("Creating visualizations")
     print("=" * 60)
