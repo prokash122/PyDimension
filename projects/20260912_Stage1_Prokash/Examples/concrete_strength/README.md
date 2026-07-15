@@ -203,11 +203,14 @@ R1–R4, averaged) provides a regression baseline used to form a residual
 target:
 
 - **Features:** `w/b = (water+SP)/b`, `flyash/b`, `slag/b`, `SP/b`,
-  `coarse/b`, `fine/b`, `t/28 d` — seven pure numbers, no transforms
-  beyond the ratios themselves.
+  `coarse/b`, `fine/b`, `ln(t/28 d)` — seven pure numbers. The log is
+  applied to the age ratio only (it symmetrizes the heavily skewed
+  1–365 day range and matches the log-law age kinetics in Yeh's model);
+  the strength is left untransformed.
 - **Baseline:** `σ_ideal = 13.83·(w/b)^(−1.269)·(0.268·ln t + 0.136)` MPa
-  (the `ln t` here is Yeh's published fitted form, kept verbatim).
-- **Target:** `y = σ_c / σ_ideal` — dimensionless strength residual.
+  (Yeh's published fitted form, kept verbatim).
+- **Target:** `y = σ_c / σ_ideal` — dimensionless strength residual,
+  no logarithm.
 
 ### Results (seed 42, same pipeline settings as Section 5)
 
@@ -216,24 +219,26 @@ target:
 | Target | standardized σ_c | σ_c/σ_ideal |
 | Yeh baseline R² (no ML) | — | **0.762** (paper: ≈0.77) |
 | Mean σ_c/σ_ideal | — | 0.971 ± 0.233 |
-| Optimal latent dim | 2 | 3 |
-| Held-out R² | 0.892 (of σ_c) | 0.555 (of the *residual*) |
-| Symmetry winner | translational (3.3×) | **translational (1.4×)** |
-| Generators | 6 | 4 |
+| Optimal latent dim | 2 | 4 |
+| Held-out R² | 0.892 (of σ_c) | 0.556 (of the *residual*) |
+| Symmetry winner | translational (3.3×) | **translational (1.9×)** |
+| Generators | 6 | 3 |
 
 The translational fingerprint survives the change of coordinates: the
 strength residual is additive in the binder-referenced mix ratios. The
 R² values are not comparable across columns — the dimensionless run
 models only the variance *left over* after the analytic baseline has
-removed the dominant w/b and age effects. The four residual generators
+removed the dominant w/b and age effects. The three residual generators
 describe strength-preserving substitutions in ratio space, e.g.
-generator 2 trades w/b against slag fraction and age
-(`w/b: −0.78, slag/b: +0.36, t/28: +0.27`) and generator 4 exchanges
-slag for fly ash (`flyash/b: +0.55, slag/b: −0.70`). Note that the
-untransformed `t/28` feature is strongly right-skewed (0.036–13) and
-the raw ratio target compresses the low-strength end relative to a
-log residual, which lowers the residual R² and narrows the symmetry
-margin compared to a logarithmic variant of the same experiment.
+generator 3 trades w/b and slag against fly ash and age
+(`w/b: −0.56, slag/b: −0.47, flyash/b: +0.44, ln(t/28): +0.25`) and
+generator 2 exchanges coarse for fine aggregate with added
+superplasticizer (`fine/b: +0.75, SP/b: +0.61, coarse/b: −0.24`).
+Ablations on the same seed: an all-log variant (log target) reached
+residual R² 0.639 with a 1.7× margin, and a fully log-free variant
+(`t/28` raw) reached 0.555 with a 1.4× margin — the present
+configuration (log on the age ratio only) gives the widest symmetry
+margin of the three.
 
 Output is written to `output_concrete_dimensionless/`
 (`concrete_symmetry_dimensionless.png`, `run.log`).

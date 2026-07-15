@@ -13,7 +13,7 @@ total binder mass b = cement + slag + fly ash are dimensionless:
     pi_4 = superplasticizer / b
     pi_5 = coarse_aggregate / b
     pi_6 = fine_aggregate / b
-    pi_7 = t / 28 days                      (dimensionless age)
+    pi_7 = ln(t / 28 days)                  (dimensionless age)
 
 The target is the residual strength ratio against Yeh's regression
 baseline (Table 6, average of random-split experiments R1-R4):
@@ -93,7 +93,7 @@ T_REF = 28.0        # days
 
 PI_NAMES = [
     "w/b", "FlyAsh/b", "Slag/b", "SP/b",
-    "CoarseAgg/b", "FineAgg/b", "t/28",
+    "CoarseAgg/b", "FineAgg/b", "ln(t/28)",
 ]
 
 
@@ -134,7 +134,7 @@ def make_dimensionless(X_raw, sigma):
         sp / binder,
         ca / binder,
         fa / binder,
-        age / T_REF,
+        np.log(age / T_REF),
     ])
 
     sigma_ideal = YEH_A * wb**YEH_B * (YEH_C * np.log(age) + YEH_D)
