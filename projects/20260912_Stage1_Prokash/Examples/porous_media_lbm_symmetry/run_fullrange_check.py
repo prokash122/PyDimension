@@ -23,6 +23,7 @@ Share that file (and the PNGs) back.
 
 import os
 import sys
+import argparse
 import subprocess
 import datetime
 
@@ -30,8 +31,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "output_porous_fullrange")
 LOG = os.path.join(OUT, "fullrange_check_full.log")
 
+_ap = argparse.ArgumentParser(description="Run the porous full-range experiment")
+_ap.add_argument("--noise", type=float, default=0.05,
+                 help="Synthetic-data noise width passed to generate step "
+                      "(0.05=~5%%, 0.2=~20%%, 0.5=~65%%). Default 0.05")
+_args = _ap.parse_args()
+
 STEPS = [
-    [sys.executable, "generate_combined_dataset.py"],
+    [sys.executable, "generate_combined_dataset.py", "--noise", str(_args.noise)],
     [sys.executable, "plot_full_ergun_range.py"],
     [sys.executable, "discover_symmetry.py",
      "--data", "dataset_combined_ergun.csv",

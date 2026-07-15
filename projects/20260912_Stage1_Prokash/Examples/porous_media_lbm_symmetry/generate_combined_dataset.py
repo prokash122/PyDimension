@@ -25,6 +25,7 @@ Output: dataset_combined_ergun.csv
 """
 
 import os
+import argparse
 import numpy as np
 import pandas as pd
 
@@ -41,7 +42,26 @@ def ergun_f(Re, phi, a_visc, b_iner):
 
 
 def main():
-    rng = np.random.default_rng(0)
+    parser = argparse.ArgumentParser(
+        description="Build LBM + synthetic (textbook Ergun) combined dataset")
+    parser.add_argument("--noise", type=float, default=0.05,
+                        help="Log-normal noise width on synthetic f "
+                             "(0.05 = ~5%%, 0.2 = ~20%%, 0.5 = ~65%%). Default 0.05")
+    parser.add_argument("--re-jitter", type=float, default=0.03,
+                        help="Log-normal jitter on each synthetic Re_p position "
+                             "(spreads points along the curve). Default 0.03")
+    parser.add_argument("--n-re", type=int, default=30,
+                        help="Number of Re_p grid points per (phi,d). Default 30")
+    parser.add_argument("--re-min-exp", type=float, default=-3.0,
+                        help="log10 of min synthetic Re_p. Default -3")
+    parser.add_argument("--re-max-exp", type=float, default=6.0,
+                        help="log10 of max synthetic Re_p. Default 6")
+    parser.add_argument("--seed", type=int, default=0,
+                        help="RNG seed for the synthetic noise. Default 0")
+    parser.add_argument("--output", default="dataset_combined_ergun.csv")
+    args = parser.parse_args()
+
+    rng = np.random.default_rng(args.seed)
     src = os.path.join(_here, "dataset_lbm_porous.csv")
     df = pd.read_csv(src)
 
@@ -69,14 +89,18 @@ def main():
     ds = sorted(lbm["d"].unique())                     # {6, 10}
     rho0 = 1.0
     mu0 = float(np.median(lbm["mu"]))                  # ~0.133 (LBM viscosity)
-    Re_grid = np.logspace(-3.0, 6.0, 30)               # 1e-3 .. 1e6 (wide: transition+inertial)
-    noise_sigma = 0.05                                 # 5% multiplicative noise
+    Re_grid = np.logspace(args.re_min_exp, args.re_max_exp, args.n_re)
+    noise_sigma = args.noise                           # log-normal noise width
+    re_jitter = args.re_jitter                         # Re position jitter
+    print(f"Synthetic noise width = {noise_sigma:.3f} "
+          f"(~{100*(np.exp(noise_sigma)-1):.0f}% scatter on f), "
+          f"Re jitter = {re_jitter:.3f}")
 
     rows = []
     for phv in phis:
         for dv in ds:
             for Re0 in Re_grid:
-                Re = float(Re0 * np.exp(rng.normal(0.0, 0.03)))   # jitter Re
+                Re = float(Re0 * np.exp(rng.normal(0.0, re_jitter)))   # jitter Re
                 v = Re * mu0 / (rho0 * dv)
                 f_clean = ergun_f(Re, phv, A_VISC, B_INER)        # TEXTBOOK Ergun
                 f_val = float(f_clean * np.exp(rng.normal(0.0, noise_sigma)))
@@ -94,7 +118,7 @@ def main():
     syn = pd.DataFrame(rows)
 
     combined = pd.concat([lbm, syn], ignore_index=True)
-    out = os.path.join(_here, "dataset_combined_ergun.csv")
+    out = args.output if os.path.isabs(args.output) else os.path.join(_here, args.output)
     combined.to_csv(out, index=False)
 
     print(f"\nLBM rows:       {len(lbm)}  "

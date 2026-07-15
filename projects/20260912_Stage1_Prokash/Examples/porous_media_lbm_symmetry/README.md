@@ -348,8 +348,14 @@ shown explicitly (`combined_ergun_full_range.png`).
 **Run it (GPU):**
 
 ```bash
-python run_fullrange_check.py     # generate -> plot -> pipeline, tees a log
+python run_fullrange_check.py               # generate -> plot -> pipeline, tees a log
+python run_fullrange_check.py --noise 0.2   # more synthetic scatter (~22%)
 ```
+
+The synthetic scatter is the log-normal noise width `--noise` (default
+0.05 ≈ 5 %; 0.2 ≈ 22 %, 0.5 ≈ 65 %), forwarded to
+`generate_combined_dataset.py`, which also exposes `--re-jitter`,
+`--n-re`, `--re-min-exp`, `--re-max-exp`, and `--seed`.
 
 This writes `output_porous_fullrange/fullrange_check_full.log` (share it back).
 Individual steps:
