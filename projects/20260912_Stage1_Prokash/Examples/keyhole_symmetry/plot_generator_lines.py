@@ -147,7 +147,7 @@ def main():
     # Both generators give exactly flat lines at the same two case levels,
     # so the per-generator panels are visually identical -- draw everything
     # in ONE panel instead.
-    fig, ax = plt.subplots(figsize=(13.5, 8.0))
+    fig, ax = plt.subplots(figsize=(10.5, 10.0))
     fig.suptitle("Take a real keyhole case, rescale its Pi groups along a generator,\n"
                  "Ask the model for e*: the predicted eccentricity does not move (flat lines)",
                  fontweight="bold", fontsize=22)

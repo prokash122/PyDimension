@@ -146,7 +146,7 @@ def main():
     # All per-generator panels are visually identical (the solid generator
     # walks are flat at the same two mix levels and the dashed strength
     # walk is the same v1 in each), so draw everything in ONE panel.
-    fig, ax = plt.subplots(figsize=(13.5, 8.2))
+    fig, ax = plt.subplots(figsize=(10.5, 10.0))
     fig.suptitle("Take a real mix, change its recipe along a generator,\n"
                  "Ask the model its strength: the predicted strength does not move (flat lines)",
                  fontweight="bold", fontsize=22)
