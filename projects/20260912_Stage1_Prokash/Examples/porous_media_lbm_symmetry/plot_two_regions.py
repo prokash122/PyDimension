@@ -8,9 +8,12 @@ coordinates  Y = f*phi^3/(1-phi)  vs  X = Re_p/(1-phi):
     with noise (dataset_ergun_inertial.csv), X > ~2e3, where Y ~ 1.75.
 
 The textbook master curve 150/X + 1.75 is drawn across the whole range.
-The LBM points sit ~0.65x below the textbook viscous branch (the LBM
-gives ~35 % lower drag than the empirical constant 150); the synthetic
-inertial points scatter around the textbook plateau by construction.
+The full viscous side (up to the crossover X* = 150/1.75 ~ 86, where the
+two Ergun terms are equal) is shaded blue; the inertial side beyond X*
+is shaded orange. The LBM points sit ~0.65x below the textbook viscous
+branch (the LBM gives ~35 % lower drag than the empirical constant 150);
+the synthetic inertial points scatter around the textbook plateau by
+construction.
 
 Usage:   python plot_two_regions.py
 Output:  ergun_two_regions.png
@@ -26,9 +29,15 @@ import matplotlib.pyplot as plt
 _here = os.path.dirname(os.path.abspath(__file__))
 
 plt.rcParams.update({
-    "font.size": 15, "axes.titlesize": 19, "axes.labelsize": 18,
-    "xtick.labelsize": 15, "ytick.labelsize": 15, "legend.fontsize": 13,
+    "font.size":       20,
+    "axes.titlesize":  26,
+    "axes.labelsize":  25,
+    "xtick.labelsize": 22,
+    "ytick.labelsize": 22,
+    "legend.fontsize": 19,
 })
+
+X_CROSS = 150.0 / 1.75          # viscous term == inertial term
 
 
 def load(name):
@@ -45,29 +54,39 @@ def main():
     Xv, Yv, phiv = load("dataset_lbm_porous.csv")
     Xi, Yi, phii = load("dataset_ergun_inertial.csv")
 
-    fig, ax = plt.subplots(figsize=(12, 7.5))
+    fig, ax = plt.subplots(figsize=(15, 9.5))
 
-    x_curve = np.logspace(np.log10(Xv.min()) - 0.3,
-                          np.log10(Xi.max()) + 0.3, 400)
-    ax.loglog(x_curve, 150.0 / x_curve + 1.75, "k--", lw=2.0,
+    x_lo = 10 ** (np.log10(Xv.min()) - 0.4)
+    x_hi = 10 ** (np.log10(Xi.max()) + 0.4)
+    x_curve = np.logspace(np.log10(x_lo), np.log10(x_hi), 400)
+    ax.loglog(x_curve, 150.0 / x_curve + 1.75, "k--", lw=2.6,
               label="Actual Ergun: $150/X + 1.75$")
 
-    ax.loglog(Xv, Yv, "o", ms=6, alpha=0.75, color="#4C72B0",
-              markeredgecolor="black", markeredgewidth=0.3,
+    ax.loglog(Xv, Yv, "o", ms=8, alpha=0.8, color="#4C72B0",
+              markeredgecolor="black", markeredgewidth=0.4,
               label=f"LBM data — viscous region (n={len(Xv)})")
-    ax.loglog(Xi, Yi, "^", ms=6, alpha=0.75, color="#DD8452",
-              markeredgecolor="black", markeredgewidth=0.3,
+    ax.loglog(Xi, Yi, "^", ms=8, alpha=0.8, color="#DD8452",
+              markeredgecolor="black", markeredgewidth=0.4,
               label=f"Synthetic Ergun + noise — inertial region (n={len(Xi)})")
 
-    # Shade the two regions
-    ax.axvspan(Xv.min() / 2, Xv.max() * 2, color="#4C72B0", alpha=0.08)
-    ax.axvspan(Xi.min() / 2, Xi.max() * 2, color="#DD8452", alpha=0.08)
-    ymid = 10 ** (0.5 * (np.log10(Yi.min()) + np.log10(Yv.max())))
-    ax.text(np.sqrt(Xv.min() * Xv.max()) / 1.5, ymid,
-            "viscous\n$Y \\approx 150/X$", ha="center", color="#2A4A73")
-    ax.text(np.sqrt(Xi.min() * Xi.max()), ymid,
-            "inertial\n$Y \\approx 1.75$", ha="center", color="#8C4A1F")
+    # Shade the FULL viscous side (up to the term crossover X*) in blue,
+    # and the inertial side beyond X* in orange.
+    ax.axvspan(x_lo, X_CROSS, color="#4C72B0", alpha=0.10)
+    ax.axvspan(X_CROSS, x_hi, color="#DD8452", alpha=0.08)
+    ax.axvline(X_CROSS, color="grey", ls=":", lw=2.0)
 
+    ymid = 10 ** (0.5 * (np.log10(Yi.min()) + np.log10(Yv.max())))
+    ax.text(10 ** (0.5 * (np.log10(x_lo) + np.log10(X_CROSS))), ymid,
+            "viscous-dominated\n$Y \\approx 150/X$",
+            ha="center", color="#2A4A73", fontsize=24)
+    ax.text(10 ** (0.5 * (np.log10(X_CROSS) + np.log10(x_hi))), ymid,
+            "inertia-dominated\n$Y \\approx 1.75$",
+            ha="center", color="#8C4A1F", fontsize=24)
+    ax.text(X_CROSS, 10 ** (np.log10(Yi.min()) + 0.35),
+            "  $X^* = 150/1.75 \\approx 86$",
+            ha="left", va="bottom", color="#555555", fontsize=19)
+
+    ax.set_xlim(x_lo, x_hi)
     ax.set_xlabel(r"$X = Re_p / (1-\phi)$")
     ax.set_ylabel(r"$Y = f \cdot \phi^3 / (1-\phi)$")
     ax.set_title("Ergun master curve — the two regions studied separately",
