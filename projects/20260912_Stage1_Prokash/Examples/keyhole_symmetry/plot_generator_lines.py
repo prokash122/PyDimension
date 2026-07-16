@@ -90,9 +90,9 @@ def describe(g, names):
     dn = [names[j] for j in order if g[j] < -0.15]
     parts = []
     if up:
-        parts.append("scale up " + ", ".join(up))
+        parts.append("Scale up " + ", ".join(up))
     if dn:
-        parts.append("scale down " + ", ".join(dn))
+        parts.append(("Scale down " if not parts else "scale down ") + ", ".join(dn))
     return "  ·  ".join(parts)
 
 
@@ -149,7 +149,7 @@ def main():
     # in ONE panel instead.
     fig, ax = plt.subplots(figsize=(13.5, 8.0))
     fig.suptitle("Take a real keyhole case, rescale its Pi groups along a generator,\n"
-                 "ask the model for e*: the predicted eccentricity does not move (flat lines)",
+                 "Ask the model for e*: the predicted eccentricity does not move (flat lines)",
                  fontweight="bold", fontsize=22)
 
     chg = np.zeros(gens.shape[0])
@@ -172,24 +172,24 @@ def main():
     print("e* change  " + "   ".join(f"along g{gi+1}: {chg[gi]:.0e}"
                                      for gi in range(gens.shape[0])))
     ax.axvline(0, color=BASE, lw=0.8, ls=":")
-    ax.set_xlabel("how far we rescale the Pi groups  (ε)")
+    ax.set_xlabel("How far we rescale the Pi groups  (ε)")
     ax.grid(color=GRID, lw=0.6)
     ax.set_axisbelow(True)
     for s in ("top", "right"):
         ax.spines[s].set_visible(False)
 
     handles = [
-        Line2D([0], [0], color=INK2, lw=3, ls="-", label="along a generator (flat)"),
-        Line2D([0], [0], color=INK2, lw=2, ls="--", label="along Ke direction"),
+        Line2D([0], [0], color=INK2, lw=3, ls="-", label="Along a generator (flat)"),
+        Line2D([0], [0], color=INK2, lw=2, ls="--", label="Along Ke direction"),
     ]
-    ax.set_ylabel("model-predicted keyhole\neccentricity  e*")
+    ax.set_ylabel("Model-predicted keyhole\neccentricity  e*")
     ax.legend(handles=handles, loc="upper left", frameon=False,
               fontsize=21, handlelength=2.4, borderaxespad=0.3)
 
     fig.text(0.5, -0.02,
-             "★ = a real keyhole case from the dataset (ε=0).\n"
-             "Solid = rescale along a generator (e* held).  "
-             "Dashed = rescale along the Ke direction (e* changes).",
+             "★ = A real keyhole case from the dataset (ε=0).\n"
+             "Solid = Rescale along a generator (e* held).  "
+             "Dashed = Rescale along the Ke direction (e* changes).",
              ha="center", fontsize=20, color=INK2)
 
     plt.tight_layout(rect=[0, 0.02, 1, 0.88])

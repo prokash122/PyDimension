@@ -86,9 +86,9 @@ def describe(g):
     dn = [SHORT[j] for j in order[:3] if g[j] < -0.15]
     parts = []
     if up:
-        parts.append("more " + ", ".join(up))
+        parts.append("More " + ", ".join(up))
     if dn:
-        parts.append("less " + ", ".join(dn))
+        parts.append(("Less " if not parts else "less ") + ", ".join(dn))
     return "  ·  ".join(parts)
 
 
@@ -148,7 +148,7 @@ def main():
     # walk is the same v1 in each), so draw everything in ONE panel.
     fig, ax = plt.subplots(figsize=(13.5, 8.2))
     fig.suptitle("Take a real mix, change its recipe along a generator,\n"
-                 "ask the model its strength: the predicted strength does not move (flat lines)",
+                 "Ask the model its strength: the predicted strength does not move (flat lines)",
                  fontweight="bold", fontsize=22)
 
     chg = np.zeros(gens.shape[0])
@@ -170,7 +170,7 @@ def main():
                            for gi in range(gens.shape[0])),
                  fontsize=21)
     ax.axvline(0, color=BASE, lw=0.8, ls=":")
-    ax.set_xlabel("how far we change the recipe  (ε)")
+    ax.set_xlabel("How far we change the recipe  (ε)")
     ax.grid(color=GRID, lw=0.6)
     ax.set_axisbelow(True)
     for s in ("top", "right"):
@@ -178,18 +178,18 @@ def main():
 
     from matplotlib.lines import Line2D
     handles = [
-        Line2D([0], [0], color=INK2, lw=3, ls="-", label="along a generator (flat)"),
-        Line2D([0], [0], color=INK2, lw=2, ls="--", label="along strength direction"),
+        Line2D([0], [0], color=INK2, lw=3, ls="-", label="Along a generator (flat)"),
+        Line2D([0], [0], color=INK2, lw=2, ls="--", label="Along strength direction"),
     ]
-    ax.set_ylabel("model-predicted strength\n(σc ÷ baseline)")
+    ax.set_ylabel("Model-predicted strength\n(σc ÷ baseline)")
     ax.set_ylim(0.3, 1.95)
     ax.legend(handles=handles, loc="upper left", frameon=False,
               fontsize=21, ncol=1, handlelength=2.4, borderaxespad=0.3)
 
     fig.text(0.5, -0.02,
-             "★ = a real mix from the dataset (ε=0).\n"
-             "Solid = walk along a generator (strength held).  "
-             "Dashed = walk along the strength direction (strength changes).",
+             "★ = A real mix from the dataset (ε=0).\n"
+             "Solid = Walk along a generator (strength held).  "
+             "Dashed = Walk along the strength direction (strength changes).",
              ha="center", fontsize=20, color=INK2)
 
     plt.tight_layout(rect=[0, 0.02, 1, 0.90])
