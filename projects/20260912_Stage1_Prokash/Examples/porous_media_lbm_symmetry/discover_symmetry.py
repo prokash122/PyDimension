@@ -18,8 +18,8 @@ The pipeline does NOT know this formula -- it recovers the dimensionless-group
 structure, the latent dimension k* = 2, the scaling symmetry, and the
 Lie-algebra generators directly from LBM data.
 
-Variables (6 physical inputs)
------------------------------
+Variables (7 inputs)
+--------------------
     | Variable                | Symbol  | Units    | Dimensions      |
     |-------------------------|---------|----------|-----------------|
     | Pressure gradient       | dP_L    | Pa/m     | kg·m⁻²·s⁻²      |
@@ -28,12 +28,16 @@ Variables (6 physical inputs)
     | Fluid density           | rho     | kg/m³    | kg·m⁻³          |
     | Particle diameter       | d       | m        | m               |
     | Porosity                | phi     | -        | dimensionless   |
+    | Solid fraction          | 1-phi   | -        | dimensionless   |
 
-5 dimensional inputs + 1 already-dimensionless (phi) = 6 columns total.
+5 dimensional inputs + 2 already-dimensionless (phi, 1-phi; the solid
+fraction is included as its own variable BEFORE dimensional analysis, since
+the Ergun porosity dependence lives in both) = 7 columns total.
 Three fundamental dimensions (M, L, T) → 5 - 3 = 2 Pi groups from dimensional
-variables; plus phi → 3 dimensionless groups total:
+variables; plus phi and 1-phi → 4 dimensionless groups total:
 
     Pi_phi = phi
+    Pi_omp = 1 - phi
     Re_p   = rho · v · d / mu
     f      = (dP_L · d) / (rho · v²)            <-- the OUTPUT
 
@@ -108,8 +112,8 @@ from pydimension.data_preprocessing import (
 import torch.multiprocessing as _tmp
 _tmp.cpu_count = lambda: 0
 
-VARIABLE_NAMES = ["dP_L", "v", "mu", "rho", "d", "phi"]
-VARIABLE_UNITS = ["Pa/m", "m/s", "Pa·s", "kg/m³", "m", "-"]
+VARIABLE_NAMES = ["dP_L", "v", "mu", "rho", "d", "phi", "one_minus_phi"]
+VARIABLE_UNITS = ["Pa/m", "m/s", "Pa·s", "kg/m³", "m", "-", "-"]
 
 # Dimension matrix, rows = (Mass, Length, Time), cols = VARIABLE_NAMES.
 #   dP_L  [Pa/m]    = kg·m⁻²·s⁻²              ( 1, -2, -2)
@@ -118,19 +122,26 @@ VARIABLE_UNITS = ["Pa/m", "m/s", "Pa·s", "kg/m³", "m", "-"]
 #   rho   [kg/m³]                              ( 1, -3,  0)
 #   d     [m]                                  ( 0,  1,  0)
 #   phi   [-]       (dimensionless)            ( 0,  0,  0)
+#   1-phi [-]       (dimensionless)            ( 0,  0,  0)
+#
+# (1-phi) is included as its own variable BEFORE dimensional analysis: the
+# Ergun porosity dependence lives in both phi and (1-phi), so with it the
+# scaling machinery can express the porosity powers directly instead of
+# linearising (1-phi)^a around the mean porosity.
 DIMENSION_MATRIX = np.array([
-    # dP_L  v   mu  rho  d   phi
-    [   1,  0,  1,   1,  0,  0],   # Mass
-    [  -2,  1, -1,  -3,  1,  0],   # Length
-    [  -2, -1, -1,   0,  0,  0],   # Time
+    # dP_L  v   mu  rho  d   phi 1-phi
+    [   1,  0,  1,   1,  0,  0,  0],   # Mass
+    [  -2,  1, -1,  -3,  1,  0,  0],   # Length
+    [  -2, -1, -1,   0,  0,  0,  0],   # Time
 ], dtype=float)
 DIMENSION_NAMES = ["Mass", "Length", "Time"]
 
-# Reference exponent vectors over the 6 variables (dP_L, v, mu, rho, d, phi).
+# Reference exponent vectors over the 7 variables
+# (dP_L, v, mu, rho, d, phi, 1-phi).
 #   f      = dP_L^1 · v^-2 · rho^-1 · d^1
-KNOWN_F_EXPONENTS  = np.array([ 1.0, -2.0,  0.0, -1.0,  1.0, 0.0])
+KNOWN_F_EXPONENTS  = np.array([ 1.0, -2.0,  0.0, -1.0,  1.0, 0.0, 0.0])
 #   Re_p   = v · rho · d · mu^-1
-KNOWN_RE_EXPONENTS = np.array([ 0.0,  1.0, -1.0,  1.0,  1.0, 0.0])
+KNOWN_RE_EXPONENTS = np.array([ 0.0,  1.0, -1.0,  1.0,  1.0, 0.0, 0.0])
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -253,6 +264,9 @@ def load_data(args):
                     continue
                 if row['f'] <= 0 or row['v'] <= 0 or row['Re_p'] <= 0:
                     continue
+                if not (0.0 < row['phi'] < 1.0):
+                    continue
+                row['one_minus_phi'] = 1.0 - row['phi']
                 rows.append(row)
             except (ValueError, KeyError):
                 continue
@@ -301,8 +315,22 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
     repo_out_dir = os.path.join(args.output_dir, "_da_repo")
     print(f"  Using pydimension.data_preprocessing.DataPreprocessor "
           f"(output → {repo_out_dir})")
+
+    # DataPreprocessor reads the CSV itself, and the raw datasets do not
+    # carry the derived one_minus_phi column — write an augmented copy.
+    import pandas as _pd
+    data_path = args.data
+    if not os.path.exists(data_path):
+        data_path = os.path.join(_here, os.path.basename(args.data))
+    os.makedirs(repo_out_dir, exist_ok=True)
+    aug_csv = os.path.join(repo_out_dir, "dataset_with_one_minus_phi.csv")
+    _df = _pd.read_csv(data_path)
+    _df["one_minus_phi"] = 1.0 - _df["phi"].astype(float)
+    _df.to_csv(aug_csv, index=False)
+    print(f"  Augmented CSV with one_minus_phi column → {aug_csv}")
+
     repo_res = run_repo_dimensional_analysis(
-        csv_path=args.data,
+        csv_path=aug_csv,
         input_vars=VARIABLE_NAMES,
         output_var="f",
         dim_matrix=DIMENSION_MATRIX,
@@ -332,18 +360,19 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
 
     results["pi_basis"] = pi_basis
 
-    # Pi features for Step 2: use externally-computed Re_p and phi.
+    # Pi features for Step 2: use externally-computed Re_p, phi and 1-phi.
     # (We EXCLUDE the f Pi group from inputs because it IS the target.)
     phi = X[:, 5]
+    omp = X[:, 6]
     log10_Re = np.log10(np.maximum(Re_p, 1e-30))
-    pi_features = np.column_stack([log10_Re, phi])
+    pi_features = np.column_stack([log10_Re, phi, omp])
     fmin = pi_features.min(axis=0)
     fmax = pi_features.max(axis=0)
     rng = np.where(fmax - fmin > 1e-12, fmax - fmin, 1.0)
     pi_features_norm = (pi_features - fmin) / rng
 
     results["pi_features"] = pi_features_norm
-    results["pi_feature_names"] = ["log10(Re_p)", "phi"]
+    results["pi_feature_names"] = ["log10(Re_p)", "phi", "1-phi"]
     print(f"  Pi features for Step 2 encoder: "
           f"{results['pi_feature_names']}")
     print(f"  pi_features_norm shape: {pi_features_norm.shape}  "
@@ -355,11 +384,12 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
     # encoder's internal log then sees centred log-Pi coordinates, and the
     # generators live in dimensionless (Re_p, phi) space.
     log10_pi_vals = np.column_stack([log10_Re,
-                                     np.log10(np.maximum(phi, 1e-30))])
+                                     np.log10(np.maximum(phi, 1e-30)),
+                                     np.log10(np.maximum(omp, 1e-30))])
     log10_pi_vals = log10_pi_vals - log10_pi_vals.mean(axis=0, keepdims=True)
     pi_centred = 10.0 ** log10_pi_vals
     results["pi_centred"] = pi_centred
-    results["feature_names_step3"] = ["Re_p", "phi"]
+    results["feature_names_step3"] = ["Re_p", "phi", "1-phi"]
     print(f"  Centred Pi values for Step 3: shape {pi_centred.shape}  "
           f"range: [{pi_centred.min():.3g}, {pi_centred.max():.3g}]")
     print()
@@ -494,29 +524,32 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
     print()
 
     # Winning encoder weight vector(s), reported in Pi space.
-    # Local Ergun reference: for f = [A·(1−φ)/Re + B]·(1−φ)/φ³ the local
-    # log-slopes at (Rē, φ̄) are
-    #   ∂logf/∂logRe = −w,                w = viscous-term weight ∈ [0, 1]
-    #   ∂logf/∂logφ  = −3 − (1+w)·φ̄/(1−φ̄)
-    # with w = (A(1−φ̄)/Rē) / (A(1−φ̄)/Rē + B).  Deep-viscous limit w→1
-    # gives the Darcy slope [−1, −3−2φ̄/(1−φ̄)]; inertial limit w→0 gives
-    # [0, −3−φ̄/(1−φ̄)] (f independent of Re_p).
+    # Ergun reference in the (Re_p, phi, 1-phi) log-coordinates: writing
+    # u = 1-phi as its own variable, f = [A*u/Re + B]*u/phi^3 gives
+    #   dlogf/dlogRe  = -w,      w = viscous-term weight in [0, 1]
+    #   dlogf/dlogphi = -3       (exact -- the phi^3 power)
+    #   dlogf/dlogu   = 1 + w
+    # with w = (A*u/Re) / (A*u/Re + B) at the data's mean point.
+    # Deep-viscous limit w->1 gives the GLOBAL integer exponents
+    # [-1, -3, +2] (f ~ (1-phi)^2/(Re*phi^3)); inertial limit w->0 gives
+    # [0, -3, +1] (f ~ (1-phi)/phi^3, independent of Re_p).
     W = winner_encoder.weight_matrix
     phi_bar = float(phi.mean())
     Re_bar = float(10 ** log10_Re.mean())          # geometric-mean Re_p
     visc = 150.0 * (1.0 - phi_bar) / Re_bar
     w_visc = visc / (visc + 1.75)
-    ergun_ref = np.array([-w_visc,
-                          -3.0 - (1.0 + w_visc) * phi_bar / (1.0 - phi_bar)])
+    ergun_ref = np.array([-w_visc, -3.0, 1.0 + w_visc])
     regime = ("viscous-dominated" if w_visc > 0.9 else
               "inertia-dominated" if w_visc < 0.1 else "transition")
     name_w = max(7, max(len(n) for n in names_step3))
     print("=" * 60)
     print("  Winning encoder weight vector(s)  [Pi space]")
     print("=" * 60)
-    print(f"  Local Ergun reference at (Re_bar={Re_bar:.3e}, "
-          f"phi_bar={phi_bar:.3f}): {np.round(ergun_ref, 3)}")
-    print(f"  Viscous-term weight w = {w_visc:.3f}  ({regime} regime)")
+    print(f"  Ergun exponent reference on (Re_p, phi, 1-phi) at "
+          f"(Re_bar={Re_bar:.3e}, phi_bar={phi_bar:.3f}): "
+          f"{np.round(ergun_ref, 3)}")
+    print(f"  Viscous-term weight w = {w_visc:.3f}  ({regime} regime; "
+          f"w=1 -> [-1,-3,+2], w=0 -> [0,-3,+1])")
     for i in range(W.shape[0]):
         row = W[i]
         denom = np.linalg.norm(row) + 1e-12
@@ -530,7 +563,21 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
         print(f"  L2-n:{normed}")
         ref_n = ergun_ref / np.linalg.norm(ergun_ref)
         cos = float(np.dot(row_n, ref_n))
-        print(f"  cos<row, local Ergun [dlogf/dlogRe, dlogf/dlogphi]> = {cos:+.4f}")
+        print(f"  cos<row, Ergun exponents [dlogf/dlogRe, dlogf/dlogphi, "
+              f"dlogf/dlog(1-phi)]> = {cos:+.4f}")
+        # phi and (1-phi) cannot vary independently in any dataset: along
+        # the data manifold dlog(1-phi) = -(phi/(1-phi))*dlogphi, so the
+        # off-manifold component of W is unconstrained by the fit.  Also
+        # report the alignment after projecting both vectors onto the
+        # manifold (effective 2D [dlogRe, dlogphi] coordinates).
+        slope = -phi_bar / (1.0 - phi_bar)
+        row_eff = np.array([row_n[0], row_n[1] + slope * row_n[2]])
+        ref_eff = np.array([ergun_ref[0], ergun_ref[1] + slope * ergun_ref[2]])
+        cos_eff = float(np.dot(row_eff, ref_eff) /
+                        ((np.linalg.norm(row_eff) + 1e-12) *
+                         (np.linalg.norm(ref_eff) + 1e-12)))
+        print(f"  cos along data manifold "
+              f"(dlog(1-phi) = {slope:.3f}·dlogphi): {cos_eff:+.4f}")
     print()
 
     # ───────── Step 5: Physical Interpretation ─────────
@@ -540,8 +587,8 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
     if winner_type == "scaling" and generators:
         print(f"  Each generator is a direction in log-Pi space along which")
         print(f"  the friction factor f is preserved: simultaneously rescale")
-        print(f"  Re_p and phi along g and the flow stays invariant")
-        print(f"  (Darcy regime preserved).\n")
+        print(f"  Re_p, phi and (1-phi) along g and the flow stays invariant")
+        print(f"  (the local Ergun regime is preserved).\n")
         for i, g in enumerate(generators):
             if g.ndim == 1:
                 parts = []

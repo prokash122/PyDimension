@@ -1,13 +1,14 @@
 ⚠️ scikit-learn not available. Some features may not work.
 Loading LBM porous media data from dataset_ergun_inertial.csv...
   Loaded 360 converged LBM runs
-  Variables: ['dP_L', 'v', 'mu', 'rho', 'd', 'phi']
+  Variables: ['dP_L', 'v', 'mu', 'rho', 'd', 'phi', 'one_minus_phi']
     dP_L   range: [86.93, 1.139e+09]  (360 unique)
     v      range: [15.94, 2.864e+04]  (360 unique)
     mu     range: [0.1667, 0.1667]  (1 unique)
     rho    range: [1, 1]  (1 unique)
     d      range: [6, 10]  (2 unique)
     phi    range: [0.4585, 0.6095]  (6 unique)
+    one_minus_phi range: [0.3905, 0.5415]  (6 unique)
   Re_p range: [9.563e+02, 1.031e+06]
   f range:    [2.692e+00, 1.092e+01]
   f / f_ergun: mean = 1.003,  std = 0.050
@@ -15,129 +16,141 @@ Loading LBM porous media data from dataset_ergun_inertial.csv...
 ============================================================
 Step 0: Dimensional analysis (Buckingham-Pi reduction)
 ============================================================
-  Dimension matrix shape: (3, 6)  (rows = ['Mass', 'Length', 'Time'], cols = ['dP_L', 'v', 'mu', 'rho', 'd', 'phi'])
-  Rank: 3   Expected Pi groups: 3
+  Dimension matrix shape: (3, 7)  (rows = ['Mass', 'Length', 'Time'], cols = ['dP_L', 'v', 'mu', 'rho', 'd', 'phi', 'one_minus_phi'])
+  Rank: 3   Expected Pi groups: 4
   Using pydimension.data_preprocessing.DataPreprocessor (output → output_inertial_region/_da_repo)
+  Augmented CSV with one_minus_phi column → output_inertial_region/_da_repo/dataset_with_one_minus_phi.csv
 === Data Preprocessing ===
-✅ Loaded data from: dataset_ergun_inertial.csv
-   Shape: (360, 15)
-   Columns: ['filename', 'tau', 'delta_p', 'dP_L', 'v', 'mu', 'rho', 'd', 'phi', 'f', 'Re_p', 'f_ergun', 'steps', 'converged', 'stalled']
+✅ Loaded data from: output_inertial_region/_da_repo/dataset_with_one_minus_phi.csv
+   Shape: (360, 16)
+   Columns: ['filename', 'tau', 'delta_p', 'dP_L', 'v', 'mu', 'rho', 'd', 'phi', 'f', 'Re_p', 'f_ergun', 'steps', 'converged', 'stalled', 'one_minus_phi']
 ✅ Detected variables:
-   Input variables (6): ['dP_L', 'v', 'mu', 'rho', 'd', 'phi']
+   Input variables (7): ['dP_L', 'v', 'mu', 'rho', 'd', 'phi', 'one_minus_phi']
    Output variables (1): ['f']
    f: not in matrix, assuming dimensionless
 ✅ Loaded dimension matrix from file
 ✅ Normalized data
-   Shape: (360, 7)
+   Shape: (360, 8)
    Value range: [0.0000, 1.0000]
 
 === Preprocessing Complete ===
 === Dimensional Analysis ===
-   Input variables: ['dP_L', 'v', 'mu', 'rho', 'd', 'phi']
+   Input variables: ['dP_L', 'v', 'mu', 'rho', 'd', 'phi', 'one_minus_phi']
    Output variable: f
    Active dimensions: ['Mass', 'Length', 'Time']
-   Matrix shape: (3, 6)
+   Matrix shape: (3, 7)
    Matrix rank: 3
-   Variables: 6
-   Expected null space dimension: 3
+   Variables: 7
+   Expected null space dimension: 4
 
 === Finding Null Space ===
-Dimension matrix shape: (3, 6)
-Null space shape: (6, 3)
+Dimension matrix shape: (3, 7)
+Null space shape: (7, 4)
 
 === Simplifying Basis Vectors ===
-Simplified basis vectors shape: (6, 3)
+Simplified basis vectors shape: (7, 4)
 
 === Created Dimensionless Variables ===
-Number of dimensionless groups: 3
+Number of dimensionless groups: 4
   π1 = dP_L × v^-3 × mu × rho^-2
   π2 = dP_L × v^(-1) × mu^(-1) × d^2
   π3 = phi
+  π4 = one_minus_phi
 
 === Dimensional Analysis Complete ===
 AfterDA data: output_inertial_region/_da_repo/data/afterDA_data.csv
 Basis vectors: output_inertial_region/_da_repo/data/basis_vectors.csv
-  Basis vectors shape: (6, 3)
+  Basis vectors shape: (7, 4)
     Pi1 = dP_L · v^-3 · mu · rho^-2    (repo: π1 = dP_L × v^-3 × mu × rho^-2)
     Pi2 = dP_L · v^-1 · mu^-1 · d^2    (repo: π2 = dP_L × v^(-1) × mu^(-1) × d^2)
     Pi3 = phi    (repo: π3 = phi)
+    Pi4 = one_minus_phi    (repo: π4 = one_minus_phi)
   Known f (friction factor) exponents in Pi span: cos = +1.0000  (±1 means it lies in the discovered Pi space)
   Known Re_p (Reynolds) exponents in Pi span: cos = +1.0000  (±1 means it lies in the discovered Pi space)
-  Pi features for Step 2 encoder: ['log10(Re_p)', 'phi']
-  pi_features_norm shape: (360, 2)  range: [0.000, 1.000]
-  Centred Pi values for Step 3: shape (360, 2)  range: [0.0303, 32.7]
+  Pi features for Step 2 encoder: ['log10(Re_p)', 'phi', '1-phi']
+  pi_features_norm shape: (360, 3)  range: [0.000, 1.000]
+  Centred Pi values for Step 3: shape (360, 3)  range: [0.0303, 32.7]
 
 ============================================================
 Step 1: Normalizing data
 ============================================================
   Log-prenormalisation ON  (geometric-mean centring, NO min-max on X)
   X_prescaled range per col: min=[2.91099119e-04 2.34692710e-02 1.66656706e-01 1.00000000e+00
- 7.74596669e-01 8.46342947e-01], max=[3.81369165e+03 4.21682153e+01 1.66656706e-01 1.00000000e+00
- 1.29099445e+00 1.12488823e+00]
+ 7.74596669e-01 8.46342947e-01 8.63072048e-01], max=[3.81369165e+03 4.21682153e+01 1.66656706e-01 1.00000000e+00
+ 1.29099445e+00 1.12488823e+00 1.19657555e+00]
   ⚠️  Constant/near-constant columns: ['mu', 'rho']
      Their symmetry exponents will be unconstrained by the dataset.
-  X_raw  range: [0.000, 3813.692]  ((360, 6))
+  X_raw  range: [0.000, 3813.692]  ((360, 7))
   y = log10(f) normalized to [0, 1]
   log10(f) range: [0.430, 1.038]
 
 ============================================================
 Step 2: Discovering intrinsic latent dimension
 ============================================================
-  Step 2 encoder input: 2 Pi features (['log10(Re_p)', 'phi'])
+  Step 2 encoder input: 3 Pi features (['log10(Re_p)', 'phi', '1-phi'])
   Multilayer encoder hidden dims: [64, 32]
   Multi-layer encoder: [64, 32]
   raw_input=True: [X, X², log|X|] augmentation is disabled
 
   Optimal latent dimension: 1
-    k=1: R2_train=0.9843, R2_test=0.9885, MSE=0.001127
-    k=2: R2_train=0.9840, R2_test=0.9872, MSE=0.001255
+    k=1: R2_train=0.9845, R2_test=0.9885, MSE=0.001122
+    k=2: R2_train=0.9833, R2_test=0.9875, MSE=0.001227
+    k=3: R2_train=0.9842, R2_test=0.9878, MSE=0.001199
 
 ============================================================
 Step 3: Identifying symmetry type
 ============================================================
-  Step 3 input: 2 geometric-mean-centred Pi values (['Re_p', 'phi'])
+  Step 3 input: 3 geometric-mean-centred Pi values (['Re_p', 'phi', '1-phi'])
   Generators therefore live in dimensionless (Re_p, phi) space.
 
   Detected symmetry: scaling
-    scaling        : 0.001091 <--
-    translational  : 0.001093
-    rotational     : 0.001427
-  Loss gap: 1.0x
+    scaling        : 0.001045 <--
+    rotational     : 0.001102
+    translational  : 0.001151
+  Loss gap: 1.1x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
 ============================================================
   Symmetry type: scaling
-  Generators: 1
+  Generators: 2
 
 ============================================================
   Winning encoder weight vector(s)  [Pi space]
 ============================================================
-  Local Ergun reference at (Re_bar=3.156e+04, phi_bar=0.544): [-1.000e-03 -4.197e+00]
-  Viscous-term weight w = 0.001  (inertia-dominated regime)
+  Ergun exponent reference on (Re_p, phi, 1-phi) at (Re_bar=3.156e+04, phi_bar=0.544): [-1.000e-03 -3.000e+00  1.001e+00]
+  Viscous-term weight w = 0.001  (inertia-dominated regime; w=1 -> [-1,-3,+2], w=0 -> [0,-3,+1])
   Row 1 (scaling):
-       Re_p      phi
-  raw :    -0.0007  -1.0073
-  L2-n:    -0.0007  -1.0000
-  cos<row, local Ergun [dlogf/dlogRe, dlogf/dlogphi]> = +1.0000
+       Re_p      phi    1-phi
+  raw :    -0.0014  -0.7644  +1.1320
+  L2-n:    -0.0010  -0.5596  +0.8287
+  cos<row, Ergun exponents [dlogf/dlogRe, dlogf/dlogphi, dlogf/dlog(1-phi)]> = +0.7932
+  cos along data manifold (dlog(1-phi) = -1.195·dlogphi): +1.0000
 
 ============================================================
 Step 5: Physical interpretation of generators
 ============================================================
   Each generator is a direction in log-Pi space along which
   the friction factor f is preserved: simultaneously rescale
-  Re_p and phi along g and the flow stays invariant
-  (Darcy regime preserved).
+  Re_p, phi and (1-phi) along g and the flow stays invariant
+  (the local Ergun regime is preserved).
 
   Generator 1:
-    Re_p x exp(-1.000*eps)
+    Re_p x exp(-0.560*eps), phi x exp(+0.687*eps), 1-phi x exp(+0.463*eps)
+    Meaning: increase phi while decrease Re_p, increase 1-phi
+             to keep friction factor f invariant
+
+  Generator 2:
+    Re_p x exp(+0.829*eps), phi x exp(+0.463*eps), 1-phi x exp(+0.314*eps)
+    Meaning: increase Re_p while increase phi, increase 1-phi
+             to keep friction factor f invariant
 
 
 ============================================================
 Creating visualizations
 ============================================================
 Ergun collapse figure saved to output_inertial_region/lbm_ergun_collapse.png
-/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry/discover_symmetry.py:685: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry/discover_symmetry.py:732: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   plt.tight_layout(rect=[0, 0, 1, 0.93])
 Pi candidates figure saved to output_inertial_region/lbm_pi_candidates.png
 Symmetry-discovery figure saved to output_inertial_region/lbm_symmetry_discovery.png
@@ -146,7 +159,7 @@ Symmetry-discovery figure saved to output_inertial_region/lbm_symmetry_discovery
 COMPLETE
 ============================================================
   Symmetry: scaling
-  Generators: 1
+  Generators: 2
   These generators show how the dimensionless groups Re_p
   and phi can be simultaneously rescaled while preserving
   the friction factor f -- the porous-media analogue of
