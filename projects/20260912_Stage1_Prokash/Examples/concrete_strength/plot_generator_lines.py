@@ -59,12 +59,12 @@ BASE = "#c3c2b7"
 
 plt.rcParams.update({
     "font.family":     "sans-serif",
-    "font.size":       15,
-    "axes.titlesize":  17,
-    "axes.labelsize":  16,
-    "xtick.labelsize": 14,
-    "ytick.labelsize": 14,
-    "legend.fontsize": 14,
+    "font.size":       19,
+    "axes.titlesize":  21,
+    "axes.labelsize":  21,
+    "xtick.labelsize": 19,
+    "ytick.labelsize": 19,
+    "legend.fontsize": 18,
     "text.color":      INK,
     "axes.labelcolor": INK2,
     "xtick.color":     INK2,
@@ -146,10 +146,10 @@ def main():
     # All per-generator panels are visually identical (the solid generator
     # walks are flat at the same two mix levels and the dashed strength
     # walk is the same v1 in each), so draw everything in ONE panel.
-    fig, ax = plt.subplots(figsize=(10.2, 6.2))
+    fig, ax = plt.subplots(figsize=(11.5, 7.0))
     fig.suptitle("Take a real mix, change its recipe along a generator,\n"
                  "ask the model its strength: the predicted strength does not move (flat lines)",
-                 fontweight="bold", fontsize=16)
+                 fontweight="bold", fontsize=19)
 
     chg = np.zeros(gens.shape[0])
     for name, idx, col in mixes:
@@ -168,7 +168,7 @@ def main():
                                            for gi in range(gens.shape[0])))
     ax.set_title("\n".join(f"g{gi+1}: {describe(g_unit[gi])}"
                            for gi in range(gens.shape[0])),
-                 fontsize=13)
+                 fontsize=18)
     ax.axvline(0, color=BASE, lw=0.8, ls=":")
     ax.set_xlabel("how far we change the recipe  (ε)")
     ax.grid(color=GRID, lw=0.6)
@@ -184,13 +184,13 @@ def main():
     ax.set_ylabel("model-predicted strength\n(σc ÷ baseline)")
     ax.set_ylim(0.3, 1.95)
     ax.legend(handles=handles, loc="upper left", frameon=False,
-              fontsize=13, ncol=1, handlelength=2.4, borderaxespad=0.3)
+              fontsize=18, ncol=1, handlelength=2.4, borderaxespad=0.3)
 
     fig.text(0.5, -0.02,
              "★ = a real mix from the dataset (ε=0).\n"
              "Solid = walk along a generator (strength held).  "
              "Dashed = walk along the strength direction (strength changes).",
-             ha="center", fontsize=13, color=INK2)
+             ha="center", fontsize=17, color=INK2)
 
     plt.tight_layout(rect=[0, 0.02, 1, 0.90])
     os.makedirs(args.output_dir, exist_ok=True)

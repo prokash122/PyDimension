@@ -68,12 +68,12 @@ BASE = "#c3c2b7"
 
 plt.rcParams.update({
     "font.family":     "sans-serif",
-    "font.size":       15,
-    "axes.titlesize":  17,
-    "axes.labelsize":  16,
-    "xtick.labelsize": 14,
-    "ytick.labelsize": 14,
-    "legend.fontsize": 13,
+    "font.size":       19,
+    "axes.titlesize":  21,
+    "axes.labelsize":  21,
+    "xtick.labelsize": 19,
+    "ytick.labelsize": 19,
+    "legend.fontsize": 18,
     "text.color":      INK,
     "axes.labelcolor": INK2,
     "xtick.color":     INK2,
@@ -147,10 +147,10 @@ def main():
     # Both generators give exactly flat lines at the same two case levels,
     # so the per-generator panels are visually identical -- draw everything
     # in ONE panel instead.
-    fig, ax = plt.subplots(figsize=(10.2, 6.0))
+    fig, ax = plt.subplots(figsize=(11.5, 6.8))
     fig.suptitle("Take a real keyhole case, rescale its Pi groups along a generator,\n"
                  "ask the model for e*: the predicted eccentricity does not move (flat lines)",
-                 fontweight="bold", fontsize=15)
+                 fontweight="bold", fontsize=19)
 
     chg = np.zeros(gens.shape[0])
     for name, idx, col in mixes:
@@ -168,7 +168,7 @@ def main():
 
     ax.set_title("\n".join(f"g{gi+1}: {describe(g_unit[gi], names)}"
                            for gi in range(gens.shape[0])),
-                 fontsize=13)
+                 fontsize=18)
     print("e* change  " + "   ".join(f"along g{gi+1}: {chg[gi]:.0e}"
                                      for gi in range(gens.shape[0])))
     ax.axvline(0, color=BASE, lw=0.8, ls=":")
@@ -184,13 +184,13 @@ def main():
     ]
     ax.set_ylabel("model-predicted keyhole\neccentricity  e*")
     ax.legend(handles=handles, loc="upper left", frameon=False,
-              fontsize=13, handlelength=2.4, borderaxespad=0.3)
+              fontsize=18, handlelength=2.4, borderaxespad=0.3)
 
     fig.text(0.5, -0.02,
              "★ = a real keyhole case from the dataset (ε=0).\n"
              "Solid = rescale along a generator (e* held).  "
              "Dashed = rescale along the Ke direction (e* changes).",
-             ha="center", fontsize=13, color=INK2)
+             ha="center", fontsize=17, color=INK2)
 
     plt.tight_layout(rect=[0, 0.02, 1, 0.88])
     os.makedirs(args.output_dir, exist_ok=True)
