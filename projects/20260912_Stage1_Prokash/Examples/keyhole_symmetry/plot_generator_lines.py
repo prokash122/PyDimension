@@ -144,48 +144,53 @@ def main():
 
     eps = np.linspace(-args.eps_max, args.eps_max, 61)
 
-    fig, axes = plt.subplots(1, gens.shape[0], figsize=(11.5, 5.4), sharey=True)
-    fig.suptitle("Take a real keyhole case, rescale its Pi groups along a generator, ask the model for e*:\n"
-                 "the predicted eccentricity does not move (flat lines)",
-                 fontweight="bold", fontsize=16.5)
+    # Both generators give exactly flat lines at the same two case levels,
+    # so the per-generator panels are visually identical -- draw everything
+    # in ONE panel instead.
+    fig, ax = plt.subplots(figsize=(10.2, 6.0))
+    fig.suptitle("Take a real keyhole case, rescale its Pi groups along a generator,\n"
+                 "ask the model for e*: the predicted eccentricity does not move (flat lines)",
+                 fontweight="bold", fontsize=15)
 
-    for gi, ax in enumerate(axes):
-        g = g_unit[gi]
-        chg = 0.0
-        for name, idx, col in mixes:
+    chg = np.zeros(gens.shape[0])
+    for name, idx, col in mixes:
+        for gi in range(gens.shape[0]):
             # solid: rescale Pi groups along the generator, Pi -> Pi*exp(eps*g) -> flat
-            path_g = pi[idx][None, :] * np.exp(eps[:, None] * g[None, :])
+            path_g = pi[idx][None, :] * np.exp(eps[:, None] * g_unit[gi][None, :])
             pred_g = predict(path_g)
             ax.plot(eps, pred_g, lw=3, color=col)
-            chg = max(chg, pred_g.max() - pred_g.min())
-            # dashed: rescale along the Ke (physics) direction -> bends
-            path_k = pi[idx][None, :] * np.exp(eps[:, None] * ke_unit[None, :])
-            ax.plot(eps, predict(path_k), ls="--", lw=2, color=col, alpha=0.85)
-            ax.scatter([0], [pred_all[idx]], color=col, marker="*", s=170,
-                       zorder=6, edgecolors="white", linewidths=0.8)
+            chg[gi] = max(chg[gi], pred_g.max() - pred_g.min())
+        # dashed: rescale along the Ke (physics) direction -> bends
+        path_k = pi[idx][None, :] * np.exp(eps[:, None] * ke_unit[None, :])
+        ax.plot(eps, predict(path_k), ls="--", lw=2, color=col, alpha=0.85)
+        ax.scatter([0], [pred_all[idx]], color=col, marker="*", s=170,
+                   zorder=6, edgecolors="white", linewidths=0.8)
 
-        ax.set_title(f"generator g{gi+1}\n{describe(g, names)}", fontsize=15)
-        ax.text(0.5, 0.05, f"e* change along g{gi+1}: {chg:.0e}",
-                transform=ax.transAxes, ha="center", color=INK2, fontsize=13)
-        ax.axvline(0, color=BASE, lw=0.8, ls=":")
-        ax.set_xlabel("how far we rescale the Pi groups  (ε)")
-        ax.grid(color=GRID, lw=0.6)
-        ax.set_axisbelow(True)
-        for s in ("top", "right"):
-            ax.spines[s].set_visible(False)
+    ax.set_title("\n".join(f"g{gi+1}: {describe(g_unit[gi], names)}"
+                           for gi in range(gens.shape[0])),
+                 fontsize=13)
+    ax.text(0.5, 0.05,
+            "e* change  " + "   ".join(f"along g{gi+1}: {chg[gi]:.0e}"
+                                       for gi in range(gens.shape[0])),
+            transform=ax.transAxes, ha="center", color=INK2, fontsize=13)
+    ax.axvline(0, color=BASE, lw=0.8, ls=":")
+    ax.set_xlabel("how far we rescale the Pi groups  (ε)")
+    ax.grid(color=GRID, lw=0.6)
+    ax.set_axisbelow(True)
+    for s in ("top", "right"):
+        ax.spines[s].set_visible(False)
 
     handles = [
-        Line2D([0], [0], color=BLUE, lw=3, label="low-e* real case"),
-        Line2D([0], [0], color=BLUE_DK, lw=3, label="high-e* real case"),
         Line2D([0], [0], color=INK2, lw=3, ls="-", label="along a generator (flat)"),
         Line2D([0], [0], color=INK2, lw=2, ls="--", label="along Ke direction"),
     ]
-    axes[0].set_ylabel("model-predicted keyhole\neccentricity  e*")
-    axes[0].legend(handles=handles, loc="upper left", frameon=False,
-                   fontsize=13, handlelength=2.4, borderaxespad=0.3)
+    ax.set_ylabel("model-predicted keyhole\neccentricity  e*")
+    ax.legend(handles=handles, loc="upper left", frameon=False,
+              fontsize=13, handlelength=2.4, borderaxespad=0.3)
 
     fig.text(0.5, -0.02,
-             "★ = a real keyhole case from the dataset (ε=0).  Solid = rescale along a generator (e* held).  "
+             "★ = a real keyhole case from the dataset (ε=0).\n"
+             "Solid = rescale along a generator (e* held).  "
              "Dashed = rescale along the Ke direction (e* changes).",
              ha="center", fontsize=13, color=INK2)
 
