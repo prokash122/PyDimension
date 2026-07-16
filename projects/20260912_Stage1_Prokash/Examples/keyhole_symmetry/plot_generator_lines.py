@@ -169,10 +169,8 @@ def main():
     ax.set_title("\n".join(f"g{gi+1}: {describe(g_unit[gi], names)}"
                            for gi in range(gens.shape[0])),
                  fontsize=13)
-    ax.text(0.5, 0.05,
-            "e* change  " + "   ".join(f"along g{gi+1}: {chg[gi]:.0e}"
-                                       for gi in range(gens.shape[0])),
-            transform=ax.transAxes, ha="center", color=INK2, fontsize=13)
+    print("e* change  " + "   ".join(f"along g{gi+1}: {chg[gi]:.0e}"
+                                     for gi in range(gens.shape[0])))
     ax.axvline(0, color=BASE, lw=0.8, ls=":")
     ax.set_xlabel("how far we rescale the Pi groups  (ε)")
     ax.grid(color=GRID, lw=0.6)
