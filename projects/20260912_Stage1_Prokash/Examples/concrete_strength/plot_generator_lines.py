@@ -143,49 +143,52 @@ def main():
 
     eps = np.linspace(-args.eps_max, args.eps_max, 61)
 
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5.4), sharey=True)
-    fig.suptitle("Take a real mix, change its recipe along a generator, ask the model its strength:\n"
-                 "the predicted strength does not move (flat lines)",
-                 fontweight="bold", fontsize=18)
+    # All per-generator panels are visually identical (the solid generator
+    # walks are flat at the same two mix levels and the dashed strength
+    # walk is the same v1 in each), so draw everything in ONE panel.
+    fig, ax = plt.subplots(figsize=(10.2, 6.2))
+    fig.suptitle("Take a real mix, change its recipe along a generator,\n"
+                 "ask the model its strength: the predicted strength does not move (flat lines)",
+                 fontweight="bold", fontsize=16)
 
-    for gi, ax in enumerate(axes):
-        g = g_unit[gi]
-        chg = 0.0
-        for name, idx, col in mixes:
+    chg = np.zeros(gens.shape[0])
+    for name, idx, col in mixes:
+        for gi in range(gens.shape[0]):
             # solid: walk along the generator -> flat
-            pred_g = predict(X[idx][None, :] + eps[:, None] * g[None, :])
-            ax.plot(eps, pred_g, lw=3, color=col,
-                    label=name if gi == 0 else None)
-            chg = max(chg, pred_g.max() - pred_g.min())
-            # dashed: walk along the strength direction -> bends
-            pred_s = predict(X[idx][None, :] + eps[:, None] * v1[None, :])
-            ax.plot(eps, pred_s, ls="--", lw=2, color=col, alpha=0.85)
-            ax.scatter([0], [pred_all[idx]], color=col, marker="*", s=170,
-                       zorder=6, edgecolors="white", linewidths=0.8)
-        ax.set_title(f"generator g{gi+1}\n{describe(g)}", fontsize=15)
-        ax.text(0.5, 0.06, f"strength change along g{gi+1}: {chg:.0e}",
-                transform=ax.transAxes, ha="center", color=INK2, fontsize=13)
-        ax.axvline(0, color=BASE, lw=0.8, ls=":")
-        ax.set_xlabel("how far we change the recipe  (ε)")
-        ax.grid(color=GRID, lw=0.6)
-        ax.set_axisbelow(True)
-        for s in ("top", "right"):
-            ax.spines[s].set_visible(False)
+            pred_g = predict(X[idx][None, :] + eps[:, None] * g_unit[gi][None, :])
+            ax.plot(eps, pred_g, lw=3, color=col)
+            chg[gi] = max(chg[gi], pred_g.max() - pred_g.min())
+        # dashed: walk along the strength direction -> bends
+        pred_s = predict(X[idx][None, :] + eps[:, None] * v1[None, :])
+        ax.plot(eps, pred_s, ls="--", lw=2, color=col, alpha=0.85)
+        ax.scatter([0], [pred_all[idx]], color=col, marker="*", s=170,
+                   zorder=6, edgecolors="white", linewidths=0.8)
+
+    print("strength change  " + "   ".join(f"along g{gi+1}: {chg[gi]:.0e}"
+                                           for gi in range(gens.shape[0])))
+    ax.set_title("\n".join(f"g{gi+1}: {describe(g_unit[gi])}"
+                           for gi in range(gens.shape[0])),
+                 fontsize=13)
+    ax.axvline(0, color=BASE, lw=0.8, ls=":")
+    ax.set_xlabel("how far we change the recipe  (ε)")
+    ax.grid(color=GRID, lw=0.6)
+    ax.set_axisbelow(True)
+    for s in ("top", "right"):
+        ax.spines[s].set_visible(False)
 
     from matplotlib.lines import Line2D
     handles = [
-        Line2D([0], [0], color=BLUE, lw=3, label="weaker real mix"),
-        Line2D([0], [0], color=BLUE_DK, lw=3, label="stronger real mix"),
         Line2D([0], [0], color=INK2, lw=3, ls="-", label="along a generator (flat)"),
         Line2D([0], [0], color=INK2, lw=2, ls="--", label="along strength direction"),
     ]
-    axes[0].set_ylabel("model-predicted strength\n(σc ÷ baseline)")
-    axes[0].set_ylim(0.3, 1.95)
-    axes[0].legend(handles=handles, loc="upper left", frameon=False,
-                   fontsize=13, ncol=1, handlelength=2.4, borderaxespad=0.3)
+    ax.set_ylabel("model-predicted strength\n(σc ÷ baseline)")
+    ax.set_ylim(0.3, 1.95)
+    ax.legend(handles=handles, loc="upper left", frameon=False,
+              fontsize=13, ncol=1, handlelength=2.4, borderaxespad=0.3)
 
     fig.text(0.5, -0.02,
-             "★ = a real mix from the dataset (ε=0).  Solid = walk along a generator (strength held).  "
+             "★ = a real mix from the dataset (ε=0).\n"
+             "Solid = walk along a generator (strength held).  "
              "Dashed = walk along the strength direction (strength changes).",
              ha="center", fontsize=13, color=INK2)
 
