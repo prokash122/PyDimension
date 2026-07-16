@@ -1,25 +1,26 @@
-Loading LBM porous media data from dataset_lbm_porous.csv...
-  Loaded 144 converged LBM runs
+⚠️ scikit-learn not available. Some features may not work.
+Loading LBM porous media data from dataset_ergun_inertial.csv...
+  Loaded 360 converged LBM runs
   Variables: ['dP_L', 'v', 'mu', 'rho', 'd', 'phi']
-    dP_L   range: [5.24e-09, 1.57e-06]  (3 unique)
-    v      range: [8.52e-09, 1.44e-05]  (13 unique)
-    mu     range: [0.1333, 0.2]  (29 unique)
-    rho    range: [0.9995, 1]  (19 unique)
+    dP_L   range: [86.93, 1.139e+09]  (360 unique)
+    v      range: [15.94, 2.864e+04]  (360 unique)
+    mu     range: [0.1667, 0.1667]  (1 unique)
+    rho    range: [1, 1]  (1 unique)
     d      range: [6, 10]  (2 unique)
     phi    range: [0.4585, 0.6095]  (6 unique)
-  Re_p range: [2.560e-07, 1.080e-03]
-  f range:    [7.575e+04, 4.645e+08]
-  f / f_ergun: mean = 0.662,  std = 0.076
+  Re_p range: [9.563e+02, 1.031e+06]
+  f range:    [2.692e+00, 1.092e+01]
+  f / f_ergun: mean = 1.003,  std = 0.050
 
 ============================================================
 Step 0: Dimensional analysis (Buckingham-Pi reduction)
 ============================================================
   Dimension matrix shape: (3, 6)  (rows = ['Mass', 'Length', 'Time'], cols = ['dP_L', 'v', 'mu', 'rho', 'd', 'phi'])
   Rank: 3   Expected Pi groups: 3
-  Using pydimension.data_preprocessing.DataPreprocessor (output → output_porous_media_lbm_symmetry/_da_repo)
+  Using pydimension.data_preprocessing.DataPreprocessor (output → output_inertial_region/_da_repo)
 === Data Preprocessing ===
-✅ Loaded data from: dataset_lbm_porous.csv
-   Shape: (144, 15)
+✅ Loaded data from: dataset_ergun_inertial.csv
+   Shape: (360, 15)
    Columns: ['filename', 'tau', 'delta_p', 'dP_L', 'v', 'mu', 'rho', 'd', 'phi', 'f', 'Re_p', 'f_ergun', 'steps', 'converged', 'stalled']
 ✅ Detected variables:
    Input variables (6): ['dP_L', 'v', 'mu', 'rho', 'd', 'phi']
@@ -27,8 +28,8 @@ Step 0: Dimensional analysis (Buckingham-Pi reduction)
    f: not in matrix, assuming dimensionless
 ✅ Loaded dimension matrix from file
 ✅ Normalized data
-   Shape: (144, 7)
-   Value range: [0.0002, 1.0000]
+   Shape: (360, 7)
+   Value range: [0.0000, 1.0000]
 
 === Preprocessing Complete ===
 === Dimensional Analysis ===
@@ -54,8 +55,8 @@ Number of dimensionless groups: 3
   π3 = phi
 
 === Dimensional Analysis Complete ===
-AfterDA data: output_porous_media_lbm_symmetry/_da_repo/data/afterDA_data.csv
-Basis vectors: output_porous_media_lbm_symmetry/_da_repo/data/basis_vectors.csv
+AfterDA data: output_inertial_region/_da_repo/data/afterDA_data.csv
+Basis vectors: output_inertial_region/_da_repo/data/basis_vectors.csv
   Basis vectors shape: (6, 3)
     Pi1 = dP_L · v^-3 · mu · rho^-2    (repo: π1 = dP_L × v^-3 × mu × rho^-2)
     Pi2 = dP_L · v^-1 · mu^-1 · d^2    (repo: π2 = dP_L × v^(-1) × mu^(-1) × d^2)
@@ -63,17 +64,21 @@ Basis vectors: output_porous_media_lbm_symmetry/_da_repo/data/basis_vectors.csv
   Known f (friction factor) exponents in Pi span: cos = +1.0000  (±1 means it lies in the discovered Pi space)
   Known Re_p (Reynolds) exponents in Pi span: cos = +1.0000  (±1 means it lies in the discovered Pi space)
   Pi features for Step 2 encoder: ['log10(Re_p)', 'phi']
-  pi_features_norm shape: (144, 2)  range: [0.000, 1.000]
-  Centred Pi values for Step 3: shape (144, 2)  range: [0.0111, 47]
+  pi_features_norm shape: (360, 2)  range: [0.000, 1.000]
+  Centred Pi values for Step 3: shape (360, 2)  range: [0.0303, 32.7]
 
 ============================================================
 Step 1: Normalizing data
 ============================================================
   Log-prenormalisation ON  (geometric-mean centring, NO min-max on X)
-  X_prescaled range per col: min=[0.03986545 0.0190258  0.81067957 0.99965388 0.71137866 0.84634256], max=[11.94441951 32.15628904  1.21656737  1.00010438  1.1856311   1.12488891]
-  X_raw  range: [0.019, 32.156]  ((144, 6))
+  X_prescaled range per col: min=[2.91099119e-04 2.34692710e-02 1.66656706e-01 1.00000000e+00
+ 7.74596669e-01 8.46342947e-01], max=[3.81369165e+03 4.21682153e+01 1.66656706e-01 1.00000000e+00
+ 1.29099445e+00 1.12488823e+00]
+  ⚠️  Constant/near-constant columns: ['mu', 'rho']
+     Their symmetry exponents will be unconstrained by the dataset.
+  X_raw  range: [0.000, 3813.692]  ((360, 6))
   y = log10(f) normalized to [0, 1]
-  log10(f) range: [4.879, 8.667]
+  log10(f) range: [0.430, 1.038]
 
 ============================================================
 Step 2: Discovering intrinsic latent dimension
@@ -84,8 +89,8 @@ Step 2: Discovering intrinsic latent dimension
   raw_input=True: [X, X², log|X|] augmentation is disabled
 
   Optimal latent dimension: 1
-    k=1: R2_train=0.9983, R2_test=0.9981, MSE=0.000074
-    k=2: R2_train=0.9984, R2_test=0.9982, MSE=0.000069
+    k=1: R2_train=0.9843, R2_test=0.9885, MSE=0.001127
+    k=2: R2_train=0.9840, R2_test=0.9872, MSE=0.001255
 
 ============================================================
 Step 3: Identifying symmetry type
@@ -94,10 +99,10 @@ Step 3: Identifying symmetry type
   Generators therefore live in dimensionless (Re_p, phi) space.
 
   Detected symmetry: scaling
-    scaling        : 0.000500 <--
-    translational  : 0.001841
-    rotational     : 0.003028
-  Loss gap: 3.7x
+    scaling        : 0.001091 <--
+    translational  : 0.001093
+    rotational     : 0.001427
+  Loss gap: 1.0x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
@@ -108,12 +113,13 @@ Step 4: Extracting Lie-algebra generators
 ============================================================
   Winning encoder weight vector(s)  [Pi space]
 ============================================================
-  Darcy reference direction (at phi_bar=0.544): [-1.   -5.39]
+  Local Ergun reference at (Re_bar=3.156e+04, phi_bar=0.544): [-1.000e-03 -4.197e+00]
+  Viscous-term weight w = 0.001  (inertia-dominated regime)
   Row 1 (scaling):
        Re_p      phi
-  raw :    -0.1373  -0.5498
-  L2-n:    -0.2422  -0.9702
-  cos<row, Darcy [dlogf/dlogRe, dlogf/dlogphi]> = +0.9981
+  raw :    -0.0007  -1.0073
+  L2-n:    -0.0007  -1.0000
+  cos<row, local Ergun [dlogf/dlogRe, dlogf/dlogphi]> = +1.0000
 
 ============================================================
 Step 5: Physical interpretation of generators
@@ -124,19 +130,17 @@ Step 5: Physical interpretation of generators
   (Darcy regime preserved).
 
   Generator 1:
-    Re_p x exp(-0.970*eps), phi x exp(+0.242*eps)
-    Meaning: decrease Re_p while increase phi
-             to keep friction factor f invariant
+    Re_p x exp(-1.000*eps)
 
 
 ============================================================
 Creating visualizations
 ============================================================
-Ergun collapse figure saved to output_porous_media_lbm_symmetry/lbm_ergun_collapse.png
-/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry/discover_symmetry.py:674: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+Ergun collapse figure saved to output_inertial_region/lbm_ergun_collapse.png
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry/discover_symmetry.py:685: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   plt.tight_layout(rect=[0, 0, 1, 0.93])
-Pi candidates figure saved to output_porous_media_lbm_symmetry/lbm_pi_candidates.png
-Symmetry-discovery figure saved to output_porous_media_lbm_symmetry/lbm_symmetry_discovery.png
+Pi candidates figure saved to output_inertial_region/lbm_pi_candidates.png
+Symmetry-discovery figure saved to output_inertial_region/lbm_symmetry_discovery.png
 
 ============================================================
 COMPLETE

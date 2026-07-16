@@ -1,0 +1,152 @@
+⚠️ scikit-learn not available. Some features may not work.
+Loading LBM porous media data from dataset_lbm_porous.csv...
+  Loaded 144 converged LBM runs
+  Variables: ['dP_L', 'v', 'mu', 'rho', 'd', 'phi']
+    dP_L   range: [5.24e-09, 1.57e-06]  (3 unique)
+    v      range: [8.52e-09, 1.44e-05]  (13 unique)
+    mu     range: [0.1333, 0.2]  (29 unique)
+    rho    range: [0.9995, 1]  (19 unique)
+    d      range: [6, 10]  (2 unique)
+    phi    range: [0.4585, 0.6095]  (6 unique)
+  Re_p range: [2.560e-07, 1.080e-03]
+  f range:    [7.575e+04, 4.645e+08]
+  f / f_ergun: mean = 0.662,  std = 0.076
+
+============================================================
+Step 0: Dimensional analysis (Buckingham-Pi reduction)
+============================================================
+  Dimension matrix shape: (3, 6)  (rows = ['Mass', 'Length', 'Time'], cols = ['dP_L', 'v', 'mu', 'rho', 'd', 'phi'])
+  Rank: 3   Expected Pi groups: 3
+  Using pydimension.data_preprocessing.DataPreprocessor (output → output_viscous_region/_da_repo)
+=== Data Preprocessing ===
+✅ Loaded data from: dataset_lbm_porous.csv
+   Shape: (144, 15)
+   Columns: ['filename', 'tau', 'delta_p', 'dP_L', 'v', 'mu', 'rho', 'd', 'phi', 'f', 'Re_p', 'f_ergun', 'steps', 'converged', 'stalled']
+✅ Detected variables:
+   Input variables (6): ['dP_L', 'v', 'mu', 'rho', 'd', 'phi']
+   Output variables (1): ['f']
+   f: not in matrix, assuming dimensionless
+✅ Loaded dimension matrix from file
+✅ Normalized data
+   Shape: (144, 7)
+   Value range: [0.0002, 1.0000]
+
+=== Preprocessing Complete ===
+=== Dimensional Analysis ===
+   Input variables: ['dP_L', 'v', 'mu', 'rho', 'd', 'phi']
+   Output variable: f
+   Active dimensions: ['Mass', 'Length', 'Time']
+   Matrix shape: (3, 6)
+   Matrix rank: 3
+   Variables: 6
+   Expected null space dimension: 3
+
+=== Finding Null Space ===
+Dimension matrix shape: (3, 6)
+Null space shape: (6, 3)
+
+=== Simplifying Basis Vectors ===
+Simplified basis vectors shape: (6, 3)
+
+=== Created Dimensionless Variables ===
+Number of dimensionless groups: 3
+  π1 = dP_L × v^-3 × mu × rho^-2
+  π2 = dP_L × v^(-1) × mu^(-1) × d^2
+  π3 = phi
+
+=== Dimensional Analysis Complete ===
+AfterDA data: output_viscous_region/_da_repo/data/afterDA_data.csv
+Basis vectors: output_viscous_region/_da_repo/data/basis_vectors.csv
+  Basis vectors shape: (6, 3)
+    Pi1 = dP_L · v^-3 · mu · rho^-2    (repo: π1 = dP_L × v^-3 × mu × rho^-2)
+    Pi2 = dP_L · v^-1 · mu^-1 · d^2    (repo: π2 = dP_L × v^(-1) × mu^(-1) × d^2)
+    Pi3 = phi    (repo: π3 = phi)
+  Known f (friction factor) exponents in Pi span: cos = +1.0000  (±1 means it lies in the discovered Pi space)
+  Known Re_p (Reynolds) exponents in Pi span: cos = +1.0000  (±1 means it lies in the discovered Pi space)
+  Pi features for Step 2 encoder: ['log10(Re_p)', 'phi']
+  pi_features_norm shape: (144, 2)  range: [0.000, 1.000]
+  Centred Pi values for Step 3: shape (144, 2)  range: [0.0111, 47]
+
+============================================================
+Step 1: Normalizing data
+============================================================
+  Log-prenormalisation ON  (geometric-mean centring, NO min-max on X)
+  X_prescaled range per col: min=[0.03986545 0.0190258  0.81067957 0.99965388 0.71137866 0.84634256], max=[11.94441951 32.15628904  1.21656737  1.00010438  1.1856311   1.12488891]
+  X_raw  range: [0.019, 32.156]  ((144, 6))
+  y = log10(f) normalized to [0, 1]
+  log10(f) range: [4.879, 8.667]
+
+============================================================
+Step 2: Discovering intrinsic latent dimension
+============================================================
+  Step 2 encoder input: 2 Pi features (['log10(Re_p)', 'phi'])
+  Multilayer encoder hidden dims: [64, 32]
+  Multi-layer encoder: [64, 32]
+  raw_input=True: [X, X², log|X|] augmentation is disabled
+
+  Optimal latent dimension: 1
+    k=1: R2_train=0.9978, R2_test=0.9975, MSE=0.000096
+    k=2: R2_train=0.9980, R2_test=0.9977, MSE=0.000085
+
+============================================================
+Step 3: Identifying symmetry type
+============================================================
+  Step 3 input: 2 geometric-mean-centred Pi values (['Re_p', 'phi'])
+  Generators therefore live in dimensionless (Re_p, phi) space.
+
+  Detected symmetry: scaling
+    scaling        : 0.000477 <--
+    translational  : 0.002157
+    rotational     : 0.002890
+  Loss gap: 4.5x
+
+============================================================
+Step 4: Extracting Lie-algebra generators
+============================================================
+  Symmetry type: scaling
+  Generators: 1
+
+============================================================
+  Winning encoder weight vector(s)  [Pi space]
+============================================================
+  Local Ergun reference at (Re_bar=2.297e-05, phi_bar=0.544): [-1.   -5.39]
+  Viscous-term weight w = 1.000  (viscous-dominated regime)
+  Row 1 (scaling):
+       Re_p      phi
+  raw :    -0.2163  -0.7130
+  L2-n:    -0.2902  -0.9570
+  cos<row, local Ergun [dlogf/dlogRe, dlogf/dlogphi]> = +0.9938
+
+============================================================
+Step 5: Physical interpretation of generators
+============================================================
+  Each generator is a direction in log-Pi space along which
+  the friction factor f is preserved: simultaneously rescale
+  Re_p and phi along g and the flow stays invariant
+  (Darcy regime preserved).
+
+  Generator 1:
+    Re_p x exp(-0.957*eps), phi x exp(+0.290*eps)
+    Meaning: decrease Re_p while increase phi
+             to keep friction factor f invariant
+
+
+============================================================
+Creating visualizations
+============================================================
+Ergun collapse figure saved to output_viscous_region/lbm_ergun_collapse.png
+/home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry/discover_symmetry.py:685: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  plt.tight_layout(rect=[0, 0, 1, 0.93])
+Pi candidates figure saved to output_viscous_region/lbm_pi_candidates.png
+Symmetry-discovery figure saved to output_viscous_region/lbm_symmetry_discovery.png
+
+============================================================
+COMPLETE
+============================================================
+  Symmetry: scaling
+  Generators: 1
+  These generators show how the dimensionless groups Re_p
+  and phi can be simultaneously rescaled while preserving
+  the friction factor f -- the porous-media analogue of
+  the Ergun scaling invariance, in Pi space.
+

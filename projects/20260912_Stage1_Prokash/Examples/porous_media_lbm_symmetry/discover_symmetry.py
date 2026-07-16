@@ -494,18 +494,29 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
     print()
 
     # Winning encoder weight vector(s), reported in Pi space.
-    # Deep-Darcy reference: f ≈ 150·(1−φ)²/(Re_p·φ³), so in log-Pi space
-    #   d(log f) = −1 · d(log Re_p) + s · d(log φ),  s = −3 − 2φ̄/(1−φ̄)
-    # evaluated at the mean porosity φ̄ (local power-law slope of (1−φ)²/φ³).
+    # Local Ergun reference: for f = [A·(1−φ)/Re + B]·(1−φ)/φ³ the local
+    # log-slopes at (Rē, φ̄) are
+    #   ∂logf/∂logRe = −w,                w = viscous-term weight ∈ [0, 1]
+    #   ∂logf/∂logφ  = −3 − (1+w)·φ̄/(1−φ̄)
+    # with w = (A(1−φ̄)/Rē) / (A(1−φ̄)/Rē + B).  Deep-viscous limit w→1
+    # gives the Darcy slope [−1, −3−2φ̄/(1−φ̄)]; inertial limit w→0 gives
+    # [0, −3−φ̄/(1−φ̄)] (f independent of Re_p).
     W = winner_encoder.weight_matrix
     phi_bar = float(phi.mean())
-    darcy_ref = np.array([-1.0, -3.0 - 2.0 * phi_bar / (1.0 - phi_bar)])
+    Re_bar = float(10 ** log10_Re.mean())          # geometric-mean Re_p
+    visc = 150.0 * (1.0 - phi_bar) / Re_bar
+    w_visc = visc / (visc + 1.75)
+    ergun_ref = np.array([-w_visc,
+                          -3.0 - (1.0 + w_visc) * phi_bar / (1.0 - phi_bar)])
+    regime = ("viscous-dominated" if w_visc > 0.9 else
+              "inertia-dominated" if w_visc < 0.1 else "transition")
     name_w = max(7, max(len(n) for n in names_step3))
     print("=" * 60)
     print("  Winning encoder weight vector(s)  [Pi space]")
     print("=" * 60)
-    print(f"  Darcy reference direction (at phi_bar={phi_bar:.3f}): "
-          f"{np.round(darcy_ref, 3)}")
+    print(f"  Local Ergun reference at (Re_bar={Re_bar:.3e}, "
+          f"phi_bar={phi_bar:.3f}): {np.round(ergun_ref, 3)}")
+    print(f"  Viscous-term weight w = {w_visc:.3f}  ({regime} regime)")
     for i in range(W.shape[0]):
         row = W[i]
         denom = np.linalg.norm(row) + 1e-12
@@ -517,9 +528,9 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
         print(header)
         print(f"  raw :{raw_s}")
         print(f"  L2-n:{normed}")
-        ref_n = darcy_ref / np.linalg.norm(darcy_ref)
+        ref_n = ergun_ref / np.linalg.norm(ergun_ref)
         cos = float(np.dot(row_n, ref_n))
-        print(f"  cos<row, Darcy [dlogf/dlogRe, dlogf/dlogphi]> = {cos:+.4f}")
+        print(f"  cos<row, local Ergun [dlogf/dlogRe, dlogf/dlogphi]> = {cos:+.4f}")
     print()
 
     # ───────── Step 5: Physical Interpretation ─────────
@@ -611,7 +622,7 @@ def plot_ergun_collapse(X, y, Re_p, output_dir):
 
     ax.set_xlabel(r"$Re_p \,/\, (1-\phi)$")
     ax.set_ylabel(r"$f \cdot \phi^3 \,/\, (1-\phi)$")
-    ax.set_title("Ergun Collapse — LBM points vs Textbook Curve", fontweight="bold")
+    ax.set_title("Ergun Collapse — data vs Textbook Curve", fontweight="bold")
     ax.legend(loc="best")
     ax.grid(True, which='both', alpha=0.3)
 
