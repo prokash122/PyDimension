@@ -206,7 +206,8 @@ rescaled point through the **genuine trained model end-to-end** —
 jointly trained decoder (`trained_model.pt`), no refit (the model
 reproduces measured `e*` at R² ≈ 0.98). The four solid lines are
 **flat** — the predicted `e*` moves by ~10⁻⁶ (numerical zero) as the Pi
-groups are rescaled along a generator. For contrast, each panel also
+groups are rescaled along a generator (all four in a single panel — the
+per-generator plots are identical). For contrast, the same panel also
 rescales along the **Ke direction** (dashed): `e*` then swings across
 the full 0–13 range of the dataset. Because the scaling encoder computes
 `z = W·log(π)` with `W·g = 0`, the flatness is exact by construction —
