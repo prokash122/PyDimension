@@ -52,7 +52,7 @@ def load(name):
 
 def main():
     Xv, Yv, phiv = load("dataset_lbm_porous.csv")
-    Xi, Yi, phii = load("dataset_ergun_inertial.csv")
+    Xi, Yi, phii = load("dataset_ergun_inertial_widephi.csv")
 
     fig, ax = plt.subplots(figsize=(15, 9.5))
 
