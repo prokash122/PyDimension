@@ -1,7 +1,11 @@
 Data source: dataset_ergun_inertial_widephi.csv   n = 720
 
+Stage1 encoder w (L2)  : [+0.0005, +0.0879, -0.9961]  manifold cos = -1.0000
+  rescaled (large=1)   : [-0.0005, -0.0882, +1.0000]
 OLS         : [-0.0039, -3.0189, +0.9866]  const = +0.5811  R2 = 0.9994
 LassoCV     : [-0.0036, -3.0177, +0.9835]  const = +0.5767  R2 = 0.9994  alpha = 0.001144
 Snap-to-int : [0, -3, 1]  prefactor C = 1.763  R2(f) = 0.9970
+
+cos<encoder, SINDy>  raw = -0.3922   manifold-projected = -1.0000
 
 Discovered equation:  f = 1.76 phi^-3 . (1-phi)^1

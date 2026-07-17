@@ -26,11 +26,34 @@ Run it region by region:
 
 import argparse
 import os
+import re
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import Lasso, LassoCV, LinearRegression
 
 _here = os.path.dirname(os.path.abspath(__file__))
+
+
+def load_encoder_direction(run_log_path):
+    """Parse the Stage1 encoder's L2-normed direction from run.log.
+
+    Looks for the line printed as
+        L2-n:    -0.2857  -0.5356  +0.7947
+    and returns the three floats as an ndarray plus the manifold-cos line
+    if present.  Returns None if the log doesn't have it (older format /
+    no scaling winner).
+    """
+    if not os.path.exists(run_log_path):
+        return None
+    with open(run_log_path) as fh:
+        text = fh.read()
+    m = re.search(r"L2-n:\s*([+\-\d.eE]+)\s+([+\-\d.eE]+)\s+([+\-\d.eE]+)", text)
+    if not m:
+        return None
+    w = np.array([float(m.group(i)) for i in (1, 2, 3)])
+    mos = re.search(r"cos along data manifold[^:]*:\s*([+\-\d.eE]+)", text)
+    manifold_cos = float(mos.group(1)) if mos else None
+    return w, manifold_cos
 
 
 def read_ok(path):
@@ -77,9 +100,27 @@ def main():
     X = np.column_stack([np.log(Re), np.log(phi), np.log(1 - phi)])
     names = ["log(Re_p)", "log(phi)", "log(1-phi)"]
 
+    print(f"Data source        : {os.path.basename(path)}   (n = {len(df)})")
+
+    # ---- 0) Load Stage1 encoder direction from run.log -------------------
+    enc = load_encoder_direction(os.path.join(args.out, "run.log"))
+    if enc is not None:
+        w_enc, mcos = enc
+        # Rescale so the largest-|weight| component = 1, for readability
+        big = int(np.argmax(np.abs(w_enc)))
+        w_enc_scaled = w_enc / w_enc[big]
+        print(f"Stage1 encoder w   : "
+              f"[{', '.join(f'{c:+.3f}' for c in w_enc)}]  "
+              f"(L2-normed, from run.log)")
+        print(f"  rescaled (large=1): "
+              f"[{', '.join(f'{c:+.3f}' for c in w_enc_scaled)}]"
+              f"   manifold cos = {mcos:+.4f}")
+    else:
+        w_enc = None
+        print("(no Stage1 encoder direction found; SINDy runs standalone)")
+
     # ---- 1) plain OLS baseline (no regularisation) ------------------------
     ols = LinearRegression().fit(X, logf)
-    print(f"Data source        : {os.path.basename(path)}   (n = {len(df)})")
     print(f"OLS (no penalty)   : ", end="")
     print(f"[{', '.join(f'{c:+.3f}' for c in ols.coef_)}]  "
           f"const = {ols.intercept_:+.3f}   R2 = {ols.score(X, logf):.4f}")
@@ -106,6 +147,30 @@ def main():
     print(f"Snap-to-integer    : [{', '.join(str(int(v)) if v == int(v) else f'{v:+.2f}' for v in exps_snap)}]  "
           f"prefactor C = {C:.3g}   R2(f) = {r2_snap:.4f}")
 
+    # ---- 3.5) Consistency check: does SINDy's direction agree with
+    #           the Stage1 encoder direction? --------------------------
+    if w_enc is not None:
+        # Encoder direction is arbitrary in scale + sign; measure angle.
+        v_sindy = np.array(lasso.coef_)
+        if np.linalg.norm(v_sindy) > 0 and np.linalg.norm(w_enc) > 0:
+            cos_raw = float(
+                np.dot(w_enc, v_sindy) /
+                (np.linalg.norm(w_enc) * np.linalg.norm(v_sindy)))
+            # Also project both onto the (phi, 1-phi) data-manifold tangent
+            # dlog(1-phi) = -phi_bar/(1-phi_bar) * dlog(phi).
+            phi_bar = float(df["phi"].mean())
+            slope = -phi_bar / (1.0 - phi_bar)
+            proj = lambda v: np.array([v[0], v[1] + slope * v[2]])
+            we, vs = proj(w_enc), proj(v_sindy)
+            if np.linalg.norm(we) > 0 and np.linalg.norm(vs) > 0:
+                cos_manifold = float(
+                    np.dot(we, vs) /
+                    (np.linalg.norm(we) * np.linalg.norm(vs)))
+            else:
+                cos_manifold = float("nan")
+            print(f"cos<encoder, SINDy>  raw = {cos_raw:+.4f}   "
+                  f"manifold-projected = {cos_manifold:+.4f}")
+
     # ---- 4) emit human-readable equation ---------------------------------
     parts = []
     if exps_snap[0] != 0:
@@ -124,6 +189,12 @@ def main():
     out_txt = os.path.join(out_dir, "sindy_equation.txt")
     with open(out_txt, "w") as fh:
         fh.write(f"Data source: {os.path.basename(path)}   n = {len(df)}\n\n")
+        if w_enc is not None:
+            fh.write(f"Stage1 encoder w (L2)  : "
+                     f"[{', '.join(f'{c:+.4f}' for c in w_enc)}]  "
+                     f"manifold cos = {mcos:+.4f}\n")
+            fh.write(f"  rescaled (large=1)   : "
+                     f"[{', '.join(f'{c:+.4f}' for c in w_enc_scaled)}]\n")
         fh.write(f"OLS         : [{', '.join(f'{c:+.4f}' for c in ols.coef_)}]"
                  f"  const = {ols.intercept_:+.4f}  R2 = {ols.score(X, logf):.4f}\n")
         fh.write(f"LassoCV     : [{', '.join(f'{c:+.4f}' for c in lasso.coef_)}]"
@@ -131,6 +202,9 @@ def main():
                  f"  alpha = {alpha:.4g}\n")
         fh.write(f"Snap-to-int : [{', '.join(str(int(v)) if v == int(v) else f'{v:+.4f}' for v in exps_snap)}]"
                  f"  prefactor C = {C:.4g}  R2(f) = {r2_snap:.4f}\n\n")
+        if w_enc is not None:
+            fh.write(f"cos<encoder, SINDy>  raw = {cos_raw:+.4f}   "
+                     f"manifold-projected = {cos_manifold:+.4f}\n\n")
         fh.write(f"Discovered equation:  {eq}\n")
     print(f"Saved {out_txt}")
 

@@ -1,7 +1,11 @@
 Data source: dataset_ergun_viscous_widephi.csv   n = 720
 
+Stage1 encoder w (L2)  : [-0.2857, -0.5356, +0.7947]  manifold cos = +0.9999
+  rescaled (large=1)   : [-0.3595, -0.6740, +1.0000]
 OLS         : [-0.9999, -3.0162, +1.9837]  const = +4.9862  R2 = 0.9998
 LassoCV     : [-0.9983, -3.0039, +1.9694]  const = +5.0014  R2 = 0.9998  alpha = 0.006929
 Snap-to-int : [-1, -3, 2]  prefactor C = 150.1  R2(f) = 0.9982
+
+cos<encoder, SINDy>  raw = +0.9278   manifold-projected = +0.9999
 
 Discovered equation:  f = 150 Re_p^-1 . phi^-3 . (1-phi)^2

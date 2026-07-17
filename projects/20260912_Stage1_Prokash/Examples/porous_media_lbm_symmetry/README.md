@@ -491,11 +491,18 @@ and prints OLS, Lasso and snap-to-integer results side-by-side.
 
 ### Results
 
-| Region | OLS (raw fit) | Lasso (5-fold CV) | Snap-to-integer | Discovered equation |
-|---|---|---|---|---|
-| **Wide-φ viscous synthetic** (n=720) | `[−1.000, −3.016, +1.984]` | `[−0.998, −3.004, +1.969]` (α = 6.9·10⁻³) | `[−1, −3, +2]` | **`f = 150 · Re_p⁻¹ · φ⁻³ · (1−φ)²`** ✓ exact textbook |
-| **Wide-φ inertial** (n=720) | `[−0.004, −3.019, +0.987]` | `[−0.004, −3.018, +0.984]` (α = 1.1·10⁻³) | `[0, −3, +1]` | **`f = 1.76 · φ⁻³ · (1−φ)`** ✓ exact textbook (const 1.76 vs 1.75) |
-| Viscous LBM (n=144) | `[−0.990, −4.051, +0.294]` | `[−0.989, 0.000, +3.480]` (α = 3.7·10⁻³) | `[−1, 0, +3.48]` | `f ≈ 2010 · Re_p⁻¹ · (1−φ)³·⁴⁸` (narrow-φ wall) |
+Each row shows both the neural encoder direction (from Stage1's Step-3
+`run.log`) and the SINDy sparse-integer answer, plus how the two agree
+along the identifiable data-manifold direction. **The encoder and SINDy
+live in *different* members of the log-Pi equivalence class in 3-D,
+but their manifold-tangent projections match at cos ≈ ±1** — both are
+correct along the axis data can actually determine.
+
+| Region | Stage1 encoder w (L2-normed) | OLS on log-Pi | Lasso (5-fold CV) | Snap-to-integer | Discovered equation | cos ⟨enc, SINDy⟩ raw / manifold |
+|---|---|---|---|---|---|---|
+| **Wide-φ viscous synthetic** (n=720) | `[−0.286, −0.536, +0.795]` | `[−1.000, −3.016, +1.984]` | `[−0.998, −3.004, +1.969]` (α = 6.9·10⁻³) | `[−1, −3, +2]` | **`f = 150 · Re_p⁻¹ · φ⁻³ · (1−φ)²`** ✓ exact textbook | +0.928 / **+0.9999** |
+| **Wide-φ inertial synthetic** (n=720) | `[+0.001, +0.088, −0.996]` | `[−0.004, −3.019, +0.987]` | `[−0.004, −3.018, +0.984]` (α = 1.1·10⁻³) | `[0, −3, +1]` | **`f = 1.76 · φ⁻³ · (1−φ)`** ✓ exact textbook (const 1.76 vs 1.75) | −0.392 / **−1.0000** (perfect anti-parallel) |
+| Viscous LBM (n=144, narrow-φ) | `[−0.240, −0.963, −0.125]` | `[−0.990, −4.051, +0.294]` | `[−0.989, 0.000, +3.480]` (α = 3.7·10⁻³) | `[−1, 0, +3.48]` | `f ≈ 2010 · Re_p⁻¹ · (1−φ)³·⁴⁸` (narrow-φ wall) | −0.054 / **+0.9986** |
 
 **Both synthetic sweeps — SINDy nails textbook Ergun exactly.**
 For the wide-φ **inertial** run, truth `f = 1.75·(1−φ)/φ³`, recovered
