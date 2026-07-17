@@ -29,12 +29,12 @@ import matplotlib.pyplot as plt
 _here = os.path.dirname(os.path.abspath(__file__))
 
 plt.rcParams.update({
-    "font.size":       20,
-    "axes.titlesize":  26,
-    "axes.labelsize":  25,
-    "xtick.labelsize": 22,
-    "ytick.labelsize": 22,
-    "legend.fontsize": 19,
+    "font.size":       24,
+    "axes.titlesize":  30,
+    "axes.labelsize":  29,
+    "xtick.labelsize": 26,
+    "ytick.labelsize": 26,
+    "legend.fontsize": 23,
 })
 
 X_CROSS = 150.0 / 1.75          # viscous term == inertial term
@@ -75,16 +75,9 @@ def main():
     ax.axvspan(X_CROSS, x_hi, color="#DD8452", alpha=0.08)
     ax.axvline(X_CROSS, color="grey", ls=":", lw=2.0)
 
-    ymid = 10 ** (0.5 * (np.log10(Yi.min()) + np.log10(Yv.max())))
-    ax.text(10 ** (0.5 * (np.log10(x_lo) + np.log10(X_CROSS))), ymid,
-            "viscous-dominated\n$Y \\approx 150/X$",
-            ha="center", color="#2A4A73", fontsize=24)
-    ax.text(10 ** (0.5 * (np.log10(X_CROSS) + np.log10(x_hi))), ymid,
-            "inertia-dominated\n$Y \\approx 1.75$",
-            ha="center", color="#8C4A1F", fontsize=24)
     ax.text(X_CROSS, 10 ** (np.log10(Yi.min()) + 0.35),
             "  $X^* = 150/1.75 \\approx 86$",
-            ha="left", va="bottom", color="#555555", fontsize=19)
+            ha="left", va="bottom", color="#555555", fontsize=22)
 
     ax.set_xlim(x_lo, x_hi)
     ax.set_xlabel(r"$X = Re_p / (1-\phi)$")
