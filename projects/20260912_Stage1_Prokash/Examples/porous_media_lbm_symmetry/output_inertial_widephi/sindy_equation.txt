@@ -6,11 +6,10 @@ OLS         : [-0.0039, -3.0189, +0.9866]  const = +0.5811  R2 = 0.9994
 LassoCV     : [-0.0036, -3.0177, +0.9835]  const = +0.5767  R2 = 0.9994  alpha = 0.001144
 Snap-to-int : [0, -3, 1]  prefactor C = 1.763  R2(f) = 0.9970
 
-Encoder + L1 filter (10% of |w|_max):
-  w_L1-filtered   : [+0.0000, +0.0000, -0.9961]
-  scale k         : -3.7182   const = +5.2050
-  Fitted exps     : [-0.0000, -0.0000, +3.7037]
-  Snap-to-int     : [0, 0, +3.7037]  C = 182.2  R2(f) = 0.3074
+Encoder + L1 filter (5% of |w|_max) + refit surviving exponents by OLS:
+  kept variables : ['log(phi)', 'log(1-phi)']   (dropped: ['log(Re_p)'])
+  Refit exps     : [+0.0000, -3.0189, +0.9866]  const = +0.5408  R2(logf) = 0.9994
+  Snap-to-int    : [0, -3, 1]  C = 1.763  R2(f) = 0.9970
 
 cos<encoder, SINDy>  raw = -0.3922   manifold-projected = -1.0000
 

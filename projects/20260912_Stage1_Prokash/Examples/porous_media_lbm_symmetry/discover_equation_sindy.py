@@ -147,38 +147,47 @@ def main():
     print(f"Snap-to-integer    : [{', '.join(str(int(v)) if v == int(v) else f'{v:+.2f}' for v in exps_snap)}]  "
           f"prefactor C = {C:.3g}   R2(f) = {r2_snap:.4f}")
 
-    # ---- 3a) L1-filter of the ENCODER direction (simpler alternative
-    #          to a fresh Lasso: just zero out minor-effect components
-    #          of the neural encoder's own weight vector). ------------
+    # ---- 3a) L1-thresholded encoder + refit-surviving-exponents by OLS
+    # -----------------------------------------------------------------
+    # Use the encoder weight magnitudes to decide WHICH variables carry
+    # signal (L1-style filtering), then refit the surviving exponents
+    # from the data by unconstrained OLS.  This is more powerful than a
+    # single-scalar rescale of the encoder direction because each
+    # remaining exponent can adjust independently, so the identifiable
+    # part of the encoder's answer is used but the off-manifold
+    # arbitrariness is corrected against the data.
     if w_enc is not None:
-        thresh_frac = 0.10           # fraction of |w|_max below which -> 0
+        thresh_frac = 0.05           # fraction of |w|_max below which -> 0
         w_max = np.max(np.abs(w_enc))
-        w_l1 = w_enc.copy()
-        w_l1[np.abs(w_l1) < thresh_frac * w_max] = 0.0
-        # Fit the overall scale k and intercept const by 1-D linear
-        # regression: log f = k*(w_l1 . log_features) + const.
-        z_enc = X @ w_l1
-        if np.std(z_enc) > 1e-12:
-            A = np.column_stack([z_enc, np.ones_like(z_enc)])
-            (k_fit, c_fit), *_ = np.linalg.lstsq(A, logf, rcond=None)
+        mask = np.abs(w_enc) >= thresh_frac * w_max
+        active = np.where(mask)[0]
+        exps_l1 = np.zeros(3)
+        if len(active) > 0:
+            X_active = X[:, active]
+            ols_a = LinearRegression().fit(X_active, logf)
+            exps_l1[active] = ols_a.coef_
+            r2_l1_logf = ols_a.score(X_active, logf)
+            intercept_l1 = ols_a.intercept_
         else:
-            k_fit, c_fit = 0.0, float(np.mean(logf))
-        exps_enc = k_fit * w_l1
-        exps_enc_snap = np.array([round_near_integer(v) for v in exps_enc])
-        logC_enc = float(np.mean(logf - X @ exps_enc_snap))
-        C_enc = float(np.exp(logC_enc))
-        y_enc = np.exp(logC_enc + X @ exps_enc_snap)
-        r2_enc = 1 - np.sum((f - y_enc) ** 2) / np.sum((f - f.mean()) ** 2)
-        print(f"Encoder + L1 filter (threshold = {thresh_frac:.0%} of |w|_max):")
-        print(f"  w_L1-filtered    : "
-              f"[{', '.join(f'{c:+.3f}' for c in w_l1)}]  "
-              f"(direction after zeroing minor components)")
-        print(f"  scale factor k   : {k_fit:+.3f}   const = {c_fit:+.3f}")
-        print(f"  Fitted exponents : "
-              f"[{', '.join(f'{c:+.3f}' for c in exps_enc)}]")
+            r2_l1_logf = 0.0
+            intercept_l1 = float(np.mean(logf))
+        exps_l1_snap = np.array([round_near_integer(v) for v in exps_l1])
+        logC_l1 = float(np.mean(logf - X @ exps_l1_snap))
+        C_l1 = float(np.exp(logC_l1))
+        y_l1 = np.exp(logC_l1 + X @ exps_l1_snap)
+        r2_l1_f = 1 - np.sum((f - y_l1) ** 2) / np.sum((f - f.mean()) ** 2)
+        keep_names = [names[i] for i in active]
+        drop_names = [names[i] for i in range(3) if i not in active]
+        print(f"Encoder + L1 filter (threshold = {thresh_frac:.0%} of |w|_max) "
+              f"+ refit surviving:")
+        print(f"  kept variables   : {keep_names}   "
+              f"(dropped: {drop_names if drop_names else 'none'})")
+        print(f"  Refit exponents  : "
+              f"[{', '.join(f'{c:+.3f}' for c in exps_l1)}]  "
+              f"const = {intercept_l1:+.3f}   R2(logf) = {r2_l1_logf:.4f}")
         print(f"  Snap-to-integer  : "
-              f"[{', '.join(str(int(v)) if v == int(v) else f'{v:+.3f}' for v in exps_enc_snap)}]  "
-              f"prefactor C = {C_enc:.3g}   R2(f) = {r2_enc:.4f}")
+              f"[{', '.join(str(int(v)) if v == int(v) else f'{v:+.3f}' for v in exps_l1_snap)}]  "
+              f"prefactor C = {C_l1:.3g}   R2(f) = {r2_l1_f:.4f}")
 
     # ---- 3.5) Consistency check: does SINDy's direction agree with
     #           the Stage1 encoder direction? --------------------------
@@ -236,15 +245,16 @@ def main():
         fh.write(f"Snap-to-int : [{', '.join(str(int(v)) if v == int(v) else f'{v:+.4f}' for v in exps_snap)}]"
                  f"  prefactor C = {C:.4g}  R2(f) = {r2_snap:.4f}\n\n")
         if w_enc is not None:
-            fh.write(f"Encoder + L1 filter ({thresh_frac:.0%} of |w|_max):\n")
-            fh.write(f"  w_L1-filtered   : "
-                     f"[{', '.join(f'{c:+.4f}' for c in w_l1)}]\n")
-            fh.write(f"  scale k         : {k_fit:+.4f}   const = {c_fit:+.4f}\n")
-            fh.write(f"  Fitted exps     : "
-                     f"[{', '.join(f'{c:+.4f}' for c in exps_enc)}]\n")
-            fh.write(f"  Snap-to-int     : "
-                     f"[{', '.join(str(int(v)) if v == int(v) else f'{v:+.4f}' for v in exps_enc_snap)}]"
-                     f"  C = {C_enc:.4g}  R2(f) = {r2_enc:.4f}\n\n")
+            fh.write(f"Encoder + L1 filter ({thresh_frac:.0%} of |w|_max) "
+                     f"+ refit surviving exponents by OLS:\n")
+            fh.write(f"  kept variables : {keep_names}   "
+                     f"(dropped: {drop_names if drop_names else 'none'})\n")
+            fh.write(f"  Refit exps     : "
+                     f"[{', '.join(f'{c:+.4f}' for c in exps_l1)}]  "
+                     f"const = {intercept_l1:+.4f}  R2(logf) = {r2_l1_logf:.4f}\n")
+            fh.write(f"  Snap-to-int    : "
+                     f"[{', '.join(str(int(v)) if v == int(v) else f'{v:+.4f}' for v in exps_l1_snap)}]"
+                     f"  C = {C_l1:.4g}  R2(f) = {r2_l1_f:.4f}\n\n")
         if w_enc is not None:
             fh.write(f"cos<encoder, SINDy>  raw = {cos_raw:+.4f}   "
                      f"manifold-projected = {cos_manifold:+.4f}\n\n")
