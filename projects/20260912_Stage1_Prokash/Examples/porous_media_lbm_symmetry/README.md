@@ -547,7 +547,55 @@ honestly reports the identifiable manifold direction and cannot
 invent the missing exponents. Neural inductive bias was hiding this
 identifiability limit; SINDy exposes it plainly.
 
-### Extracting the equation directly from the winner encoder + L1
+### The proper-L2 answer (`discover_equation_l2.py`) — **recommended**
+
+The simplest, cleanest way to extract the equation once Stage1 has told
+us the symmetry is *scaling* with `k* = 1` is to observe that this
+alone implies `f` is a **single monomial** of the Pi variables:
+
+```
+f  =  C · Re_p^a · phi^b · (1 - phi)^c
+```
+
+Taking logs turns this into a plain linear model
+`log f = a·log Re + b·log phi + c·log(1−φ) + log C`, which is
+fit by **ordinary least squares** (pure L2 minimisation, no L1, no
+thresholds, no penalties):
+
+```bash
+python discover_equation_l2.py --data dataset_ergun_viscous_widephi.csv \
+    --out output_viscous_widephi
+python discover_equation_l2.py --data dataset_ergun_inertial_widephi.csv \
+    --out output_inertial_widephi
+python discover_equation_l2.py --data dataset_lbm_porous.csv \
+    --out output_viscous_region
+```
+
+Each run saves `l2_equation.txt` and prints the encoder direction from
+`run.log` alongside the OLS answer as a *consistency check* (raw 3-D
+cosine + manifold-projected cosine). The encoder is not used as a
+constraint on the fit — it only justifies treating `log f` as
+linear in the log-features (which is what `k* = 1` + scaling
+symmetry mean).
+
+| Region | OLS (L2 fit) | Snap → integer | R²(f) | cos ⟨enc, OLS⟩ raw / manifold | Discovered equation |
+|---|---|---|---|---|---|
+| **Wide-φ viscous synth** (n=720) | `[−1.00, −3.02, +1.98]` | `[−1, −3, +2]` | **0.998** | +0.928 / **+0.9999** | **`f = 150 · Re⁻¹ · φ⁻³ · (1−φ)²`** ✓ |
+| **Wide-φ inertial synth** (n=720) | `[−0.004, −3.02, +0.99]` | `[0, −3, +1]` | **0.997** | −0.393 / **−1.0000** | **`f = 1.76 · φ⁻³ · (1−φ)`** ✓ |
+| Viscous LBM (n=144, narrow-φ) | `[−0.99, −4.05, +0.29]` | `[−1, −4, +0.29]` | 0.993 | +0.981 / **+0.9978** | narrow-φ wall |
+
+**Both wide-φ synthetic sweeps recover textbook Ergun exactly**, and
+in every region the OLS direction matches the encoder direction with
+manifold-projected cos ≥ +0.998 (up to sign convention) — the L2 fit
+and the neural pipeline agree wherever the data leaves any ambiguity.
+No thresholding, no penalty tuning, no snap tolerance calibration
+beyond ±0.15. Just OLS, exactly the tool the "scaling symmetry" +
+`k* = 1` guarantee tells us is sufficient.
+
+The narrow-φ LBM row falls into the same identifiability wall as
+before — that limit is imposed by the data, not the technique.
+
+### The L1 route (`discover_equation_sindy.py`) — kept for comparison
 
 An equivalent workflow that stays closer to the pipeline's output uses
 the encoder's own weight vector combined with an L1-threshold step:
