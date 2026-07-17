@@ -75,10 +75,6 @@ def main():
     ax.axvspan(X_CROSS, x_hi, color="#DD8452", alpha=0.08)
     ax.axvline(X_CROSS, color="grey", ls=":", lw=2.0)
 
-    ax.text(X_CROSS, 10 ** (np.log10(Yi.min()) + 0.35),
-            "  $X^* = 150/1.75 \\approx 86$",
-            ha="left", va="bottom", color="#555555", fontsize=22)
-
     ax.set_xlim(x_lo, x_hi)
     ax.set_xlabel(r"$X = Re_p / (1-\phi)$")
     ax.set_ylabel(r"$Y = f \cdot \phi^3 / (1-\phi)$")
