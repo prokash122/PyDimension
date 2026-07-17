@@ -63,6 +63,17 @@ def main():
                         help="log10 of max Re_p. Default 6")
     parser.add_argument("--seed", type=int, default=0,
                         help="RNG seed. Default 0")
+    parser.add_argument("--phi-min", type=float, default=None,
+                        help="If set, sweep phi in [phi-min, phi-max] with "
+                             "n-phi values (log-spaced in porosity) instead "
+                             "of mirroring the LBM sweep. Enables the wide-"
+                             "porosity variant that exposes the (1-phi)/phi^3 "
+                             "curvature.")
+    parser.add_argument("--phi-max", type=float, default=None,
+                        help="Upper end of the phi sweep (used with --phi-min).")
+    parser.add_argument("--n-phi", type=int, default=12,
+                        help="Number of phi values when --phi-min/--phi-max "
+                             "are given. Default 12.")
     parser.add_argument("--output", default="dataset_ergun_inertial.csv")
     args = parser.parse_args()
 
@@ -71,7 +82,12 @@ def main():
     # Mirror the LBM sweep: same porosities, same particle diameters,
     # same lattice fluid (rho ~ 1, mu = LBM median viscosity).
     lbm = pd.read_csv(os.path.join(_here, "dataset_lbm_porous.csv"))
-    phis = sorted(lbm["phi"].round(6).unique())
+    if args.phi_min is not None and args.phi_max is not None:
+        phis = list(np.linspace(args.phi_min, args.phi_max, args.n_phi))
+        print(f"Wide-porosity sweep: phi in [{args.phi_min:.2f}, "
+              f"{args.phi_max:.2f}], {args.n_phi} values")
+    else:
+        phis = sorted(lbm["phi"].round(6).unique())
     ds = sorted(lbm["d"].unique())
     rho0 = 1.0
     mu0 = float(np.median(lbm["mu"]))
