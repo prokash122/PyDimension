@@ -754,13 +754,16 @@ def plot_results(X, y, results, output_dir):
     ax.set_ylim(0, max(losses) * 1.5)
     ax.set_ylabel("Validation MSE")
     ax.set_title(f"Symmetry Type  (winner: {sym_res['symmetry_type']})")
+    # Pick a precision that separates the smallest neighbouring losses:
+    # 4 sig figs is enough when a wide-phi run gets MSE ~ 1e-4 with a
+    # ~1.4x gap (7.3e-5 vs 9.8e-5) that reads "0.0001, 0.0001" at .4f.
     for bar, loss in zip(bars, losses):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
-                f"{loss:.4f}", ha="center", va="bottom")
+                f"{loss:.2e}", ha="center", va="bottom")
     sorted_losses = sorted(losses)
     if len(sorted_losses) >= 2 and sorted_losses[0] > 0:
         gap = sorted_losses[1] / sorted_losses[0]
-        ax.text(0.97, 0.97, f"Loss gap: {gap:.1f}×",
+        ax.text(0.97, 0.97, f"Loss gap: {gap:.2f}×",
                 ha="right", va="top", transform=ax.transAxes, color="#333333")
 
     # Panel 2: latent-dim R² curve
