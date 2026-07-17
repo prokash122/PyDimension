@@ -471,6 +471,21 @@ python discover_equation_sindy.py --data dataset_lbm_porous.csv \
     --out output_viscous_region
 ```
 
+For the viscous branch, LBM's narrow porosity range (φ ∈ [0.46, 0.61])
+hits the same identifiability wall — so we also generated a
+**wide-porosity synthetic viscous dataset** (720 rows,
+φ ∈ [0.15, 0.85] × 12 values × 2 diameters × 30 Re_p ∈ [10⁻⁶, 10⁻³]
+points, `dataset_ergun_viscous_widephi.csv`) via
+
+```bash
+python generate_viscous_dataset.py --phi-min 0.15 --phi-max 0.85 \
+    --n-phi 12 --output dataset_ergun_viscous_widephi.csv
+python discover_symmetry.py --data dataset_ergun_viscous_widephi.csv \
+    --output-dir output_viscous_widephi --seed 42
+python discover_equation_sindy.py --data dataset_ergun_viscous_widephi.csv \
+    --out output_viscous_widephi
+```
+
 Each run writes `sindy_equation.txt` into the region's output folder
 and prints OLS, Lasso and snap-to-integer results side-by-side.
 
@@ -478,40 +493,52 @@ and prints OLS, Lasso and snap-to-integer results side-by-side.
 
 | Region | OLS (raw fit) | Lasso (5-fold CV) | Snap-to-integer | Discovered equation |
 |---|---|---|---|---|
-| **Wide-φ inertial** (n=720) | `[−0.004, −3.019, +0.987]` | `[−0.004, −3.018, +0.984]` (α = 1.1·10⁻³) | `[0, −3, +1]` | **`f = 1.76 · φ⁻³ · (1−φ)`** |
-| **Viscous LBM** (n=144) | `[−0.990, −4.051, +0.294]` | `[−0.989, 0.000, +3.480]` (α = 3.7·10⁻³) | `[−1, 0, +3.48]` | `f ≈ 2010 · Re_p⁻¹ · (1−φ)³·⁴⁸` |
+| **Wide-φ viscous synthetic** (n=720) | `[−1.000, −3.016, +1.984]` | `[−0.998, −3.004, +1.969]` (α = 6.9·10⁻³) | `[−1, −3, +2]` | **`f = 150 · Re_p⁻¹ · φ⁻³ · (1−φ)²`** ✓ exact textbook |
+| **Wide-φ inertial** (n=720) | `[−0.004, −3.019, +0.987]` | `[−0.004, −3.018, +0.984]` (α = 1.1·10⁻³) | `[0, −3, +1]` | **`f = 1.76 · φ⁻³ · (1−φ)`** ✓ exact textbook (const 1.76 vs 1.75) |
+| Viscous LBM (n=144) | `[−0.990, −4.051, +0.294]` | `[−0.989, 0.000, +3.480]` (α = 3.7·10⁻³) | `[−1, 0, +3.48]` | `f ≈ 2010 · Re_p⁻¹ · (1−φ)³·⁴⁸` (narrow-φ wall) |
 
-**Inertial region — SINDy nails the textbook Ergun exactly.**
-Truth `f = 1.75 · (1−φ)/φ³`. Recovered `f = 1.76 · (1−φ)/φ³`. All three
-exponents `[0, −3, +1]` come out cleanly integer after snap. Prefactor
-1.76 matches the textbook 1.75 within 1 % (the residual is the 5 %
-log-normal noise). This is what the Stage1 pipeline knew but wouldn't
-print — SINDy prints it.
+**Both synthetic sweeps — SINDy nails textbook Ergun exactly.**
+For the wide-φ **inertial** run, truth `f = 1.75·(1−φ)/φ³`, recovered
+`f = 1.76·(1−φ)/φ³` with all three exponents `[0, −3, +1]` and the
+prefactor within 1 % of textbook. For the wide-φ **viscous** run, truth
+`f = 150·(1−φ)²/(Re_p·φ³)`, recovered exactly `f = 150·Re_p⁻¹·φ⁻³·(1−φ)²`
+— all four numbers match textbook. Both are what the Stage1 pipeline
+knew but wouldn't print; SINDy prints it.
 
-**Viscous region — same identifiability wall shows up again.**
-The 144-row LBM sweep has φ ∈ [0.46, 0.61], a range too narrow for
-`log φ` and `log(1−φ)` to separate linearly. So even a plain OLS on
-`[log Re, log φ, log(1−φ)]` can't uniquely pin the individual `[−1, −3,
-+2]` — it lands on a valid manifold-projection direction but a
-different equivalence-class member than textbook. Lasso then zeros the
-weakly-supported `φ` component and puts all porosity dependence on
-`(1−φ)^3.48`. The **manifold slope this represents is correct** —
-`3.48 · (−φ̄/(1−φ̄)) = 3.48 · (−1.195) = −4.16`, matching the LBM data's
-effective log-slope of `−4.05 + 0.29·(−1.195) = −4.40`, well within
-noise. What's *not* correct here is the individual textbook split:
-that split cannot be recovered from LBM's narrow φ, regardless of
-technique (encoder, SINDy, or anything else). To disentangle it we'd
-need a wider-φ LBM sweep — e.g. simulations at φ ∈ {0.30, 0.75} in
-addition to the current values — which is a data-generation task, not
-an algorithmic one.
+Stage1 also improves visibly with wider φ on the viscous side: the
+scaling-vs-translational loss gap jumps from 4.0× (narrow-φ LBM) to
+**15.0×** (wide-φ synthetic), the manifold-projected cos rises from
++0.995 to **+0.9999**, and the raw 3-D cos rises from +0.769 to
++0.931. The pipeline still doesn't land on the exact `[−1, −3, +2]`
+individually because of the nonlinear-decoder inductive bias
+described above, but the identifiable direction is essentially exact
+and SINDy converts it to the textbook exponents cleanly.
+
+**Viscous LBM (narrow-φ real data) — the identifiability wall persists
+in the *real* data.** The 144-row LBM sweep has φ ∈ [0.46, 0.61], a
+range too narrow for `log φ` and `log(1−φ)` to separate linearly. So
+even a plain OLS on `[log Re, log φ, log(1−φ)]` can't uniquely pin the
+individual `[−1, −3, +2]` — it lands on a valid manifold-projection
+direction but a different equivalence-class member than textbook.
+Lasso then zeros the weakly-supported `φ` component and puts all
+porosity dependence on `(1−φ)^3.48`. The **manifold slope this
+represents is correct** — `3.48 · (−φ̄/(1−φ̄)) = 3.48 · (−1.195) = −4.16`,
+matching the LBM data's effective log-slope of
+`−4.05 + 0.29·(−1.195) = −4.40`, well within noise. What's *not*
+recovered here is the textbook split: that split cannot come from
+LBM's narrow φ, regardless of technique. To disentangle it we'd need
+a wider-φ **LBM** sweep — e.g. real simulations at φ ∈ {0.30, 0.75} —
+which is a data-generation task, not an algorithmic one. The wide-φ
+synthetic run above is the "if we had that LBM data" proof: given
+adequate φ coverage the physics comes out clean.
 
 **Punchline.** The pipeline + SINDy stack behaves exactly as it
-should: where the *data* determines the exponents (wide-φ inertial),
-SINDy prints textbook Ergun with cos = 1.000; where the *data* leaves
-an equivalence class (narrow-φ viscous LBM), SINDy honestly reports
-the identifiable manifold direction and cannot invent the missing
-exponents. Neural inductive bias was hiding this identifiability limit;
-SINDy exposes it plainly.
+should: where the *data* determines the exponents (either synthetic
+wide-φ sweep), SINDy prints textbook Ergun to full precision; where
+the *data* leaves an equivalence class (narrow-φ viscous LBM), SINDy
+honestly reports the identifiable manifold direction and cannot
+invent the missing exponents. Neural inductive bias was hiding this
+identifiability limit; SINDy exposes it plainly.
 
 ---
 
