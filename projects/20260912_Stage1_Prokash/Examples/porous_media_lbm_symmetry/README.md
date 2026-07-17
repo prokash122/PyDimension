@@ -547,6 +547,40 @@ honestly reports the identifiable manifold direction and cannot
 invent the missing exponents. Neural inductive bias was hiding this
 identifiability limit; SINDy exposes it plainly.
 
+### Aside — L1 filtering of the encoder direction (a simpler alternative)
+
+A leaner idea would be: skip the fresh Lasso regression entirely and
+just **apply an L1 threshold to the encoder's own weight vector**,
+zero out small components, then fit only the overall scale `k` and
+prefactor `C` to the data. `discover_equation_sindy.py` also runs this
+alongside the main SINDy fit (threshold = 10 % of `|w|_max`):
+
+| Region | L1-filtered encoder `w` | Fitted exponents (scale k·w) | Snap → integer | R²(f) |
+|---|---|---|---|---|
+| Wide-φ viscous synth | `[−0.29, −0.54, +0.79]` (nothing zeroed) | `[−1.04, −1.95, +2.89]` | `[−1, −2, +3]` | 0.886 |
+| Wide-φ inertial synth | `[0, 0, −1.00]` (φ zeroed at threshold) | `[0, 0, +3.70]` | `[0, 0, +3.70]` | **0.307** |
+| Viscous LBM narrow-φ | `[−0.24, −0.96, −0.13]` (nothing zeroed) | `[−1.00, −4.02, −0.52]` | `[−1, −4, −0.52]` | 0.984 |
+
+**This is dramatically worse than the fresh Lasso.** In the wide-φ
+inertial case, R²(f) *collapses* from 0.997 → 0.307 because L1
+thresholding zeros out `log φ` (encoder weight only 0.088, below
+threshold), destroying the actual `φ⁻³` dependence — the resulting
+`(1−φ)^3.7` monomial simply can't fit the true `(1−φ)/φ³`. In the
+wide-φ viscous case the exponents come out `[−1, −2, +3]` instead of
+truth `[−1, −3, +2]` — a valid manifold-tangent direction but not the
+canonical textbook member.
+
+The reason is the identifiability caveat, again: the encoder's raw 3-D
+direction sits in an equivalence class where **only the manifold
+projection is meaningful**. Rescaling that direction with a single
+scalar `k` (as the L1-filter approach does) cannot reshape it into a
+different equivalence-class member — only a full 3-parameter refit
+(Lasso on `[log Re, log φ, log(1−φ)]`) can. So the L1-filter approach
+inherits the encoder's off-manifold arbitrariness, whereas the fresh
+Lasso solves it. Keeping L1 filtering in the output for transparency,
+but the recommended workflow is: **Stage1 tells you the form
+(monomial, scaling), SINDy Lasso prints the exponents.**
+
 ---
 
 ## Output Files

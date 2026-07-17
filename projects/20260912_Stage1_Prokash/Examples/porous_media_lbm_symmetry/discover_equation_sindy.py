@@ -147,6 +147,39 @@ def main():
     print(f"Snap-to-integer    : [{', '.join(str(int(v)) if v == int(v) else f'{v:+.2f}' for v in exps_snap)}]  "
           f"prefactor C = {C:.3g}   R2(f) = {r2_snap:.4f}")
 
+    # ---- 3a) L1-filter of the ENCODER direction (simpler alternative
+    #          to a fresh Lasso: just zero out minor-effect components
+    #          of the neural encoder's own weight vector). ------------
+    if w_enc is not None:
+        thresh_frac = 0.10           # fraction of |w|_max below which -> 0
+        w_max = np.max(np.abs(w_enc))
+        w_l1 = w_enc.copy()
+        w_l1[np.abs(w_l1) < thresh_frac * w_max] = 0.0
+        # Fit the overall scale k and intercept const by 1-D linear
+        # regression: log f = k*(w_l1 . log_features) + const.
+        z_enc = X @ w_l1
+        if np.std(z_enc) > 1e-12:
+            A = np.column_stack([z_enc, np.ones_like(z_enc)])
+            (k_fit, c_fit), *_ = np.linalg.lstsq(A, logf, rcond=None)
+        else:
+            k_fit, c_fit = 0.0, float(np.mean(logf))
+        exps_enc = k_fit * w_l1
+        exps_enc_snap = np.array([round_near_integer(v) for v in exps_enc])
+        logC_enc = float(np.mean(logf - X @ exps_enc_snap))
+        C_enc = float(np.exp(logC_enc))
+        y_enc = np.exp(logC_enc + X @ exps_enc_snap)
+        r2_enc = 1 - np.sum((f - y_enc) ** 2) / np.sum((f - f.mean()) ** 2)
+        print(f"Encoder + L1 filter (threshold = {thresh_frac:.0%} of |w|_max):")
+        print(f"  w_L1-filtered    : "
+              f"[{', '.join(f'{c:+.3f}' for c in w_l1)}]  "
+              f"(direction after zeroing minor components)")
+        print(f"  scale factor k   : {k_fit:+.3f}   const = {c_fit:+.3f}")
+        print(f"  Fitted exponents : "
+              f"[{', '.join(f'{c:+.3f}' for c in exps_enc)}]")
+        print(f"  Snap-to-integer  : "
+              f"[{', '.join(str(int(v)) if v == int(v) else f'{v:+.3f}' for v in exps_enc_snap)}]  "
+              f"prefactor C = {C_enc:.3g}   R2(f) = {r2_enc:.4f}")
+
     # ---- 3.5) Consistency check: does SINDy's direction agree with
     #           the Stage1 encoder direction? --------------------------
     if w_enc is not None:
@@ -202,6 +235,16 @@ def main():
                  f"  alpha = {alpha:.4g}\n")
         fh.write(f"Snap-to-int : [{', '.join(str(int(v)) if v == int(v) else f'{v:+.4f}' for v in exps_snap)}]"
                  f"  prefactor C = {C:.4g}  R2(f) = {r2_snap:.4f}\n\n")
+        if w_enc is not None:
+            fh.write(f"Encoder + L1 filter ({thresh_frac:.0%} of |w|_max):\n")
+            fh.write(f"  w_L1-filtered   : "
+                     f"[{', '.join(f'{c:+.4f}' for c in w_l1)}]\n")
+            fh.write(f"  scale k         : {k_fit:+.4f}   const = {c_fit:+.4f}\n")
+            fh.write(f"  Fitted exps     : "
+                     f"[{', '.join(f'{c:+.4f}' for c in exps_enc)}]\n")
+            fh.write(f"  Snap-to-int     : "
+                     f"[{', '.join(str(int(v)) if v == int(v) else f'{v:+.4f}' for v in exps_enc_snap)}]"
+                     f"  C = {C_enc:.4g}  R2(f) = {r2_enc:.4f}\n\n")
         if w_enc is not None:
             fh.write(f"cos<encoder, SINDy>  raw = {cos_raw:+.4f}   "
                      f"manifold-projected = {cos_manifold:+.4f}\n\n")
