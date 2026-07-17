@@ -65,10 +65,10 @@ plt.rcParams.update({
     "xtick.labelsize": 22,
     "ytick.labelsize": 22,
     "legend.fontsize": 21,
-    "text.color":      INK,
-    "axes.labelcolor": INK2,
-    "xtick.color":     INK2,
-    "ytick.color":     INK2,
+    "text.color":      "black",
+    "axes.labelcolor": "black",
+    "xtick.color":     "black",
+    "ytick.color":     "black",
     "axes.edgecolor":  BASE,
 })
 
@@ -190,7 +190,7 @@ def main():
              "★ = A real mix from the dataset (ε=0).\n"
              "Solid = Walk along a generator (strength held).  "
              "Dashed = Walk along the strength direction (strength changes).",
-             ha="center", fontsize=20, color=INK2)
+             ha="center", fontsize=20, color="black")
 
     plt.tight_layout(rect=[0, 0.02, 1, 0.90])
     os.makedirs(args.output_dir, exist_ok=True)
