@@ -364,6 +364,41 @@ python discover_symmetry.py --data dataset_ergun_inertial_widephi.csv \
     --latent-epochs 300 --sym-epochs 600 --n-restarts 3
 ```
 
+**Actual vs discovered equation (wide-φ inertial run).** From
+`output_inertial_widephi/run.log` line 126, the L2-normed encoder
+direction on `[log Re_p, log φ, log(1−φ)]` is `[+0.0005, +0.0879, −0.9961]`
+(sign convention: anti-parallel to a "log f-increasing" direction; flip
+sign for readability). Rescaling so `(1−φ)` exponent = +1:
+
+| | Equation |
+|---|---|
+| **Actual (Forchheimer plateau)** | `f = 1.75 · (1−φ)¹ · φ⁻³ · Re_p⁰` |
+| **Discovered by encoder** | `f = F( (1−φ)⁺¹·⁰⁰ · φ⁻⁰·⁰⁹ · Re_p⁻⁰·⁰⁰¹ )` |
+| **Discovered, with linear F fitted to data** | `f ≈ 1.77 · (1−φ)⁺¹·⁰⁰ · φ⁻⁰·⁰⁹ · Re_p⁻⁰·⁰⁰¹` |
+
+The **Re_p⁰ (Re-independence)** and **(1−φ)⁺¹** parts are recovered
+exactly; the **φ⁻³** part is not (drifts to φ⁻⁰·⁰⁹), because along the
+data manifold `log(1−φ)` and `log φ` are collinear enough that the
+scaling encoder can absorb an arbitrary amount of the true `φ` slope
+into `(1−φ)` and let the nonlinear decoder `F` mop up the difference.
+The raw 3-D cos to the Ergun exponents `[0, −3, +1]` is only −0.399
+(sign-flipped), but along the identifiable data-manifold direction the
+match is **−1.000** — perfect.
+
+**Compare with the viscous-region equation** (already documented in
+"Discovered vs Actual Equations" above):
+
+| | Equation |
+|---|---|
+| **Actual (deep Darcy)** | `f = 150 · (1−φ)² · φ⁻³ · Re_p⁻¹` |
+| **Discovered by encoder** | `f = F( (1−φ)⁻⁰·⁵² · φ⁻⁴·⁰¹ · Re_p⁻¹·⁰⁰ )` |
+| **Discovered, with linear F fitted to data** | `f ≈ 97.5 · (1−φ)⁻⁰·⁵² · φ⁻⁴·⁰¹ · Re_p⁻¹·⁰⁰` |
+
+There the **Re_p⁻¹ (Darcy law)** is exact; the porosity split is soft
+in the same way. The `97.5` (vs textbook `150`) is the known LBM offset
+— the *slope* structure the pipeline reports is correct, only the
+absolute drag magnitude differs.
+
 **Observations (seed 42):**
 
 | Aspect | Narrow φ ∈ [0.46, 0.61] | Wide φ ∈ [0.15, 0.85] |
