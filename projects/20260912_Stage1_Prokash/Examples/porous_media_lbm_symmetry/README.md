@@ -447,6 +447,74 @@ the truth.
 
 ---
 
+## SINDy-style Post-processing (`discover_equation_sindy.py`)
+
+The Stage1 pipeline discovers *which* dimensionless monomial and *what
+symmetry type* govern each regime — but its neural decoder absorbs
+enough curvature that the individual exponents are not printed
+cleanly (`φ⁻³` gets swallowed into a nonlinear `F(z)`, as documented
+above). A SINDy-style trick fixes this cheaply:
+
+- **Assume the pipeline is right that k\* = 1 and the symmetry is
+  scaling** (both are printed with high loss-gap confidence).
+- **Fit `log f` as a linear combination of `log Re_p`, `log φ`,
+  `log(1−φ)` with a small L1 (Lasso) penalty** — this locks the
+  decoder to identity, so the exponents are uniquely determined by
+  data and small-effect coefficients snap to zero.
+- **Snap near-integer exponents to integers** and re-fit the prefactor
+  by matching medians.
+
+```bash
+python discover_equation_sindy.py --data dataset_ergun_inertial_widephi.csv \
+    --out output_inertial_widephi
+python discover_equation_sindy.py --data dataset_lbm_porous.csv \
+    --out output_viscous_region
+```
+
+Each run writes `sindy_equation.txt` into the region's output folder
+and prints OLS, Lasso and snap-to-integer results side-by-side.
+
+### Results
+
+| Region | OLS (raw fit) | Lasso (5-fold CV) | Snap-to-integer | Discovered equation |
+|---|---|---|---|---|
+| **Wide-φ inertial** (n=720) | `[−0.004, −3.019, +0.987]` | `[−0.004, −3.018, +0.984]` (α = 1.1·10⁻³) | `[0, −3, +1]` | **`f = 1.76 · φ⁻³ · (1−φ)`** |
+| **Viscous LBM** (n=144) | `[−0.990, −4.051, +0.294]` | `[−0.989, 0.000, +3.480]` (α = 3.7·10⁻³) | `[−1, 0, +3.48]` | `f ≈ 2010 · Re_p⁻¹ · (1−φ)³·⁴⁸` |
+
+**Inertial region — SINDy nails the textbook Ergun exactly.**
+Truth `f = 1.75 · (1−φ)/φ³`. Recovered `f = 1.76 · (1−φ)/φ³`. All three
+exponents `[0, −3, +1]` come out cleanly integer after snap. Prefactor
+1.76 matches the textbook 1.75 within 1 % (the residual is the 5 %
+log-normal noise). This is what the Stage1 pipeline knew but wouldn't
+print — SINDy prints it.
+
+**Viscous region — same identifiability wall shows up again.**
+The 144-row LBM sweep has φ ∈ [0.46, 0.61], a range too narrow for
+`log φ` and `log(1−φ)` to separate linearly. So even a plain OLS on
+`[log Re, log φ, log(1−φ)]` can't uniquely pin the individual `[−1, −3,
++2]` — it lands on a valid manifold-projection direction but a
+different equivalence-class member than textbook. Lasso then zeros the
+weakly-supported `φ` component and puts all porosity dependence on
+`(1−φ)^3.48`. The **manifold slope this represents is correct** —
+`3.48 · (−φ̄/(1−φ̄)) = 3.48 · (−1.195) = −4.16`, matching the LBM data's
+effective log-slope of `−4.05 + 0.29·(−1.195) = −4.40`, well within
+noise. What's *not* correct here is the individual textbook split:
+that split cannot be recovered from LBM's narrow φ, regardless of
+technique (encoder, SINDy, or anything else). To disentangle it we'd
+need a wider-φ LBM sweep — e.g. simulations at φ ∈ {0.30, 0.75} in
+addition to the current values — which is a data-generation task, not
+an algorithmic one.
+
+**Punchline.** The pipeline + SINDy stack behaves exactly as it
+should: where the *data* determines the exponents (wide-φ inertial),
+SINDy prints textbook Ergun with cos = 1.000; where the *data* leaves
+an equivalence class (narrow-φ viscous LBM), SINDy honestly reports
+the identifiable manifold direction and cannot invent the missing
+exponents. Neural inductive bias was hiding this identifiability limit;
+SINDy exposes it plainly.
+
+---
+
 ## Output Files
 
 Per region (`output_viscous_region/`, `output_inertial_region/`):

@@ -1,0 +1,7 @@
+Data source: dataset_lbm_porous.csv   n = 144
+
+OLS         : [-0.9902, -4.0512, +0.2937]  const = +2.6993  R2 = 0.9990
+LassoCV     : [-0.9893, -0.0000, +3.4798]  const = +7.7177  R2 = 0.9983  alpha = 0.003723
+Snap-to-int : [-1, 0, +3.4798]  prefactor C = 2006  R2(f) = 0.9863
+
+Discovered equation:  f = 2.01e+03 Re_p^-1 . (1-phi)^+3.48
