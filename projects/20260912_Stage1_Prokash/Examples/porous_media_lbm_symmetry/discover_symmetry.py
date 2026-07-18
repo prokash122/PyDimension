@@ -112,36 +112,41 @@ from pydimension.data_preprocessing import (
 import torch.multiprocessing as _tmp
 _tmp.cpu_count = lambda: 0
 
-VARIABLE_NAMES = ["dP_L", "v", "mu", "rho", "d", "phi", "one_minus_phi"]
-VARIABLE_UNITS = ["Pa/m", "m/s", "Pa·s", "kg/m³", "m", "-", "-"]
+VARIABLE_NAMES = ["rho", "v", "d", "mu", "phi", "one_minus_phi"]
+VARIABLE_UNITS = ["kg/m³", "m/s", "m", "Pa·s", "-", "-"]
 
 # Dimension matrix, rows = (Mass, Length, Time), cols = VARIABLE_NAMES.
-#   dP_L  [Pa/m]    = kg·m⁻²·s⁻²              ( 1, -2, -2)
-#   v     [m/s]                                ( 0,  1, -1)
-#   mu    [Pa·s]    = kg·m⁻¹·s⁻¹              ( 1, -1, -1)
 #   rho   [kg/m³]                              ( 1, -3,  0)
+#   v     [m/s]                                ( 0,  1, -1)
 #   d     [m]                                  ( 0,  1,  0)
+#   mu    [Pa·s]    = kg·m⁻¹·s⁻¹              ( 1, -1, -1)
 #   phi   [-]       (dimensionless)            ( 0,  0,  0)
 #   1-phi [-]       (dimensionless)            ( 0,  0,  0)
+#
+# dP_L is EXCLUDED from the Step-0 inputs because the target quantity
+# f = dP_L·d/(rho·v²) contains dP_L linearly; keeping dP_L in the basis
+# would put f into two of the four discovered Pi groups (as f/Re_p and
+# f·Re_p), making them redundant with the target.  Dropping dP_L gives a
+# clean 3-Pi-group basis {Re_p, phi, 1-phi} that maps one-to-one onto
+# the Step-2 encoder inputs.
 #
 # (1-phi) is included as its own variable BEFORE dimensional analysis: the
 # Ergun porosity dependence lives in both phi and (1-phi), so with it the
 # scaling machinery can express the porosity powers directly instead of
 # linearising (1-phi)^a around the mean porosity.
 DIMENSION_MATRIX = np.array([
-    # dP_L  v   mu  rho  d   phi 1-phi
-    [   1,  0,  1,   1,  0,  0,  0],   # Mass
-    [  -2,  1, -1,  -3,  1,  0,  0],   # Length
-    [  -2, -1, -1,   0,  0,  0,  0],   # Time
+    # rho  v   d   mu  phi 1-phi
+    [   1, 0,  0,  1,  0,  0],   # Mass
+    [  -3, 1,  1, -1,  0,  0],   # Length
+    [   0,-1,  0, -1,  0,  0],   # Time
 ], dtype=float)
 DIMENSION_NAMES = ["Mass", "Length", "Time"]
 
-# Reference exponent vectors over the 7 variables
-# (dP_L, v, mu, rho, d, phi, 1-phi).
-#   f      = dP_L^1 · v^-2 · rho^-1 · d^1
-KNOWN_F_EXPONENTS  = np.array([ 1.0, -2.0,  0.0, -1.0,  1.0, 0.0, 0.0])
-#   Re_p   = v · rho · d · mu^-1
-KNOWN_RE_EXPONENTS = np.array([ 0.0,  1.0, -1.0,  1.0,  1.0, 0.0, 0.0])
+# Reference exponent vector over the 6 variables
+# (rho, v, d, mu, phi, 1-phi).  f is the target and no longer lives
+# in the input Pi span (dP_L was dropped), so only Re_p is checked.
+#   Re_p   = rho · v · d · mu^-1
+KNOWN_RE_EXPONENTS = np.array([ 1.0,  1.0,  1.0, -1.0,  0.0, 0.0])
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -347,9 +352,9 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
         else:
             print(f"    Pi{i+1} = {expr}")
 
-    # Project known exponents onto null space
-    for label, ref in [("f (friction factor)", KNOWN_F_EXPONENTS),
-                       ("Re_p (Reynolds)",     KNOWN_RE_EXPONENTS)]:
+    # Project known exponents onto null space.  f is no longer projected
+    # because dP_L was excluded from the input basis (f is the target).
+    for label, ref in [("Re_p (Reynolds)",     KNOWN_RE_EXPONENTS)]:
         coords, *_ = np.linalg.lstsq(pi_basis, ref, rcond=None)
         recon = pi_basis @ coords
         ref_n = ref / (np.linalg.norm(ref) + 1e-12)
@@ -360,10 +365,13 @@ def run_pipeline(X, y, Re_p, f_ergun, args):
 
     results["pi_basis"] = pi_basis
 
-    # Pi features for Step 2: use externally-computed Re_p, phi and 1-phi.
-    # (We EXCLUDE the f Pi group from inputs because it IS the target.)
-    phi = X[:, 5]
-    omp = X[:, 6]
+    # Pi features for Step 2: use the three Pi groups the 6-variable DA
+    # returned above — Re_p (built externally from rho·v·d/mu for numerical
+    # cleanliness), phi and (1-phi).  All three Pi groups discovered in
+    # Step 0 are used; there is no leftover target-carrying Pi group to
+    # drop because dP_L was excluded from the input basis.
+    phi = X[:, VARIABLE_NAMES.index("phi")]
+    omp = X[:, VARIABLE_NAMES.index("one_minus_phi")]
     log10_Re = np.log10(np.maximum(Re_p, 1e-30))
     pi_features = np.column_stack([log10_Re, phi, omp])
     fmin = pi_features.min(axis=0)
@@ -643,7 +651,7 @@ def _interpret_generator(g, names):
 def plot_ergun_collapse(X, y, Re_p, output_dir):
     """Plot f·φ³/(1-φ) vs Re_p/(1-φ) — should collapse onto 150/x + 1.75."""
     os.makedirs(output_dir, exist_ok=True)
-    phi = X[:, 5]
+    phi = X[:, VARIABLE_NAMES.index("phi")]
 
     x_mod = Re_p / np.maximum(1 - phi, 1e-30)
     y_mod = y * phi**3 / np.maximum(1 - phi, 1e-30)
