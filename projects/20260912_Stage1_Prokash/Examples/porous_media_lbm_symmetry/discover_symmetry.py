@@ -760,11 +760,6 @@ def plot_results(X, y, results, output_dir):
     for bar, loss in zip(bars, losses):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
                 f"{loss:.2e}", ha="center", va="bottom")
-    sorted_losses = sorted(losses)
-    if len(sorted_losses) >= 2 and sorted_losses[0] > 0:
-        gap = sorted_losses[1] / sorted_losses[0]
-        ax.text(0.97, 0.97, f"Loss gap: {gap:.2f}×",
-                ha="right", va="top", transform=ax.transAxes, color="#333333")
 
     # Panel 2: latent-dim R² curve
     ax = axes[1]
