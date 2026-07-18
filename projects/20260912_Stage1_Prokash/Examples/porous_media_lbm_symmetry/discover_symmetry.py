@@ -759,7 +759,7 @@ def plot_results(X, y, results, output_dir):
     # ~1.4x gap (7.3e-5 vs 9.8e-5) that reads "0.0001, 0.0001" at .4f.
     for bar, loss in zip(bars, losses):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
-                f"{loss:.2e}", ha="center", va="bottom")
+                f"{loss:.6f}", ha="center", va="bottom")
 
     # Panel 2: latent-dim R² curve
     ax = axes[1]
