@@ -1,0 +1,23 @@
+Dataset                 : dataset_ergun_viscous_widephi.csv
+Architecture            : scaling encoder (z = w . log|pi|)  +  Tanh MLP decoder [1 -> 64 -> 64 -> 1]
+Training                : Adam, lr=1e-3, weight_decay=1e-4, MSE on min-max(log10 f),  1500 epochs, 3 restarts (best kept)
+Best restart seed       : 2  (train MSE = 0.000011, test MSE = 0.000013)
+
+Encoder raw weight w     : [+0.0757, +0.2251, -0.1527]
+Encoder L2-normed w      : [-0.2681, -0.7972, +0.5409]      on [log Re_p, log phi, log(1-phi)]
+phi_bar                  : 0.5000
+cos vs Ergun (raw 3-D)   : +1.0000
+cos vs Ergun (manifold)  : +1.0000
+
+Actual (Ergun) : f = 150 * Re_p^-1 * phi^-3 * (1-phi)^+2
+  exponents          = [-1.0, -3.0, 2.0]
+  prefactor C_actual = 150.0
+
+1-D OLS on log f = alpha*(w . x) + log C:
+  alpha  = +3.7342   log C = +5.0351   C = 153.7
+  exponents (alpha * w_norm) = [-1.0011, -2.9770, +2.0198]
+
+Discovered law (encoder L2 only):
+    f = 153.7 * Re_p^-1.001 * phi^-2.977 * (1-phi)^+2.020
+  R2(log f) = 0.9998
+  R2(f)     = 0.9983
