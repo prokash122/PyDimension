@@ -162,42 +162,48 @@ features separately, no snap-to-integer.
 Standalone scaling encoder (`z = w · log|π|`) + Tanh MLP decoder
 (`[1 → 64 → 64 → 1]`, Tanh) trained jointly for 1500 epochs, Adam
 `lr = 1e-3`, `weight_decay = 1e-4`, 3 random restarts, best test-loss
-kept.
+kept (see `discover_equation_encoder_l2.py`).
+
+Committed run (`--split-seed 42`, best restart seed = 2), full report
+in `output_viscous_widephi/discovered_equation.txt`:
 
 ```
-Best restart      : train MSE = 1.1e-5,   test MSE = 1.1e-5
-Encoder w (L2)    : [ −0.2684, −0.7933, +0.5465 ]
-cos vs Ergun      : +0.9999   (raw 3-D)      +1.0000  (manifold-projected)
-α (1-D OLS)       : +3.7297
-C (from log-OLS)  : 158.4
+Best restart      : train MSE = 1.1e-5,   test MSE = 1.3e-5
+Encoder w (L2)    : [ −0.2681, −0.7972, +0.5409 ]
+cos vs Ergun      : +1.0000   (raw 3-D)      +1.0000  (manifold-projected)
+α (1-D OLS)       : +3.7342
+C (from log-OLS)  : 153.7
 ```
 
 | | Equation | R²(f) |
 |---|---|---|
 | **Actual (Ergun deep Darcy)** | `f = 150.0 · Re_p⁻¹·⁰⁰⁰ · φ⁻³·⁰⁰⁰ · (1−φ)⁺²·⁰⁰⁰` | 1.000 |
-| **Discovered (encoder L2 only)** | **`f = 158.4 · Re_p⁻¹·⁰⁰¹ · φ⁻²·⁹⁵⁹ · (1−φ)⁺²·⁰³⁸`** | **0.998** |
+| **Discovered (encoder L2 only)** | **`f = 153.7 · Re_p⁻¹·⁰⁰¹ · φ⁻²·⁹⁷⁷ · (1−φ)⁺²·⁰²⁰`** | **0.998** |
 
-Prefactor within 6 %, all three exponents within 5 %.
+Prefactor within 3 %, all three exponents within 3 %.
 
 ### Wide-φ synthetic **inertial** — `dataset_ergun_inertial_widephi.csv`
 
 Same architecture, same training recipe, same seed sweep.
 
+Committed run (`--split-seed 42`, best restart seed = 1), full report
+in `output_inertial_widephi/discovered_equation.txt`:
+
 ```
-Best restart      : train MSE = 5.3e-5,   test MSE = 5.8e-5
-Encoder w (L2)    : [ −0.0012, −0.9469, +0.3216 ]
+Best restart      : train MSE = 5.2e-5,   test MSE = 5.7e-5
+Encoder w (L2)    : [ −0.0011, −0.9484, +0.3172 ]
 cos vs Ergun      : +1.0000   (raw 3-D)      +1.0000  (manifold-projected)
-α (1-D OLS)       : +3.1589
-C (from log-OLS)  : 1.871
+α (1-D OLS)       : +3.1657
+C (from log-OLS)  : 1.833
 ```
 
 | | Equation | R²(f) |
 |---|---|---|
 | **Actual (Ergun Forchheimer plateau)** | `f = 1.750 · Re_p⁰ · φ⁻³·⁰⁰⁰ · (1−φ)⁺¹·⁰⁰⁰` | 1.000 |
-| **Discovered (encoder L2 only)** | **`f = 1.871 · Re_p⁻⁰·⁰⁰⁴ · φ⁻²·⁹⁹¹ · (1−φ)⁺¹·⁰¹⁶`** | **0.997** |
+| **Discovered (encoder L2 only)** | **`f = 1.833 · Re_p⁻⁰·⁰⁰⁴ · φ⁻³·⁰⁰² · (1−φ)⁺¹·⁰⁰⁴`** | **0.997** |
 
-Prefactor within 7 %, `Re_p` exponent essentially zero (`−0.004`),
-`φ` within 0.3 % of `−3`, `(1−φ)` within 1.6 % of `+1`.
+Prefactor within 5 %, `Re_p` exponent essentially zero (`−0.004`),
+`φ` within 0.07 % of `−3`, `(1−φ)` within 0.4 % of `+1`.
 
 ### One-line summary
 
@@ -235,21 +241,38 @@ python generate_viscous_dataset.py   --phi-min 0.15 --phi-max 0.85 \
 python generate_inertial_dataset.py  --phi-min 0.15 --phi-max 0.85 \
     --n-phi 12 --output dataset_ergun_inertial_widephi.csv
 
-# Run the pipeline on each region
+# Step 1: run the Stage-1 pipeline on each region (produces run.log,
+# lbm_*.png diagnostic figures, and _da_repo/ dimensional-analysis
+# artifacts).
 python discover_symmetry.py --data dataset_ergun_viscous_widephi.csv \
     --output-dir output_viscous_widephi --seed 42 \
     --latent-epochs 300 --sym-epochs 600 --n-restarts 3
 python discover_symmetry.py --data dataset_ergun_inertial_widephi.csv \
     --output-dir output_inertial_widephi --seed 42 \
     --latent-epochs 300 --sym-epochs 600 --n-restarts 3
+
+# Step 2: extract the numerical law from the winning scaling encoder's
+# L2-normed weight vector.  Writes discovered_equation.txt and
+# trained_encoder_l2.pt into the output directory.
+python discover_equation_encoder_l2.py \
+    --data dataset_ergun_viscous_widephi.csv \
+    --out output_viscous_widephi --region viscous --split-seed 42
+python discover_equation_encoder_l2.py \
+    --data dataset_ergun_inertial_widephi.csv \
+    --out output_inertial_widephi --region inertial --split-seed 42
 ```
 
-Each run tees its console transcript to `run.log`, saves plots, and
-writes the fitted model to `trained_model.pt` (encoder + decoder) so
-downstream analysis can read the L2-normed encoder weight directly.
+`discover_symmetry.py` tees its console transcript to `run.log` and
+saves diagnostic plots. `discover_equation_encoder_l2.py` is a small
+standalone script that re-trains just the scaling encoder + Tanh MLP
+decoder pair (matches the pipeline's Step-3 architecture), reads the
+L2-normed encoder direction, fits `α` and `C` by 1-D OLS on
+`log f = α·(w·x) + log C`, and writes the discovered law to
+`discovered_equation.txt`. The trained encoder + decoder state dict
+is saved to `trained_encoder_l2.pt` for reproducibility.
 
-`run_two_regions.py` bundles both runs and locks
-`OMP/MKL/OPENBLAS_NUM_THREADS=1` and `PYTHONHASHSEED=0` for
+`run_two_regions.py` bundles both `discover_symmetry.py` runs and
+locks `OMP/MKL/OPENBLAS_NUM_THREADS=1` and `PYTHONHASHSEED=0` for
 bit-reproducibility of the committed logs.
 
 ---
@@ -260,7 +283,9 @@ Per region (`output_viscous_widephi/`, `output_inertial_widephi/`):
 
 | File | Contents |
 |---|---|
-| `run.log` | Full console transcript, including the L2-normed encoder direction |
+| `run.log` | Full console transcript of the Stage-1 pipeline |
+| `discovered_equation.txt` | Encoder-L2 equation-extraction report (best-restart w, cos vs Ergun, α, C, discovered law, R²) |
+| `trained_encoder_l2.pt` | Saved encoder + decoder state dict for the best restart, plus `w_raw`, `w_norm`, `alpha`, `logC` |
 | `lbm_ergun_collapse.png` | `f·φ³/(1−φ)` vs `Re_p/(1−φ)` — collapse onto the textbook curve |
 | `lbm_pi_candidates.png` | Pi-basis heatmap + `log f` vs each `log Πₖ` |
 | `lbm_symmetry_discovery.png` | Symmetry-type bar chart + latent-dim R² curve |
@@ -285,6 +310,7 @@ porous_media_lbm_symmetry/
 ├── generate_inertial_dataset.py              ← wide-φ inertial generator
 ├── plot_two_regions.py                       ← master-curve overview figure
 ├── discover_symmetry.py                      ← Stage-1 pipeline (region-agnostic)
+├── discover_equation_encoder_l2.py           ← reads L2-normed encoder weight → law
 ├── run_two_regions.py                        ← one-command runner for both regions
 ├── ergun_two_regions.png
 ├── output_viscous_widephi/

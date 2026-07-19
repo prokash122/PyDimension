@@ -1,8 +1,0 @@
-Data source: dataset_ergun_inertial_widephi.csv   n = 720
-
-Stage1 encoder w  : [+0.0005, +0.0879, -0.9961]  manifold cos = -1.0000
-OLS (L2 fit)       : [-0.0039, -3.0189, +0.9866]  const = +0.5811  R2(log f) = 0.9994
-Snap-to-integer   : [0, -3, 1]  C = 1.763  R2(f) = 0.9970
-cos<encoder, OLS>: raw = -0.3930   manifold = -1.0000
-
-Discovered equation:  f = 1.76 · phi^-3 · (1-phi)^1
