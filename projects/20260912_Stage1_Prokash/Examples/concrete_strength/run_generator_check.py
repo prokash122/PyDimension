@@ -8,6 +8,8 @@ can share back:
      GENUINE model (trained_model.pt) + pipeline_artifacts.npz
   2. plot_generator_lines.py             — flat lines: model output held
      constant along each generator (prints the end-to-end model R2)
+  3. plot_symmetry_type.py               — validation-MSE bar chart of the
+     three competing symmetry families
 
 Uses the GPU automatically if available (the pipeline's device is
 "auto"). Run it from this directory:
@@ -32,6 +34,7 @@ STEPS = [
     [sys.executable, "discover_symmetry_dimensionless.py",
      "--data", "Concrete_Data.xls", "--seed", "42", "--max-latent", "6"],
     [sys.executable, "plot_generator_lines.py"],
+    [sys.executable, "plot_symmetry_type.py"],
 ]
 
 

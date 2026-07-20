@@ -212,7 +212,10 @@ additive in the binder-referenced mix ratios. (The gap and the
 runner-up's identity fluctuate between roughly 1.4× and 1.9× across
 retrainings because CPU thread scheduling makes the optimizer
 non-deterministic even at fixed seed; the translational winner itself is
-stable across all runs.)
+stable across all runs.) `plot_symmetry_type.py` renders this table as a
+standalone publication figure
+(`output_concrete_dimensionless/symmetry_type.png` / `.pdf`, 300 dpi):
+the green translational bar against the two orange runners-up.
 
 ### 5.3 Generators
 
@@ -309,25 +312,30 @@ The script defaults to `--encoder-hidden 64 32`, `raw_input=True`, and
 `--latent-dim 4` (the latent dimension is pinned because the per-`k`
 MSEs are nearly tied; pass `--latent-dim 0` to let the pipeline pick
 `k` automatically), so no extra flags are required. Then produce the
-publication figure (Section 6):
+publication figures (Sections 5.2 and 6):
 
 ```bash
 python plot_generator_lines.py
+python plot_symmetry_type.py
 ```
 
-(`run_generator_check.py` runs both steps in sequence and tees the full
-transcript to `generator_check_full.log`.)
+(`run_generator_check.py` runs all three steps in sequence and tees the
+full transcript to `generator_check_full.log`.)
 
 Output is written to `output_concrete_dimensionless/`:
 
 - `concrete_symmetry_dimensionless.png` — three-panel summary figure.
 - `run.log` — full console transcript (config, baseline fit, per-`k`
   metrics, symmetry losses, generator decomposition).
-- `pipeline_artifacts.npz` — features, targets, encoder weights, and
-  generators of the run of record (input to the publication figure).
-- `generator_lines.png` / `generator_lines.pdf` — the publication
-  figure: model-predicted `σc*` held flat along each generator vs
-  bending along the strength direction (Section 6).
+- `pipeline_artifacts.npz` — features, targets, encoder weights,
+  generators, and symmetry losses of the run of record (input to the
+  publication figures).
+- `generator_lines.png` / `generator_lines.pdf` — publication figure:
+  model-predicted `σc*` held flat along each generator vs bending along
+  the strength direction (Section 6).
+- `symmetry_type.png` / `symmetry_type.pdf` — publication figure:
+  validation-MSE bar chart of the three competing symmetry families
+  (Section 5.2).
 
 ## 8. Discussion
 

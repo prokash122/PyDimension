@@ -371,6 +371,7 @@ def main():
 
     os.makedirs(args.output_dir, exist_ok=True)
     scaler_y = results["normalization"]["scaler_y"]
+    sym_losses = results["symmetry"]["losses"]
     np.savez(
         os.path.join(args.output_dir, "pipeline_artifacts.npz"),
         Pi=Pi, y=y, sigma=sigma, sigma_ideal=sigma_ideal,
@@ -381,6 +382,10 @@ def main():
         # standard-scaler of the residual target y, to invert decoder output
         y_mean=np.asarray(getattr(scaler_y, "mean_", 0.0), dtype=float),
         y_std=np.asarray(getattr(scaler_y, "std_", 1.0), dtype=float),
+        # symmetry-type competition (for the standalone bar-chart figure)
+        sym_types=np.array(list(sym_losses.keys())),
+        sym_losses=np.array(list(sym_losses.values()), dtype=float),
+        winner_type=np.array(results["winner_type"]),
     )
     # Save the GENUINE trained model: winning translational encoder + its
     # jointly trained decoder, so downstream plots run the real model end-to-end.
