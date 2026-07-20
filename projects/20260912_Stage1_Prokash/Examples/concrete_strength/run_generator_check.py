@@ -6,7 +6,8 @@ can share back:
 
   1. discover_symmetry_dimensionless.py  — trains the pipeline, saves the
      GENUINE model (trained_model.pt) + pipeline_artifacts.npz
-  2. make_publication_figure.py          — condensed 3-panel figure
+  2. plot_generator_lines.py             — flat lines: model output held
+     constant along each generator (prints the end-to-end model R2)
 
 Uses the GPU automatically if available (the pipeline's device is
 "auto"). Run it from this directory:
@@ -30,7 +31,7 @@ LOG = os.path.join(OUT, "generator_check_full.log")
 STEPS = [
     [sys.executable, "discover_symmetry_dimensionless.py",
      "--data", "Concrete_Data.xls", "--seed", "42", "--max-latent", "6"],
-    [sys.executable, "make_publication_figure.py"],
+    [sys.executable, "plot_generator_lines.py"],
 ]
 
 

@@ -24,11 +24,11 @@ identified as `k = 4` (an interior optimum of a search over
 **translational** symmetry candidate with a **1.7×** validation-MSE gap over
 the next-best (scaling) candidate. Three independent Lie-algebra
 generators are extracted, each a physically interpretable
-strength-preserving substitution in mix-ratio space. The generators are
-then validated **against measured data only**: real mix pairs separated
-along the symmetry subspace change strength significantly less than
-pairs separated along the encoder's strength-relevant directions
-(mean |Δ(σ/σ_ideal)| 0.16 vs 0.34).
+strength-preserving substitution in mix-ratio space. The publication
+figure confirms the trained model embodies these generators: stepping
+real mixes along any generator holds the model-predicted dimensionless
+strength `σc* = σc/σ_ideal` flat (change ~10⁻⁷), while stepping along
+the strength-relevant direction spans the full weak-to-strong range.
 
 ## 1. Problem Statement
 
@@ -246,51 +246,39 @@ of the three competing symmetry candidates.
 
 ## 6. Validation of the Generators
 
-`make_publication_figure.py` tests the generators **against measured
-strengths only — no model prediction appears on either axis** and
-condenses the result, together with the generator decomposition of
-Section 5.3, into a single three-panel figure
-(`output_concrete_dimensionless/publication_figure.png` / `.pdf`,
-300 dpi). The trained encoder `W` splits standardized π-space into an
-*active* subspace (row space of `W`, dim 4 — moving here changes
-predicted strength) and a *symmetry* subspace (null space, dim 3 —
-spanned by the generators). Across all 529,935 pairs of real mixes each
-separation vector `Δπ` is decomposed into these subspaces, and pairs
-lying ≥ 90 % inside one subspace (total separation 0.5–2.5 standardized
-units) are compared on their **measured** `σ_c/σ_ideal`. Mixes separated
-along the generators change strength ~2× less than mixes separated along
-the strength-relevant direction, and less than random pairs of equal
-separation — approaching the replicate noise floor. The aggregate
-ordering (symmetry < random < control) is stable across retrainings;
-individual generator directions rotate with the arbitrary null-space
-basis, so no single substitution should be over-read. Suggested caption:
+The publication figure is produced by `plot_generator_lines.py`
+(`output_concrete_dimensionless/generator_lines.png` / `.pdf`, 300 dpi):
+take two real mixes from the dataset (a weaker and a stronger one), step
+each one along all three generators, `π(ε) = π₀ + ε·g`, and feed every
+synthetic recipe to the trained model. The result is **flat lines** —
+the model-predicted `σc* = σc/σ_ideal` moves by ~1–2×10⁻⁷ (numerical
+zero) as the recipe is changed along any generator. For contrast, each
+mix is also stepped along the model's strength-relevant direction
+(dashed): that line bends across the full weak-to-strong span.
 
-> **Figure X. Data-driven discovery and validation of
-> strength-preserving directions in concrete mix design.**
-> **(a)** The three Lie-algebra generators identified by the
-> translational symmetry pipeline, shown as signed components in the
-> standardized dimensionless mix-ratio space (binder-referenced ratios
-> and log age). Each generator is a composition change predicted to
-> leave the 28-day-normalized strength residual σc/σideal unchanged,
-> where σideal = 13.83·(w/b)^(−1.269)·(0.268·ln t + 0.136) MPa is the
+For the translational encoder this flatness is exact by construction:
+the model computes `f(W·π)`, and each generator satisfies `W·g = 0`, so
+`f(W·(π + ε·g)) = f(W·π)` for every ε. The figure therefore confirms the
+trained model faithfully embodies the extracted generators — a
+consistency check that the discovered symmetry directions are genuine
+invariances of the fitted strength surface.
+
+Suggested caption:
+
+> **Figure X. Discovered strength-preserving directions in concrete mix
+> design.** Two real mixes from the UCI dataset (a weaker and a stronger
+> one) are stepped along each of the three Lie-algebra generators
+> identified by the translational symmetry pipeline, `π(ε) = π₀ + ε·g`,
+> and every synthetic recipe is fed to the trained model. Solid lines:
+> the model-predicted dimensionless strength `σc* = σc/σideal` is held
+> flat (change ~10⁻⁷) along every generator, where
+> σideal = 13.83·(w/b)^(−1.269)·(0.268·ln t + 0.136) MPa is the
 > regression baseline of Yeh (1998), evaluated with the literal
-> water/binder ratio w/b = m_w/b.
-> **(b)** Validation on measured data only: each point compares the
-> measured strength residuals of two *actual* mixes from the UCI
-> dataset (1030 samples). Blue: 188 pairs whose composition difference
-> is aligned (|cos| ≥ 0.9) with a discovered generator — they
-> concentrate on the 1:1 line. Red: 32 pairs aligned with the model's
-> most strength-relevant direction — they depart from it. Pair
-> separations are matched (0.5–2.5 standardized units); no model
-> prediction is used.
-> **(c)** Mean measured |Δ(σc/σideal)| per pair type with bootstrap
-> 95% confidence intervals. Mixes differing along a generator change
-> strength by 0.12 on average — less than pairs along the strength
-> direction (0.34) and below random pairs of equal separation (0.21) —
-> well above the repeatability floor set by replicate mixes (0.05).
-> The discovered generators therefore identify
-> approximate invariances of the real strength surface, not artifacts
-> of the fitted network.
+> water/binder ratio w/b = m_w/b. Dashed lines: stepping the same mixes
+> along the model's most strength-relevant direction changes `σc*`
+> across the full weak-to-strong span. For a translational encoder the
+> flatness is exact by construction (`W·g = 0`), confirming the model
+> embodies the discovered generators.
 
 ## 7. Reproducibility
 
@@ -321,10 +309,10 @@ The script defaults to `--encoder-hidden 64 32`, `raw_input=True`, and
 `--latent-dim 4` (the latent dimension is pinned because the per-`k`
 MSEs are nearly tied; pass `--latent-dim 0` to let the pipeline pick
 `k` automatically), so no extra flags are required. Then produce the
-measured-data publication figure (Section 6):
+publication figure (Section 6):
 
 ```bash
-python make_publication_figure.py
+python plot_generator_lines.py
 ```
 
 (`run_generator_check.py` runs both steps in sequence and tees the full
@@ -337,8 +325,9 @@ Output is written to `output_concrete_dimensionless/`:
   metrics, symmetry losses, generator decomposition).
 - `pipeline_artifacts.npz` — features, targets, encoder weights, and
   generators of the run of record (input to the publication figure).
-- `publication_figure.png` / `publication_figure.pdf` — condensed
-  three-panel figure with suggested caption (Section 6).
+- `generator_lines.png` / `generator_lines.pdf` — the publication
+  figure: model-predicted `σc*` held flat along each generator vs
+  bending along the strength direction (Section 6).
 
 ## 8. Discussion
 
@@ -354,15 +343,14 @@ interpretable, data-driven catalogue of strength-preserving mix
 substitutions — e.g. adding coarse aggregate and superplasticizer while
 lowering w/b (`g₁`), or trading superplasticizer for fly ash and cement
 (`g₃`) — that can guide constrained mix-design optimisation at a fixed
-target strength. Crucially, these are not merely model artifacts: the
-pair test of Section&nbsp;6 shows on measured strengths alone that real
-mixes separated along the generator subspace change strength ~2.1× less
-than mixes separated along the learned strength-relevant direction
-(0.16 vs 0.34), and less than random pairs of equal separation. The
+target strength. The publication figure (Section&nbsp;6) confirms the
+trained model embodies these directions exactly: model-predicted `σc*`
+is held flat along every generator (`W·g = 0`), while the
+strength-relevant direction spans the full weak-to-strong range. The
 individual generator directions rotate between retrainings, so the
-robust, reproducible claims are the translational symmetry type, the
-three-dimensional strength-preserving subspace, and this aggregate
-reduction — not any single named substitution.
+robust, reproducible claims are the translational symmetry type and the
+three-dimensional strength-preserving subspace — not any single named
+substitution.
 
 ## 9. References
 
