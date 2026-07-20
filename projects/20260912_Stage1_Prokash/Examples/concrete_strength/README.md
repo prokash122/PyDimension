@@ -246,82 +246,24 @@ of the three competing symmetry candidates.
 
 ## 6. Validation of the Generators
 
-### 6.1 Six flat lines: model output along each generator
-
-The simplest check (`plot_generator_lines.py`,
-`output_concrete_dimensionless/generator_lines.png` / `.pdf`): take two
-real mixes from the dataset (a weaker and a stronger one), step each one
-along all three generators, `π(ε) = π₀ + ε·g`, and feed every synthetic
-recipe to the trained model. The result is **six flat lines** — the
-predicted strength moves by ~1–2×10⁻⁷ (numerical zero) as the recipe is
-changed along any generator. For contrast, each panel also steps the
-weaker mix along the model's strength-relevant direction (dashed): that
-line bends by ~0.35, the full weak-to-strong span.
-
-For the translational encoder this flatness is exact by construction:
-the model computes `f(W·π)`, and each generator satisfies `W·g = 0`, so
-`f(W·(π + ε·g)) = f(W·π)` for every ε. This confirms the trained model
-faithfully embodies the extracted generators — a consistency check on
-the model. Whether the *real* strength surface shares this invariance is
-a separate question about measured data, answered next.
-(`plot_generator_orbits.py` is an equivalent variant with three mixes
-and a separate control panel.)
-
-### 6.2 Test against measured strengths only
-
-The generators are claims about the real strength surface, so they are
-tested with **measured strengths only — no model prediction appears on
-either axis** (`validate_generators.py`). The trained encoder `W`
-splits standardized π-space into an *active* subspace (row space of
-`W`, dim 4 — moving here changes predicted strength) and a *symmetry*
-subspace (null space, dim 3 — spanned by the generators). For all
-529,935 pairs of real mixes, the separation vector `Δπ` is decomposed
-into these subspaces, and pairs whose separation is ≥ 90 % inside one
-subspace (with total separation 0.5–2.5 standardized units) are
-compared on their **measured** `σ_c/σ_ideal`:
-
-| Pair type | Pairs | Mean \|Δ(σ_c/σ_ideal)\| |
-|---|---|---|
-| Near-duplicates, \|Δπ\| < 0.05 (repeatability noise floor) | 162 | **0.052** |
-| **Symmetry-aligned (along generators)** | 4,785 | **0.164** |
-| Random pairs at the same \|Δπ\| | 111,629 | 0.208 |
-| Active-aligned (along strength-relevant directions) | 27,897 | 0.226 |
-| **Control: along the single most strength-relevant direction** | 32 | **0.337** |
-
-Per-generator, using pairs whose separation vector has \|cos\| ≥ 0.9
-with one specific generator:
-
-| Direction | Aligned pairs | Mean \|Δ\| | corr(y₋, y₊) |
-|---|---|---|---|
-| `g₁` | 66 | 0.132 | +0.70 |
-| `g₂` | 4 | 0.086 | +1.00 |
-| `g₃` | 118 | **0.122** | +0.33 |
-| top active direction (control) | 32 | 0.337 | +0.14 |
-
-(`g₂` has only 4 aligned pairs, too few to read into — its `+1.00` is a
-small-sample artifact.) Interpretation: mixes that differ along the
-generators keep more nearly the same measured strength residual,
-changing **2.1× less** than mixes that differ along the most
-strength-relevant direction (0.164 vs 0.337), and less than random
-pairs of equal separation (0.208). The symmetry is *approximate*:
-aligned pairs sit above the replicate noise floor (0.052), consistent
-with the autoencoder explaining 51.0 % — not 100 % — of the residual
-variance. The *aggregate* ordering (symmetry < random < control) is
-stable across retrainings, but which individual generator reads as the
-"cleanest" invariance, and its per-generator correlation, varies with
-the arbitrary null-space basis of a given run — so the per-`gᵢ` rows
-above should be read as one realization, not as fixed properties of a
-specific substitution.
-The full analysis is reproduced by
-`output_concrete_dimensionless/generator_validation.png` and
-`validation.log`.
-
-### 6.3 Publication figure
-
-`make_publication_figure.py` condenses Sections 5.3 and 6.2 into a
-single three-panel figure
+`make_publication_figure.py` tests the generators **against measured
+strengths only — no model prediction appears on either axis** and
+condenses the result, together with the generator decomposition of
+Section 5.3, into a single three-panel figure
 (`output_concrete_dimensionless/publication_figure.png` / `.pdf`,
-300 dpi). Suggested caption:
+300 dpi). The trained encoder `W` splits standardized π-space into an
+*active* subspace (row space of `W`, dim 4 — moving here changes
+predicted strength) and a *symmetry* subspace (null space, dim 3 —
+spanned by the generators). Across all 529,935 pairs of real mixes each
+separation vector `Δπ` is decomposed into these subspaces, and pairs
+lying ≥ 90 % inside one subspace (total separation 0.5–2.5 standardized
+units) are compared on their **measured** `σ_c/σ_ideal`. Mixes separated
+along the generators change strength ~2× less than mixes separated along
+the strength-relevant direction, and less than random pairs of equal
+separation — approaching the replicate noise floor. The aggregate
+ordering (symmetry < random < control) is stable across retrainings;
+individual generator directions rotate with the arbitrary null-space
+basis, so no single substitution should be over-read. Suggested caption:
 
 > **Figure X. Data-driven discovery and validation of
 > strength-preserving directions in concrete mix design.**
@@ -379,13 +321,14 @@ The script defaults to `--encoder-hidden 64 32`, `raw_input=True`, and
 `--latent-dim 4` (the latent dimension is pinned because the per-`k`
 MSEs are nearly tied; pass `--latent-dim 0` to let the pipeline pick
 `k` automatically), so no extra flags are required. Then produce the
-orbit plots (Section 6.1) and the measured-pair validation (Section 6.2):
+measured-data publication figure (Section 6):
 
 ```bash
-python plot_generator_lines.py
-python validate_generators.py
 python make_publication_figure.py
 ```
+
+(`run_generator_check.py` runs both steps in sequence and tees the full
+transcript to `generator_check_full.log`.)
 
 Output is written to `output_concrete_dimensionless/`:
 
@@ -393,13 +336,9 @@ Output is written to `output_concrete_dimensionless/`:
 - `run.log` — full console transcript (config, baseline fit, per-`k`
   metrics, symmetry losses, generator decomposition).
 - `pipeline_artifacts.npz` — features, targets, encoder weights, and
-  generators of the run of record (input to the validation scripts).
-- `generator_lines.png` / `.pdf` — six flat lines: model output along
-  each generator (Section 6.1).
-- `generator_validation.png`, `validation.log` — real-data pair test
-  (Section 6.2).
+  generators of the run of record (input to the publication figure).
 - `publication_figure.png` / `publication_figure.pdf` — condensed
-  three-panel figure with suggested caption (Section 6.3).
+  three-panel figure with suggested caption (Section 6).
 
 ## 8. Discussion
 
