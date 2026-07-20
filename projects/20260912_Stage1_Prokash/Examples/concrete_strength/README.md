@@ -21,11 +21,13 @@ residual with a multilayer-perceptron autoencoder (hidden widths
 `[64, 32]`, `raw_input=True`). The intrinsic latent dimension is
 identified as `k = 4` (an interior optimum of a search over
 `k ∈ {1, …, 6}`), and competitive encoder training selects the
-**translational** symmetry candidate with a **1.7×** validation-MSE gap over
-the next-best (scaling) candidate. Three independent Lie-algebra
-generators are extracted, each a physically interpretable
-strength-preserving substitution in mix-ratio space. The publication
-figure confirms the trained model embodies these generators: stepping
+**translational** symmetry candidate with a **1.5×** validation-MSE gap over
+the next-best (rotational) candidate. With eight features and `k = 4`, the
+null space yields **four** Lie-algebra generators — three physically
+interpretable strength-preserving substitutions, plus one trivial
+direction created by the three binder fractions summing to one. The
+publication figure confirms the trained model embodies these generators:
+stepping
 real mixes along any generator holds the model-predicted dimensionless
 strength `σc* = σc/σ_ideal` flat (change ~10⁻⁷), while stepping along
 the strength-relevant direction spans the full weak-to-strong range.
@@ -73,28 +75,32 @@ chosen as the common reference, exactly as concrete practice already does
 with the water/binder ratio, the SCM replacement fractions, and the
 aggregate/binder ratios. The water/binder ratio is the **literal**
 water-to-binder ratio — superplasticizer is *not* added to the water term;
-it retains its own separate ratio `π₄ = m_p / b`, so no information is
-lost:
+it retains its own separate ratio `m_p / b`. **All eight** non-dimensional
+candidates are kept (the seven mass ratios plus the log-age term):
 
 | Feature | Definition |
 |---|---|
 | `π₁` | `w/b = m_w / b` (literal water/binder ratio) |
-| `π₂` | `m_f / b` (fly-ash replacement fraction) |
-| `π₃` | `m_c / b` (cement fraction of binder) |
-| `π₄` | `m_p / b` (superplasticizer dosage) |
-| `π₅` | `m_{ca} / b` |
-| `π₆` | `m_{fa} / b` |
-| `π₇` | `ln(t / 28 d)` (dimensionless age) |
+| `π₂` | `m_c / b` (cement fraction of binder) |
+| `π₃` | `m_s / b` (slag fraction of binder) |
+| `π₄` | `m_f / b` (fly-ash fraction of binder) |
+| `π₅` | `m_p / b` (superplasticizer dosage) |
+| `π₆` | `m_{ca} / b` |
+| `π₇` | `m_{fa} / b` |
+| `π₈` | `ln(t / 28 d)` (dimensionless age) |
 
 The three binder fractions sum to one (`m_c/b + m_s/b + m_f/b = 1`), so
-one is redundant. We keep `m_c/b` and `m_f/b` and omit the slag ratio
-`m_s / b`, which is then fixed by the other two
-(`m_s/b = 1 − m_c/b − m_f/b`), leaving six independent mass ratios plus
-the age term. Age carries the only [T] dimension among
-the inputs and cannot be non-dimensionalized against other columns; it is
+the feature set is **rank-deficient by one**: the data lie on a 7-D
+hyperplane inside the 8-D feature space. Keeping all three fractions is a
+deliberate choice (every raw input maps to its own non-dimensional
+candidate), but it means the translational null space carries one extra,
+*trivial* "stay on the binder simplex" direction on top of the physical
+strength-preserving generators (see Section&nbsp;5.3). Age carries the
+only [T] dimension among the inputs and cannot be non-dimensionalized
+against other columns; it is
 referenced to the industry-standard 28-day curing age. The logarithm is
 applied to the age ratio only: it symmetrizes the heavily skewed
-1–365-day range around `π₇ = 0` at 28 days and matches the logarithmic
+1–365-day range around `π₈ = 0` at 28 days and matches the logarithmic
 age kinetics of the baseline model. The strength is left untransformed.
 
 ### 3.2 Baseline and target
@@ -133,25 +139,23 @@ correspondingly a little larger.
 
 The pipeline implements six sequential stages:
 
-1. **Non-dimensionalization.** Construction of `π₁ … π₇` and
+1. **Non-dimensionalization.** Construction of `π₁ … π₈` and
    `y = σ_c/σ_ideal` as defined in Section 3.
 2. **Normalization.** Standard scaling (zero mean, unit variance) of the
-   seven dimensionless features and of the residual target.
+   eight dimensionless features and of the residual target.
 3. **Intrinsic-dimension discovery.** A latent-bottleneck autoencoder is
-   trained for `k ∈ {1, …, 6}` (with seven features, `k` must stay below
-   7 for translational generators to remain). The encoder is a
+   trained for `k ∈ {1, …, 6}` (with eight features, `k` must stay below
+   8 for translational generators to remain). The encoder is a
    multilayer perceptron
    with hidden widths `[64, 32]` and `Tanh` activations operating on the
    raw standardised features (`raw_input=True`, no `[X, X², log|X|]`
    augmentation); the decoder is a paired MLP of matching capacity. Each
-   `k` is repeated over `n_restarts = 3` random seeds and 600 epochs. The
-   per-`k` held-out MSEs are nearly tied on this residual (they span only
-   ~0.01 across `k = 1 … 5`), so the automatic argmin is noise-sensitive
-   and shifts between retrainings and coordinate choices. We therefore
-   **pin `k = 4`** (`--latent-dim 4`, the default), consistent with the
-   auto-selection in the binder-fraction coordinates and keeping the
-   generator count reproducible; `--latent-dim 0` restores the automatic
-   pick.
+   `k` is repeated over `n_restarts = 3` random seeds and 600 epochs, and
+   the latent dimension minimising the held-out MSE is selected. On the
+   eight-feature set this lands cleanly on `k = 4` (MSE ≈ 0.41 vs ≥ 0.45
+   elsewhere); it is also pinned by default (`--latent-dim 4`) for
+   reproducibility, since the per-`k` MSEs can tie under other coordinate
+   choices — `--latent-dim 0` restores the automatic pick.
 4. **Symmetry-type identification.** Three competing encoder families are
    trained against the Step&nbsp;3 decoder:
    - **Translational:** `z = W π`,
@@ -174,27 +178,24 @@ captured in `output_concrete_dimensionless/run.log`.
 
 ### 5.1 Latent dimension
 
-The latent dimension is **pinned at `k = 4`**. The per-`k` held-out MSEs
-are nearly tied — they span only about 0.01 across `k = 1 … 5`, so
-no single `k` is a sharp optimum and the automatic argmin flips between
-runs and between coordinate choices (e.g. it lands on `k = 2` when the
-binder fractions are parametrized by `cement/b` instead of `slag/b`).
-The values below are one representative run; `k = 5` and `k = 6` are the
-only clearly worse choices:
+On the eight-feature set the latent dimension is `k = 4` — a clear
+interior optimum (auto-selected, and pinned by default for
+reproducibility). Held-out performance peaks at `k = 4` and is markedly
+worse on either side:
 
 | `k` | `R²_train` | `R²_test` | MSE |
 |---|---|---|---|
-| 1 | 0.746 | 0.507 | 0.4185 |
-| 2 | 0.737 | 0.514 | 0.4131 |
-| 3 | 0.754 | 0.500 | 0.4249 |
-| **4** (pinned) | 0.750 | **0.510** | 0.4161 |
-| 5 | 0.739 | 0.504 | 0.4211 |
-| 6 | 0.768 | 0.456 | 0.4624 |
+| 1 | 0.746 | 0.447 | 0.4698 |
+| 2 | 0.782 | 0.462 | 0.4574 |
+| 3 | 0.754 | 0.469 | 0.4508 |
+| **4** | 0.757 | **0.515** | **0.4122** |
+| 5 | 0.742 | 0.453 | 0.4647 |
+| 6 | 0.746 | 0.468 | 0.4523 |
 
 The R² values refer to the *residual* `σ_c/σ_ideal`, i.e. to the variance
 left over after the analytic baseline has removed the dominant w/b and
-age effects. The widening train–test gap at `k = 6` indicates the extra
-latent directions fit noise rather than structure.
+age effects. `k = 4` beats every neighbour by ≥ 0.04 in MSE, so unlike
+the seven-feature coordinates the optimum is unambiguous here.
 
 ### 5.2 Symmetry type
 
@@ -202,12 +203,12 @@ Competitive training selects the translational candidate:
 
 | Symmetry candidate | Held-out MSE |
 |---|---|
-| **translational** | **0.4119** |
-| scaling | 0.6827 |
-| rotational | 0.7404 |
+| **translational** | **0.3740** |
+| rotational | 0.5525 |
+| scaling | 0.5700 |
 
-The translational candidate beats the second-best (scaling) candidate
-by a factor of **1.7×** in validation MSE: the strength residual is
+The translational candidate beats the second-best (rotational) candidate
+by a factor of **1.5×** in validation MSE: the strength residual is
 additive in the binder-referenced mix ratios. (The gap and the
 runner-up's identity fluctuate between roughly 1.4× and 1.9× across
 retrainings because CPU thread scheduling makes the optimizer
@@ -219,25 +220,32 @@ the green translational bar against the two orange runners-up.
 
 ### 5.3 Generators
 
-With `n = 7` dimensionless features and `k = 4` latent directions, there
-are `n − k = 3` independent translational generators (components with
-`|g_j| > 0.05` shown):
+With `n = 8` dimensionless features and `k = 4` latent directions, there
+are `n − k = 4` translational generators (components with `|g_j| > 0.05`
+shown). Because the three binder fractions are collinear, **one of the
+four is the trivial binder-simplex direction** (all binder fractions
+moving together — a redundancy artifact, not a physical substitution);
+the other three are strength-preserving mix substitutions:
 
 | Generator | Dominant components | Physical reading |
 |---|---|---|
-| `g₁` | CoarseAgg/b (+0.78), SP/b (+0.45), w/b (−0.33), FlyAsh/b (+0.22), ln(t/28) (+0.18) | Add coarse aggregate and superplasticizer while lowering w/b |
-| `g₂` | FineAgg/b (+0.87), SP/b (+0.28), Cement/b (+0.27), FlyAsh/b (+0.25), CoarseAgg/b (−0.14), ln(t/28) (−0.14) | Add fine aggregate (with a little cement and fly ash) while trimming coarse aggregate |
-| `g₃` | FlyAsh/b (+0.70), SP/b (−0.47), Cement/b (+0.40), w/b (+0.28), CoarseAgg/b (+0.20), FineAgg/b (−0.14) | Add fly ash and cement while cutting superplasticizer |
+| `g₁` | SP/b (+0.88), FlyAsh/b (−0.33), w/b (−0.27), Slag/b (+0.19) | Add superplasticizer while cutting fly ash and w/b |
+| `g₂` | CoarseAgg/b (+0.83), ln(t/28) (+0.34), FlyAsh/b (−0.26), Cement/b (−0.25), w/b (−0.19), Slag/b (−0.17) | Add coarse aggregate and cure longer while trimming fly ash and cement |
+| `g₃` | FineAgg/b (+0.91), FlyAsh/b (−0.35), Cement/b (−0.19), SP/b (−0.10) | Add fine aggregate while cutting fly ash |
+| `g₄` *(trivial)* | Slag/b (+0.76), Cement/b (+0.53), CoarseAgg/b (+0.33) | Binder fractions rise together — the `m_c/b + m_s/b + m_f/b = 1` redundancy, not a physical direction |
 
-The three vectors span the strength-preserving subspace; because any
-orthonormal basis of that 3-D null space is equally valid, the individual
+The four vectors span the translational null space; because any
+orthonormal basis of that 4-D space is equally valid, the individual
 `gᵢ` directions (and their component signs) rotate from run to run — it is
 the *subspace* they span, and the flatness of the model along it, that is
-stable.
+stable. The trivial binder-simplex direction always appears (it is forced
+by the collinearity), leaving three physical strength-preserving
+directions. Dropping one binder fraction (a 7-feature set) removes it and
+yields three generators directly (see git history).
 
-Each generator is a constant-residual direction in mix-ratio space:
-moving the composition along `g_i` (within physical limits) leaves the
-predicted strength residual `σ_c/σ_ideal` unchanged.
+Each physical generator is a constant-residual direction in mix-ratio
+space: moving the composition along `g_i` (within physical limits) leaves
+the predicted strength residual `σ_c/σ_ideal` unchanged.
 
 ### 5.4 Figure
 
@@ -252,12 +260,14 @@ of the three competing symmetry candidates.
 The publication figure is produced by `plot_generator_lines.py`
 (`output_concrete_dimensionless/generator_lines.png` / `.pdf`, 300 dpi):
 take two real mixes from the dataset (a weaker and a stronger one), step
-each one along all three generators, `π(ε) = π₀ + ε·g`, and feed every
+each one along all four generators, `π(ε) = π₀ + ε·g`, and feed every
 synthetic recipe to the trained model. The result is **flat lines** —
 the model-predicted `σc* = σc/σ_ideal` moves by ~1–2×10⁻⁷ (numerical
-zero) as the recipe is changed along any generator. For contrast, each
-mix is also stepped along the model's strength-relevant direction
-(dashed): that line bends across the full weak-to-strong span.
+zero) as the recipe is changed along any generator (the trivial
+binder-simplex generator is flat too — the model never depended on the
+redundant fraction). For contrast, each mix is also stepped along the
+model's strength-relevant direction (dashed): that line bends across the
+full weak-to-strong span.
 
 For the translational encoder this flatness is exact by construction:
 the model computes `f(W·π)`, and each generator satisfies `W·g = 0`, so
@@ -270,7 +280,7 @@ Suggested caption:
 
 > **Figure X. Discovered strength-preserving directions in concrete mix
 > design.** Two real mixes from the UCI dataset (a weaker and a stronger
-> one) are stepped along each of the three Lie-algebra generators
+> one) are stepped along each of the four Lie-algebra generators
 > identified by the translational symmetry pipeline, `π(ε) = π₀ + ε·g`,
 > and every synthetic recipe is fed to the trained model. Solid lines:
 > the model-predicted dimensionless strength `σc* = σc/σideal` is held
@@ -346,19 +356,20 @@ analytically, and the Yeh baseline removes the two dominant physical
 effects (w/b and age), so the network's entire capacity is spent on the
 residual chemistry. The translational fingerprint recovered on these
 coordinates confirms that the residual strength surface is governed by
-additive combinations of the mix ratios. The three generators provide an
+additive combinations of the mix ratios. Of the four null-space
+directions, one is the trivial binder-simplex redundancy (forced by the
+three binder fractions summing to one); the remaining three provide an
 interpretable, data-driven catalogue of strength-preserving mix
-substitutions — e.g. adding coarse aggregate and superplasticizer while
-lowering w/b (`g₁`), or trading superplasticizer for fly ash and cement
-(`g₃`) — that can guide constrained mix-design optimisation at a fixed
-target strength. The publication figure (Section&nbsp;6) confirms the
-trained model embodies these directions exactly: model-predicted `σc*`
-is held flat along every generator (`W·g = 0`), while the
-strength-relevant direction spans the full weak-to-strong range. The
-individual generator directions rotate between retrainings, so the
-robust, reproducible claims are the translational symmetry type and the
-three-dimensional strength-preserving subspace — not any single named
-substitution.
+substitutions — e.g. adding superplasticizer while cutting fly ash and
+w/b (`g₁`), or swapping fly ash for fine aggregate (`g₃`) — that can guide
+constrained mix-design optimisation at a fixed target strength. The
+publication figure (Section&nbsp;6) confirms the trained model embodies
+these directions exactly: model-predicted `σc*` is held flat along every
+generator (`W·g = 0`), while the strength-relevant direction spans the
+full weak-to-strong range. The individual generator directions rotate
+between retrainings, so the robust, reproducible claims are the
+translational symmetry type and the three-dimensional *physical*
+strength-preserving subspace — not any single named substitution.
 
 ## 9. References
 

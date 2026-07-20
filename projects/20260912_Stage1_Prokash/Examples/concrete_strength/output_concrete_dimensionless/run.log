@@ -6,7 +6,7 @@ Loading concrete data from Concrete_Data.xls...
 ============================================================
 Step 0: Binder-referenced non-dimensionalization
 ============================================================
-  Features: ['w/b', 'FlyAsh/b', 'Cement/b', 'SP/b', 'CoarseAgg/b', 'FineAgg/b', 'ln(t/28)']
+  Features: ['w/b', 'Cement/b', 'Slag/b', 'FlyAsh/b', 'SP/b', 'CoarseAgg/b', 'FineAgg/b', 'ln(t/28)']
   sigma_ideal = 13.83*(w/b)^(-1.269)*(0.268*ln(t)+0.136)  [MPa]
   Yeh baseline alone: R2 = 0.6821 on all 1030 rows
   Residual target y = sigma/sigma_ideal: mean=0.9277, std=0.2228
@@ -23,31 +23,31 @@ Step 2: Discovering intrinsic latent dimension
   Multi-layer encoder: [64, 32]
   raw_input=True: [X, X², log|X|] augmentation is disabled
 
-  Auto-selected latent dimension: 2 (overridden to 4 via --latent-dim)
+  Auto-selected latent dimension: 4 (overridden to 4 via --latent-dim)
 
   Optimal latent dimension: 4
-    k=1: R2_train=0.7457, R2_test=0.5074, MSE=0.418519
-    k=2: R2_train=0.7365, R2_test=0.5138, MSE=0.413140
-    k=3: R2_train=0.7542, R2_test=0.4999, MSE=0.424908
-    k=4: R2_train=0.7503, R2_test=0.5102, MSE=0.416131
-    k=5: R2_train=0.7386, R2_test=0.5044, MSE=0.421117
-    k=6: R2_train=0.7676, R2_test=0.4558, MSE=0.462408
+    k=1: R2_train=0.7460, R2_test=0.4470, MSE=0.469831
+    k=2: R2_train=0.7817, R2_test=0.4617, MSE=0.457396
+    k=3: R2_train=0.7539, R2_test=0.4694, MSE=0.450799
+    k=4: R2_train=0.7566, R2_test=0.5149, MSE=0.412156
+    k=5: R2_train=0.7422, R2_test=0.4531, MSE=0.464670
+    k=6: R2_train=0.7459, R2_test=0.4677, MSE=0.452269
 
 ============================================================
 Step 3: Identifying symmetry type
 ============================================================
 
   Detected symmetry: translational
-    translational  : 0.411861 <--
-    scaling        : 0.682661
-    rotational     : 0.740401
-  Loss gap: 1.7x
+    translational  : 0.373996 <--
+    rotational     : 0.552530
+    scaling        : 0.570012
+  Loss gap: 1.5x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
 ============================================================
   Symmetry type: translational
-  Generators: 3
+  Generators: 4
 
 ============================================================
 Step 5: Physical interpretation of generators
@@ -55,9 +55,10 @@ Step 5: Physical interpretation of generators
   Each generator g shifts the dimensionless mix ratios,
   pi -> pi + eps*g, without changing the strength residual y.
 
-  Generator 1: [w/b: -0.327, FlyAsh/b: +0.215, SP/b: +0.452, CoarseAgg/b: +0.779, ln(t/28): +0.179]
-  Generator 2: [FlyAsh/b: +0.249, Cement/b: +0.266, SP/b: +0.279, CoarseAgg/b: -0.143, FineAgg/b: +0.866, ln(t/28): -0.135]
-  Generator 3: [w/b: +0.276, FlyAsh/b: +0.699, Cement/b: +0.397, SP/b: -0.467, CoarseAgg/b: +0.199, FineAgg/b: -0.139]
+  Generator 1: [w/b: -0.274, Slag/b: +0.187, FlyAsh/b: -0.326, SP/b: +0.881, CoarseAgg/b: -0.060]
+  Generator 2: [w/b: -0.193, Cement/b: -0.253, Slag/b: -0.168, FlyAsh/b: -0.258, CoarseAgg/b: +0.825, FineAgg/b: -0.076, ln(t/28): +0.340]
+  Generator 3: [Cement/b: -0.190, Slag/b: +0.083, FlyAsh/b: -0.348, SP/b: -0.098, CoarseAgg/b: -0.076, FineAgg/b: +0.906]
+  Generator 4: [w/b: +0.071, Cement/b: +0.530, Slag/b: +0.764, FlyAsh/b: +0.062, SP/b: -0.096, CoarseAgg/b: +0.325, FineAgg/b: +0.082, ln(t/28): +0.077]
 
 Artifacts saved to output_concrete_dimensionless/pipeline_artifacts.npz
 Trained model saved to output_concrete_dimensionless/trained_model.pt
@@ -70,5 +71,5 @@ Figure saved to output_concrete_dimensionless/concrete_symmetry_dimensionless.pn
 COMPLETE
 ============================================================
   Symmetry: translational
-  Generators: 3
+  Generators: 4
 

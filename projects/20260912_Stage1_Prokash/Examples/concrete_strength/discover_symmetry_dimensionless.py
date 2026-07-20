@@ -12,17 +12,20 @@ No Buckingham-Pi bookkeeping is needed; the binder mass is just chosen as
 the common reference:
 
     pi_1 = water / b                        (literal water/binder ratio)
-    pi_2 = fly_ash / b
-    pi_3 = cement / b
-    pi_4 = superplasticizer / b
-    pi_5 = coarse_aggregate / b
-    pi_6 = fine_aggregate / b
-    pi_7 = ln(t / 28 days)                  (dimensionless age)
+    pi_2 = cement / b
+    pi_3 = slag / b
+    pi_4 = fly_ash / b
+    pi_5 = superplasticizer / b
+    pi_6 = coarse_aggregate / b
+    pi_7 = fine_aggregate / b
+    pi_8 = ln(t / 28 days)                  (dimensionless age)
 
-The three binder fractions satisfy cement/b + slag/b + fly_ash/b = 1, so
-one of them is redundant. We keep cement/b and fly_ash/b and drop slag/b
-(slag/b = 1 - cement/b - fly_ash/b); this leaves six independent mass
-ratios plus the age term.
+All eight non-dimensional candidates are kept (the seven mass ratios plus
+the log-age term). Note that the three binder fractions are linearly
+dependent (cement/b + slag/b + fly_ash/b = 1), so the feature set is
+rank-deficient by one; this puts the data on a 7-D hyperplane and adds one
+trivial "stay on the simplex" direction to the translational null space,
+on top of the physical strength-preserving generators.
 
 Superplasticizer keeps its own ratio pi_4; it is NOT folded into the
 water term, so w/b here is the literal water-to-binder ratio.
@@ -103,7 +106,7 @@ YEH_D = 0.136       # age log-law intercept (t in days)
 T_REF = 28.0        # days
 
 PI_NAMES = [
-    "w/b", "FlyAsh/b", "Cement/b", "SP/b",
+    "w/b", "Cement/b", "Slag/b", "FlyAsh/b", "SP/b",
     "CoarseAgg/b", "FineAgg/b", "ln(t/28)",
 ]
 
@@ -140,12 +143,14 @@ def make_dimensionless(X_raw, sigma):
     binder = cement + slag + flyash
     wb = water / binder                 # literal water/binder ratio (no SP)
 
-    # Keep cement/b and fly_ash/b; drop the redundant slag/b, since the
-    # three binder fractions sum to 1 (slag/b = 1 - cement/b - fly_ash/b).
+    # All eight non-dimensional candidates: the seven mass ratios (each
+    # mass / binder, including all three binder fractions) plus log-age.
+    # The binder fractions sum to 1, so the set is rank-deficient by one.
     Pi = np.column_stack([
         wb,
-        flyash / binder,
         cement / binder,
+        slag / binder,
+        flyash / binder,
         sp / binder,
         ca / binder,
         fa / binder,
@@ -331,7 +336,7 @@ def main():
     parser.add_argument("--sym-epochs", type=int, default=1500)
     parser.add_argument("--n-restarts", type=int, default=3)
     parser.add_argument("--max-latent", type=int, default=6,
-                        help="Largest latent dimension to test (must be < 7 "
+                        help="Largest latent dimension to test (must be < 8 "
                              "so that translational generators remain)")
     parser.add_argument("--latent-dim", type=int, default=4,
                         help="Pin the latent dimension k instead of using the "

@@ -73,9 +73,10 @@ plt.rcParams.update({
 
 _here = os.path.dirname(os.path.abspath(__file__))
 
-PI_LABELS = ["w/b", "fly ash", "cement", "superplasticizer",
+PI_LABELS = ["w/b", "cement", "slag", "fly ash", "superplasticizer",
              "coarse agg.", "fine agg.", "age"]
-SHORT = ["w/b", "fly ash", "cement", "SP", "coarse agg", "fine agg", "age"]
+SHORT = ["w/b", "cement", "slag", "fly ash", "SP", "coarse agg", "fine agg",
+         "age"]
 
 
 def describe(g):
@@ -180,7 +181,7 @@ def main():
         Line2D([0], [0], color=INK2, lw=3, ls="-", label="Along a generator (flat)"),
         Line2D([0], [0], color=INK2, lw=2, ls="--", label="Along strength direction"),
     ]
-    ax.set_ylabel("Model-predicted σc*\n(= σc ÷ σideal)")
+    ax.set_ylabel("Model-predicted σc*")
     ax.set_ylim(0.3, 1.95)
     ax.legend(handles=handles, loc="upper left", frameon=False,
               fontsize=21, ncol=1, handlelength=2.4, borderaxespad=0.3)
