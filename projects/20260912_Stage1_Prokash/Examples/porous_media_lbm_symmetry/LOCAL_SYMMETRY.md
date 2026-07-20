@@ -174,11 +174,13 @@ exponents), `--bootstrap` (default 400), `--seed`, `--n-centers`
   level set of `Re_p/(1−φ)`, nearly a level set of `Re_p` over this φ
   range — the residual φ-dependence of `Re_c` is absorbed into the
   transition zone). For regime boundaries that cut diagonally across
-  Pi space, the same window machinery applies but segmentation should
-  cluster the per-point direction field (e.g. spherical k-means on
-  bootstrap-whitened exponent vectors), or the scan coordinate can be
-  *learned* — e.g. scan along the 1-D latent of a globally trained
-  Stage-2 encoder instead of a raw Pi axis.
+  Pi space, the same window machinery applies but segmentation must
+  work in more dimensions — **implemented**: see
+  [`../moody_chart_symmetry/`](../moody_chart_symmetry/README.md), where
+  a 2-D tile grid + region growing recovers the Moody chart's three
+  regimes including the diagonal smooth/rough boundary. Beyond 2-D, the
+  scan coordinate can be *learned* — e.g. scan along the latent of a
+  globally trained Stage-2 encoder instead of raw Pi axes.
 - **Local `k* = 1` is assumed** (one monomial per window). Windows where
   more than one latent direction matters fail the misfit cut rather than
   giving wrong answers; a per-window latent-dimension sweep (Stage 2 in

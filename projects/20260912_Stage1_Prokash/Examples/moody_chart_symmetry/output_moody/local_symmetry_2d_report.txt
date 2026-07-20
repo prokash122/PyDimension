@@ -1,0 +1,62 @@
+REGION-FREE 2-D LOCAL SYMMETRY SCAN (WLSS-2D) — Moody chart
+Dataset rows            : 3800
+Tile grid               : 14 x 6 quantile tiles in (ln Re, ln eps/D)  (~45 rows/tile)
+Bootstrap resamples     : 300
+Merge tolerance (ROPE)  : 0.100
+Local model             : ln f = ln C + a ln Re + b ln(eps/D)
+Noise floor (10th pct tile RMS) : 0.0249 [ln f units]
+Tiles at noise floor (<=3x)     : 79/84
+Discovered regimes (>=3 tiles)  : 4
+
+------------------------------------------------------------------------
+REGIME 1  (28 tiles, 1241 rows)
+  span              : log10 Re in [3.87, 7.65],  log10 eps/D in [-6.00, -2.99]
+  exponents (a, b)  : [-0.176, +0.016]
+  95% bands         : a [-0.178,-0.173]   b [+0.015,+0.018]
+  local law         : f = 0.1731 * Re^-0.176 * (eps/D)^+0.016
+  pooled R2 (ln f)  : 0.9783   residual RMS = 0.0626
+  tile-vs-pooled max exponent dev : 0.107
+  --> best match    : smooth turbulent (Blasius)
+      reference (a, b) = [-0.250, +0.000]
+      deviation        = 0.076
+------------------------------------------------------------------------
+REGIME 2  (25 tiles, 1133 rows)
+  span              : log10 Re in [4.25, 8.03],  log10 eps/D in [-5.28, -2.14]
+  exponents (a, b)  : [-0.017, +0.209]
+  95% bands         : a [-0.019,-0.015]   b [+0.206,+0.211]
+  local law         : f = 0.1139 * Re^-0.017 * (eps/D)^+0.209
+  pooled R2 (ln f)  : 0.9785   residual RMS = 0.0608
+  tile-vs-pooled max exponent dev : 0.092
+  --> best match    : fully rough (von Karman)
+      reference (a, b) = [+0.000, +0.227]   [b_local = 2/ln(3.7/eps_mean), eps_mean = 5.49e-04]
+      deviation        = 0.025
+------------------------------------------------------------------------
+REGIME 3  (12 tiles, 543 rows)
+  span              : log10 Re in [2.44, 3.20],  log10 eps/D in [-6.00, -1.30]
+  exponents (a, b)  : [-1.003, +0.000]
+  95% bands         : a [-1.008,-0.998]   b [-0.000,+0.001]
+  local law         : f = 65.67 * Re^-1.003 * (eps/D)^+0.000
+  pooled R2 (ln f)  : 0.9968   residual RMS = 0.0286
+  tile-vs-pooled max exponent dev : 0.022
+  --> best match    : laminar (f = 64/Re)
+      reference (a, b) = [-1.000, +0.000]
+      deviation        = 0.003
+------------------------------------------------------------------------
+REGIME 4  (11 tiles, 522 rows)
+  span              : log10 Re in [3.87, 8.02],  log10 eps/D in [-2.02, -1.30]
+  exponents (a, b)  : [-0.004, +0.381]
+  95% bands         : a [-0.006,-0.003]   b [+0.375,+0.387]
+  local law         : f = 0.2347 * Re^-0.004 * (eps/D)^+0.381
+  pooled R2 (ln f)  : 0.9698   residual RMS = 0.0374
+  tile-vs-pooled max exponent dev : 0.061
+  --> best match    : fully rough (von Karman)
+      reference (a, b) = [+0.000, +0.390]   [b_local = 2/ln(3.7/eps_mean), eps_mean = 2.18e-02]
+      deviation        = 0.010
+------------------------------------------------------------------------
+Transition / unresolved tiles   : 8 (regime boundaries: laminar-turbulent critical zone and the smooth-rough diagonal)
+
+VERDICT: 4 local scaling symmetries discovered on the (Re, eps/D) plane without any region specification.
+  regime 1 rows -> regime_1_rows.csv (1241 rows)
+  regime 2 rows -> regime_2_rows.csv (1133 rows)
+  regime 3 rows -> regime_3_rows.csv (543 rows)
+  regime 4 rows -> regime_4_rows.csv (522 rows)
