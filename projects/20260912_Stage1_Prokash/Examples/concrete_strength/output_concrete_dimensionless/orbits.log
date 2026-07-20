@@ -1,4 +1,4 @@
 Loaded 1030 mixes; k = 4, 3 generators
-max |W @ g| over generators: 8.94e-08  (0 = perfect symmetry)
-Decoder head refit on frozen z: R2 = 0.7537
+max |W @ g| over generators: 6.39e-08  (0 = perfect symmetry)
+Decoder head refit on frozen z: R2 = 0.7441
 Figure saved to output_concrete_dimensionless/generator_orbits.png

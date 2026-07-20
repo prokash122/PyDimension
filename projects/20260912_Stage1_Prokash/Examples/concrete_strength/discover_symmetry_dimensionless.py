@@ -1,13 +1,17 @@
 """
 Discover symmetry in concrete compressive strength data using a
-dimensionless (Buckingham-Pi) representation instead of raw kg/m³ inputs.
+dimensionless representation instead of raw kg/m³ inputs.
 
 Preprocessing (derived from Yeh, Cem. Concr. Res. 28(12), 1998)
 ---------------------------------------------------------------
-All seven mix quantities share the dimension [M L^-3], so ratios by the
-total binder mass b = cement + slag + fly ash are dimensionless:
+Each mass quantity carries the dimension [M L^-3], so simply dividing it
+by the total binder mass b = cement + slag + fly ash yields a
+dimensionless ratio -- the standard concrete-science normalization (the
+water/binder ratio, SCM replacement fractions, aggregate/binder ratios).
+No Buckingham-Pi bookkeeping is needed; the binder mass is just chosen as
+the common reference:
 
-    pi_1 = (water + superplasticizer) / b   (Yeh's w/b convention, Table 7)
+    pi_1 = water / b                        (literal water/binder ratio)
     pi_2 = fly_ash / b
     pi_3 = slag / b
     pi_4 = superplasticizer / b
@@ -15,17 +19,19 @@ total binder mass b = cement + slag + fly ash are dimensionless:
     pi_6 = fine_aggregate / b
     pi_7 = ln(t / 28 days)                  (dimensionless age)
 
+Superplasticizer keeps its own ratio pi_4; it is NOT folded into the
+water term, so w/b here is the literal water-to-binder ratio.
+
 The target is the residual strength ratio against Yeh's regression
 baseline (Table 6, average of random-split experiments R1-R4):
 
     sigma_ideal = a * (w/b)^b_exp * (c*ln(t) + d)     [MPa, t in days]
     a = 13.83, b_exp = -1.269, c = 0.268, d = 0.136
 
-    y = sigma / sigma_ideal        (dimensionless "strength efficiency")
-
-Because sigma_ideal already carries the dominant w/b and age effects,
-the ML pipeline only has to model the residual chemistry (SCM
-substitution, superplasticizer, aggregates).
+where w/b is the same literal water/binder ratio as pi_1. Because
+sigma_ideal already carries the dominant w/b and age effects, the ML
+pipeline only has to model the residual chemistry (SCM substitution,
+superplasticizer, aggregates).
 
 Usage
 -----
@@ -119,13 +125,15 @@ def load_raw_data(path: str):
 
 
 def make_dimensionless(X_raw, sigma):
-    """Buckingham-Pi features and Yeh-residual target.
+    """Binder-referenced dimensionless features and Yeh-residual target.
 
+    Every mass is divided by the total binder mass b = cement + slag +
+    fly ash (no Buckingham-Pi machinery -- b is just the reference).
     Returns Pi (n, 7), y = sigma/sigma_ideal, and sigma_ideal.
     """
     cement, slag, flyash, water, sp, ca, fa, age = X_raw.T
     binder = cement + slag + flyash
-    wb = (water + sp) / binder          # Yeh's w/b convention (Table 7)
+    wb = water / binder                 # literal water/binder ratio (no SP)
 
     Pi = np.column_stack([
         wb,
@@ -327,7 +335,7 @@ def main():
     print()
 
     print("=" * 60)
-    print("Step 0: Buckingham-Pi non-dimensionalization")
+    print("Step 0: Binder-referenced non-dimensionalization")
     print("=" * 60)
     Pi, y, sigma_ideal = make_dimensionless(X_raw, sigma)
     print(f"  Features: {PI_NAMES}")
