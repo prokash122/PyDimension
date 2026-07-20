@@ -28,7 +28,7 @@ strength-preserving substitution in mix-ratio space. The generators are
 then validated **against measured data only**: real mix pairs separated
 along the symmetry subspace change strength significantly less than
 pairs separated along the encoder's strength-relevant directions
-(mean |Δ(σ/σ_ideal)| 0.19 vs 0.29).
+(mean |Δ(σ/σ_ideal)| 0.16 vs 0.34).
 
 ## 1. Problem Statement
 
@@ -80,15 +80,17 @@ lost:
 |---|---|
 | `π₁` | `w/b = m_w / b` (literal water/binder ratio) |
 | `π₂` | `m_f / b` (fly-ash replacement fraction) |
-| `π₃` | `m_s / b` (slag replacement fraction) |
+| `π₃` | `m_c / b` (cement fraction of binder) |
 | `π₄` | `m_p / b` (superplasticizer dosage) |
 | `π₅` | `m_{ca} / b` |
 | `π₆` | `m_{fa} / b` |
 | `π₇` | `ln(t / 28 d)` (dimensionless age) |
 
-The cement ratio `m_c / b` is omitted because it is fixed by the other two
-binder fractions (`m_c/b = 1 − m_s/b − m_f/b`), leaving six independent
-mass ratios plus the age term. Age carries the only [T] dimension among
+The three binder fractions sum to one (`m_c/b + m_s/b + m_f/b = 1`), so
+one is redundant. We keep `m_c/b` and `m_f/b` and omit the slag ratio
+`m_s / b`, which is then fixed by the other two
+(`m_s/b = 1 − m_c/b − m_f/b`), leaving six independent mass ratios plus
+the age term. Age carries the only [T] dimension among
 the inputs and cannot be non-dimensionalized against other columns; it is
 referenced to the industry-standard 28-day curing age. The logarithm is
 applied to the age ratio only: it symmetrizes the heavily skewed
@@ -142,9 +144,14 @@ The pipeline implements six sequential stages:
    with hidden widths `[64, 32]` and `Tanh` activations operating on the
    raw standardised features (`raw_input=True`, no `[X, X², log|X|]`
    augmentation); the decoder is a paired MLP of matching capacity. Each
-   `k` is repeated over `n_restarts = 3` random seeds and 600 epochs, and
-   the latent dimension minimising the held-out reconstruction MSE is
-   selected.
+   `k` is repeated over `n_restarts = 3` random seeds and 600 epochs. The
+   per-`k` held-out MSEs are nearly tied on this residual (they span only
+   ~0.01 across `k = 1 … 5`), so the automatic argmin is noise-sensitive
+   and shifts between retrainings and coordinate choices. We therefore
+   **pin `k = 4`** (`--latent-dim 4`, the default), consistent with the
+   auto-selection in the binder-fraction coordinates and keeping the
+   generator count reproducible; `--latent-dim 0` restores the automatic
+   pick.
 4. **Symmetry-type identification.** Three competing encoder families are
    trained against the Step&nbsp;3 decoder:
    - **Translational:** `z = W π`,
@@ -167,23 +174,27 @@ captured in `output_concrete_dimensionless/run.log`.
 
 ### 5.1 Latent dimension
 
-The intrinsic latent dimension of the residual is `k = 4` — an interior
-optimum: held-out performance improves monotonically up to `k = 4` and
-degrades for both `k = 5` and `k = 6`:
+The latent dimension is **pinned at `k = 4`**. The per-`k` held-out MSEs
+are nearly tied — they span only about 0.01 across `k = 1 … 5`, so
+no single `k` is a sharp optimum and the automatic argmin flips between
+runs and between coordinate choices (e.g. it lands on `k = 2` when the
+binder fractions are parametrized by `cement/b` instead of `slag/b`).
+The values below are one representative run; `k = 5` and `k = 6` are the
+only clearly worse choices:
 
 | `k` | `R²_train` | `R²_test` | MSE |
 |---|---|---|---|
-| 1 | 0.732 | 0.474 | 0.4469 |
-| 2 | 0.758 | 0.494 | 0.4304 |
-| 3 | 0.734 | 0.483 | 0.4391 |
-| 4 | 0.762 | **0.541** | **0.3900** |
-| 5 | 0.762 | 0.535 | 0.3950 |
-| 6 | 0.762 | 0.437 | 0.4784 |
+| 1 | 0.746 | 0.507 | 0.4185 |
+| 2 | 0.737 | 0.514 | 0.4131 |
+| 3 | 0.754 | 0.500 | 0.4249 |
+| **4** (pinned) | 0.750 | **0.510** | 0.4161 |
+| 5 | 0.739 | 0.504 | 0.4211 |
+| 6 | 0.768 | 0.456 | 0.4624 |
 
 The R² values refer to the *residual* `σ_c/σ_ideal`, i.e. to the variance
 left over after the analytic baseline has removed the dominant w/b and
-age effects. The widening train–test gap beyond `k = 4` indicates the
-extra latent directions fit noise rather than structure.
+age effects. The widening train–test gap at `k = 6` indicates the extra
+latent directions fit noise rather than structure.
 
 ### 5.2 Symmetry type
 
@@ -191,9 +202,9 @@ Competitive training selects the translational candidate:
 
 | Symmetry candidate | Held-out MSE |
 |---|---|
-| **translational** | **0.3326** |
-| scaling | 0.5579 |
-| rotational | 0.6331 |
+| **translational** | **0.4119** |
+| scaling | 0.6827 |
+| rotational | 0.7404 |
 
 The translational candidate beats the second-best (scaling) candidate
 by a factor of **1.7×** in validation MSE: the strength residual is
@@ -211,9 +222,9 @@ are `n − k = 3` independent translational generators (components with
 
 | Generator | Dominant components | Physical reading |
 |---|---|---|
-| `g₁` | CoarseAgg/b (+0.70), w/b (−0.36), Slag/b (−0.36), FineAgg/b (−0.34), SP/b (+0.28), FlyAsh/b (+0.23), ln(t/28) (+0.11) | Add coarse aggregate while lowering w/b and slag |
-| `g₂` | FineAgg/b (+0.61), SP/b (+0.48), w/b (−0.41), Slag/b (−0.35), CoarseAgg/b (−0.27), ln(t/28) (−0.18) | Add fine aggregate and superplasticizer while lowering w/b and slag |
-| `g₃` | SP/b (+0.54), Slag/b (+0.46), CoarseAgg/b (+0.44), w/b (+0.35), FineAgg/b (+0.32), FlyAsh/b (−0.27), ln(t/28) (+0.08) | Add superplasticizer and slag (SCM exchange for fly ash) at higher w/b |
+| `g₁` | CoarseAgg/b (+0.78), SP/b (+0.45), w/b (−0.33), FlyAsh/b (+0.22), ln(t/28) (+0.18) | Add coarse aggregate and superplasticizer while lowering w/b |
+| `g₂` | FineAgg/b (+0.87), SP/b (+0.28), Cement/b (+0.27), FlyAsh/b (+0.25), CoarseAgg/b (−0.14), ln(t/28) (−0.14) | Add fine aggregate (with a little cement and fly ash) while trimming coarse aggregate |
+| `g₃` | FlyAsh/b (+0.70), SP/b (−0.47), Cement/b (+0.40), w/b (+0.28), CoarseAgg/b (+0.20), FineAgg/b (−0.14) | Add fly ash and cement while cutting superplasticizer |
 
 The three vectors span the strength-preserving subspace; because any
 orthonormal basis of that 3-D null space is equally valid, the individual
@@ -242,7 +253,7 @@ The simplest check (`plot_generator_lines.py`,
 real mixes from the dataset (a weaker and a stronger one), step each one
 along all three generators, `π(ε) = π₀ + ε·g`, and feed every synthetic
 recipe to the trained model. The result is **six flat lines** — the
-predicted strength moves by ~2–4×10⁻⁷ (numerical zero) as the recipe is
+predicted strength moves by ~1–2×10⁻⁷ (numerical zero) as the recipe is
 changed along any generator. For contrast, each panel also steps the
 weaker mix along the model's strength-relevant direction (dashed): that
 line bends by ~0.35, the full weak-to-strong span.
@@ -272,33 +283,35 @@ compared on their **measured** `σ_c/σ_ideal`:
 | Pair type | Pairs | Mean \|Δ(σ_c/σ_ideal)\| |
 |---|---|---|
 | Near-duplicates, \|Δπ\| < 0.05 (repeatability noise floor) | 162 | **0.052** |
-| **Symmetry-aligned (along generators)** | 5,110 | **0.188** |
-| Random pairs at the same \|Δπ\| | 111,573 | 0.213 |
-| Active-aligned (along strength-relevant directions) | 26,642 | 0.222 |
-| **Control: along the single most strength-relevant direction** | 23 | **0.293** |
+| **Symmetry-aligned (along generators)** | 4,785 | **0.164** |
+| Random pairs at the same \|Δπ\| | 111,629 | 0.208 |
+| Active-aligned (along strength-relevant directions) | 27,897 | 0.226 |
+| **Control: along the single most strength-relevant direction** | 32 | **0.337** |
 
 Per-generator, using pairs whose separation vector has \|cos\| ≥ 0.9
 with one specific generator:
 
 | Direction | Aligned pairs | Mean \|Δ\| | corr(y₋, y₊) |
 |---|---|---|---|
-| `g₁` | 13 | **0.135** | **+0.82** |
-| `g₂` | 32 | 0.153 | +0.07 |
-| `g₃` | 283 | 0.200 | −0.20 |
-| top active direction (control) | 23 | 0.293 | +0.28 |
+| `g₁` | 66 | 0.132 | +0.70 |
+| `g₂` | 4 | 0.086 | +1.00 |
+| `g₃` | 118 | **0.122** | +0.33 |
+| top active direction (control) | 32 | 0.337 | +0.14 |
 
-Interpretation: mixes that differ along the generators keep more nearly
-the same measured strength residual, changing **1.6× less** than mixes
-that differ along the most strength-relevant direction (0.188 vs 0.293),
-and less than random pairs of equal separation (0.213). The symmetry is
-*approximate*: aligned pairs sit above the replicate noise floor
-(0.052), consistent with the autoencoder explaining 54.1 % — not 100 % —
-of the residual variance. The *aggregate* ordering
-(symmetry < random < control) is stable across retrainings, but which
-individual generator reads as the "cleanest" invariance, and its
-per-generator correlation, varies with the arbitrary null-space basis of
-a given run — so the per-`gᵢ` rows above should be read as one
-realization, not as fixed properties of a specific substitution.
+(`g₂` has only 4 aligned pairs, too few to read into — its `+1.00` is a
+small-sample artifact.) Interpretation: mixes that differ along the
+generators keep more nearly the same measured strength residual,
+changing **2.1× less** than mixes that differ along the most
+strength-relevant direction (0.164 vs 0.337), and less than random
+pairs of equal separation (0.208). The symmetry is *approximate*:
+aligned pairs sit above the replicate noise floor (0.052), consistent
+with the autoencoder explaining 51.0 % — not 100 % — of the residual
+variance. The *aggregate* ordering (symmetry < random < control) is
+stable across retrainings, but which individual generator reads as the
+"cleanest" invariance, and its per-generator correlation, varies with
+the arbitrary null-space basis of a given run — so the per-`gᵢ` rows
+above should be read as one realization, not as fixed properties of a
+specific substitution.
 The full analysis is reproduced by
 `output_concrete_dimensionless/generator_validation.png` and
 `validation.log`.
@@ -322,16 +335,16 @@ single three-panel figure
 > water/binder ratio w/b = m_w/b.
 > **(b)** Validation on measured data only: each point compares the
 > measured strength residuals of two *actual* mixes from the UCI
-> dataset (1030 samples). Blue: 328 pairs whose composition difference
+> dataset (1030 samples). Blue: 188 pairs whose composition difference
 > is aligned (|cos| ≥ 0.9) with a discovered generator — they
-> concentrate on the 1:1 line. Red: 23 pairs aligned with the model's
+> concentrate on the 1:1 line. Red: 32 pairs aligned with the model's
 > most strength-relevant direction — they depart from it. Pair
 > separations are matched (0.5–2.5 standardized units); no model
 > prediction is used.
 > **(c)** Mean measured |Δ(σc/σideal)| per pair type with bootstrap
 > 95% confidence intervals. Mixes differing along a generator change
-> strength by 0.19 on average — less than pairs along the strength
-> direction (0.29) and below random pairs of equal separation (0.21) —
+> strength by 0.12 on average — less than pairs along the strength
+> direction (0.34) and below random pairs of equal separation (0.21) —
 > well above the repeatability floor set by replicate mixes (0.05).
 > The discovered generators therefore identify
 > approximate invariances of the real strength surface, not artifacts
@@ -362,9 +375,11 @@ python discover_symmetry_dimensionless.py \
     --n-restarts 3
 ```
 
-The script defaults to `--encoder-hidden 64 32` and `raw_input=True`, so
-no extra flags are required. Then produce the orbit plots (Section 6.1)
-and the measured-pair validation (Section 6.2):
+The script defaults to `--encoder-hidden 64 32`, `raw_input=True`, and
+`--latent-dim 4` (the latent dimension is pinned because the per-`k`
+MSEs are nearly tied; pass `--latent-dim 0` to let the pipeline pick
+`k` automatically), so no extra flags are required. Then produce the
+orbit plots (Section 6.1) and the measured-pair validation (Section 6.2):
 
 ```bash
 python plot_generator_lines.py
@@ -397,18 +412,18 @@ residual chemistry. The translational fingerprint recovered on these
 coordinates confirms that the residual strength surface is governed by
 additive combinations of the mix ratios. The three generators provide an
 interpretable, data-driven catalogue of strength-preserving mix
-substitutions — e.g. adding coarse aggregate while lowering w/b and slag
-(`g₁`), or a supplementary-cementitious-material exchange between slag
-and fly ash (`g₃`) — that can guide constrained mix-design optimisation
-at a fixed target strength. Crucially, these are not merely model
-artifacts: the pair test of Section&nbsp;6 shows on measured strengths
-alone that real mixes separated along the generator subspace change
-strength ~1.6× less than mixes separated along the learned
-strength-relevant direction (0.19 vs 0.29), and less than random pairs
-of equal separation. The individual generator directions rotate between
-retrainings, so the robust, reproducible claims are the translational
-symmetry type, the three-dimensional strength-preserving subspace, and
-this aggregate reduction — not any single named substitution.
+substitutions — e.g. adding coarse aggregate and superplasticizer while
+lowering w/b (`g₁`), or trading superplasticizer for fly ash and cement
+(`g₃`) — that can guide constrained mix-design optimisation at a fixed
+target strength. Crucially, these are not merely model artifacts: the
+pair test of Section&nbsp;6 shows on measured strengths alone that real
+mixes separated along the generator subspace change strength ~2.1× less
+than mixes separated along the learned strength-relevant direction
+(0.16 vs 0.34), and less than random pairs of equal separation. The
+individual generator directions rotate between retrainings, so the
+robust, reproducible claims are the translational symmetry type, the
+three-dimensional strength-preserving subspace, and this aggregate
+reduction — not any single named substitution.
 
 ## 9. References
 

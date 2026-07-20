@@ -74,9 +74,9 @@ plt.rcParams.update({
 
 _here = os.path.dirname(os.path.abspath(__file__))
 
-PI_LABELS = ["cement/binder-side w/b", "fly ash", "slag", "superplasticizer",
+PI_LABELS = ["w/b", "fly ash", "cement", "superplasticizer",
              "coarse agg.", "fine agg.", "age"]
-SHORT = ["w/b", "fly ash", "slag", "SP", "coarse agg", "fine agg", "age"]
+SHORT = ["w/b", "fly ash", "cement", "SP", "coarse agg", "fine agg", "age"]
 
 
 def describe(g):

@@ -1,16 +1,16 @@
 Loaded 1030 mixes, 7 features, latent dim k=4, 3 generators
-Generator/active-subspace overlap (should be ~0): 6.53e-08
+Generator/active-subspace overlap (should be ~0): 5.32e-08
 Total pairs: 529935
 
 group                           pairs   mean |Δy|  median |Δy|
 near-duplicates (noise floor)      162      0.0522       0.0019
-symmetry-aligned pairs           5110      0.1878       0.1496
-random pairs (same |Δπ|)       111573      0.2128       0.1708
-active-aligned pairs            26642      0.2223       0.1772
+symmetry-aligned pairs           4785      0.1640       0.1403
+random pairs (same |Δπ|)       111629      0.2083       0.1677
+active-aligned pairs            27897      0.2262       0.1798
 
-Generator 1: 13 aligned pairs, mean |Δy| = 0.1350, corr(y-, y+) = 0.815
-Generator 2: 32 aligned pairs, mean |Δy| = 0.1528, corr(y-, y+) = 0.071
-Generator 3: 283 aligned pairs, mean |Δy| = 0.1998, corr(y-, y+) = -0.196
-Control (top active dir): 23 aligned pairs, mean |Δy| = 0.2929, corr = 0.275
+Generator 1: 66 aligned pairs, mean |Δy| = 0.1317, corr(y-, y+) = 0.703
+Generator 2: 4 aligned pairs, mean |Δy| = 0.0864, corr(y-, y+) = 1.000
+Generator 3: 118 aligned pairs, mean |Δy| = 0.1215, corr(y-, y+) = 0.331
+Control (top active dir): 32 aligned pairs, mean |Δy| = 0.3370, corr = 0.144
 
 Figure saved to output_concrete_dimensionless/generator_validation.png

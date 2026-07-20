@@ -59,7 +59,7 @@ plt.rcParams.update({
 
 _here = os.path.dirname(os.path.abspath(__file__))
 
-PI_LABELS = ["w/b", "FA/b", "Slag/b", "SP/b", "CA/b", "FiA/b", "ln(t/28)"]
+PI_LABELS = ["w/b", "FA/b", "Cem/b", "SP/b", "CA/b", "FiA/b", "ln(t/28)"]
 
 
 def bootstrap_ci(vals, n_boot=2000, seed=0):

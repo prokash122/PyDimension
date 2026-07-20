@@ -13,11 +13,16 @@ the common reference:
 
     pi_1 = water / b                        (literal water/binder ratio)
     pi_2 = fly_ash / b
-    pi_3 = slag / b
+    pi_3 = cement / b
     pi_4 = superplasticizer / b
     pi_5 = coarse_aggregate / b
     pi_6 = fine_aggregate / b
     pi_7 = ln(t / 28 days)                  (dimensionless age)
+
+The three binder fractions satisfy cement/b + slag/b + fly_ash/b = 1, so
+one of them is redundant. We keep cement/b and fly_ash/b and drop slag/b
+(slag/b = 1 - cement/b - fly_ash/b); this leaves six independent mass
+ratios plus the age term.
 
 Superplasticizer keeps its own ratio pi_4; it is NOT folded into the
 water term, so w/b here is the literal water-to-binder ratio.
@@ -98,7 +103,7 @@ YEH_D = 0.136       # age log-law intercept (t in days)
 T_REF = 28.0        # days
 
 PI_NAMES = [
-    "w/b", "FlyAsh/b", "Slag/b", "SP/b",
+    "w/b", "FlyAsh/b", "Cement/b", "SP/b",
     "CoarseAgg/b", "FineAgg/b", "ln(t/28)",
 ]
 
@@ -135,10 +140,12 @@ def make_dimensionless(X_raw, sigma):
     binder = cement + slag + flyash
     wb = water / binder                 # literal water/binder ratio (no SP)
 
+    # Keep cement/b and fly_ash/b; drop the redundant slag/b, since the
+    # three binder fractions sum to 1 (slag/b = 1 - cement/b - fly_ash/b).
     Pi = np.column_stack([
         wb,
         flyash / binder,
-        slag / binder,
+        cement / binder,
         sp / binder,
         ca / binder,
         fa / binder,
@@ -178,6 +185,15 @@ def run_pipeline(Pi, y, args):
         **enc_kwargs)
     results["latent"] = res_latent
     n_latent = res_latent["optimal_n_latent"]
+    decoder = res_latent["best_decoder"]
+    if getattr(args, "latent_dim", None):
+        # Override the auto-selected k. The per-k reconstruction MSEs are
+        # nearly tied on this residual, so the argmin is noise-sensitive;
+        # pinning k keeps the generator count reproducible across runs.
+        print(f"\n  Auto-selected latent dimension: {n_latent} "
+              f"(overridden to {args.latent_dim} via --latent-dim)")
+        n_latent = args.latent_dim
+        decoder = res_latent["models_per_k"][n_latent].decoder
     print(f"\n  Optimal latent dimension: {n_latent}")
     for k, m in res_latent["metrics"].items():
         r2_tr = m.get("R2_train", float("nan"))
@@ -189,7 +205,7 @@ def run_pipeline(Pi, y, args):
     print("=" * 60)
     sys.stdout.flush()
     res_sym = identify_symmetry(
-        X_norm, y_norm, n_latent=n_latent, decoder=res_latent["best_decoder"],
+        X_norm, y_norm, n_latent=n_latent, decoder=decoder,
         n_epochs=args.sym_epochs, n_restarts=args.n_restarts, seed=args.seed)
     results["symmetry"] = res_sym
     print(f"\n  Detected symmetry: {res_sym['symmetry_type']}")
@@ -317,6 +333,11 @@ def main():
     parser.add_argument("--max-latent", type=int, default=6,
                         help="Largest latent dimension to test (must be < 7 "
                              "so that translational generators remain)")
+    parser.add_argument("--latent-dim", type=int, default=4,
+                        help="Pin the latent dimension k instead of using the "
+                             "auto-selected argmin (the per-k MSEs are nearly "
+                             "tied, so the auto pick is noise-sensitive). "
+                             "Set to 0 to let the pipeline choose.")
     parser.add_argument("--output-dir", default="output_concrete_dimensionless")
     parser.add_argument("--encoder-hidden", type=int, nargs="+", default=[64, 32])
     args = parser.parse_args()

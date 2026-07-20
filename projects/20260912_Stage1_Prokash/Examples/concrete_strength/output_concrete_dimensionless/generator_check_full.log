@@ -1,4 +1,4 @@
-# concrete generator check — 2026-07-20T20:01:16.320684
+# concrete generator check — 2026-07-20T21:42:52.838351
 # python 3.11.15, torch 2.13.0+cu130, cuda=False (cpu)
 
 $ /usr/local/bin/python discover_symmetry_dimensionless.py --data Concrete_Data.xls --seed 42 --max-latent 6
@@ -10,7 +10,7 @@ Loading concrete data from Concrete_Data.xls...
 ============================================================
 Step 0: Binder-referenced non-dimensionalization
 ============================================================
-  Features: ['w/b', 'FlyAsh/b', 'Slag/b', 'SP/b', 'CoarseAgg/b', 'FineAgg/b', 'ln(t/28)']
+  Features: ['w/b', 'FlyAsh/b', 'Cement/b', 'SP/b', 'CoarseAgg/b', 'FineAgg/b', 'ln(t/28)']
   sigma_ideal = 13.83*(w/b)^(-1.269)*(0.268*ln(t)+0.136)  [MPa]
   Yeh baseline alone: R2 = 0.6821 on all 1030 rows
   Residual target y = sigma/sigma_ideal: mean=0.9277, std=0.2228
@@ -27,22 +27,24 @@ Step 2: Discovering intrinsic latent dimension
   Multi-layer encoder: [64, 32]
   raw_input=True: [X, X², log|X|] augmentation is disabled
 
+  Auto-selected latent dimension: 2 (overridden to 4 via --latent-dim)
+
   Optimal latent dimension: 4
-    k=1: R2_train=0.7324, R2_test=0.4740, MSE=0.446929
-    k=2: R2_train=0.7577, R2_test=0.4935, MSE=0.430381
-    k=3: R2_train=0.7340, R2_test=0.4832, MSE=0.439115
-    k=4: R2_train=0.7621, R2_test=0.5409, MSE=0.390036
-    k=5: R2_train=0.7619, R2_test=0.5351, MSE=0.395032
-    k=6: R2_train=0.7615, R2_test=0.4370, MSE=0.478353
+    k=1: R2_train=0.7457, R2_test=0.5074, MSE=0.418519
+    k=2: R2_train=0.7365, R2_test=0.5138, MSE=0.413140
+    k=3: R2_train=0.7542, R2_test=0.4999, MSE=0.424908
+    k=4: R2_train=0.7503, R2_test=0.5102, MSE=0.416131
+    k=5: R2_train=0.7386, R2_test=0.5044, MSE=0.421117
+    k=6: R2_train=0.7676, R2_test=0.4558, MSE=0.462408
 
 ============================================================
 Step 3: Identifying symmetry type
 ============================================================
 
   Detected symmetry: translational
-    translational  : 0.332641 <--
-    scaling        : 0.557933
-    rotational     : 0.633069
+    translational  : 0.411861 <--
+    scaling        : 0.682661
+    rotational     : 0.740401
   Loss gap: 1.7x
 
 ============================================================
@@ -57,9 +59,9 @@ Step 5: Physical interpretation of generators
   Each generator g shifts the dimensionless mix ratios,
   pi -> pi + eps*g, without changing the strength residual y.
 
-  Generator 1: [w/b: -0.359, FlyAsh/b: +0.228, Slag/b: -0.359, SP/b: +0.281, CoarseAgg/b: +0.695, FineAgg/b: -0.343, ln(t/28): +0.105]
-  Generator 2: [w/b: -0.407, Slag/b: -0.353, SP/b: +0.480, CoarseAgg/b: -0.274, FineAgg/b: +0.607, ln(t/28): -0.181]
-  Generator 3: [w/b: +0.354, FlyAsh/b: -0.268, Slag/b: +0.463, SP/b: +0.540, CoarseAgg/b: +0.436, FineAgg/b: +0.318, ln(t/28): +0.077]
+  Generator 1: [w/b: -0.327, FlyAsh/b: +0.215, SP/b: +0.452, CoarseAgg/b: +0.779, ln(t/28): +0.179]
+  Generator 2: [FlyAsh/b: +0.249, Cement/b: +0.266, SP/b: +0.279, CoarseAgg/b: -0.143, FineAgg/b: +0.866, ln(t/28): -0.135]
+  Generator 3: [w/b: +0.276, FlyAsh/b: +0.699, Cement/b: +0.397, SP/b: -0.467, CoarseAgg/b: +0.199, FineAgg/b: -0.139]
 
 Artifacts saved to output_concrete_dimensionless/pipeline_artifacts.npz
 Trained model saved to output_concrete_dimensionless/trained_model.pt
@@ -76,32 +78,32 @@ COMPLETE
 
 
 $ /usr/local/bin/python plot_generator_lines.py
-Genuine trained model on data: R2 = 0.6578
-strength change  along g1: 4e-07   along g2: 2e-07   along g3: 2e-07
+Genuine trained model on data: R2 = 0.6757
+strength change  along g1: 2e-07   along g2: 1e-07   along g3: 1e-07
 Saved output_concrete_dimensionless/generator_lines.png (+ .pdf)
 
 $ /usr/local/bin/python validate_generators.py
 Loaded 1030 mixes, 7 features, latent dim k=4, 3 generators
-Generator/active-subspace overlap (should be ~0): 6.53e-08
+Generator/active-subspace overlap (should be ~0): 5.32e-08
 Total pairs: 529935
 
 group                           pairs   mean |Δy|  median |Δy|
 near-duplicates (noise floor)      162      0.0522       0.0019
-symmetry-aligned pairs           5110      0.1878       0.1496
-random pairs (same |Δπ|)       111573      0.2128       0.1708
-active-aligned pairs            26642      0.2223       0.1772
+symmetry-aligned pairs           4785      0.1640       0.1403
+random pairs (same |Δπ|)       111629      0.2083       0.1677
+active-aligned pairs            27897      0.2262       0.1798
 
-Generator 1: 13 aligned pairs, mean |Δy| = 0.1350, corr(y-, y+) = 0.815
-Generator 2: 32 aligned pairs, mean |Δy| = 0.1528, corr(y-, y+) = 0.071
-Generator 3: 283 aligned pairs, mean |Δy| = 0.1998, corr(y-, y+) = -0.196
-Control (top active dir): 23 aligned pairs, mean |Δy| = 0.2929, corr = 0.275
+Generator 1: 66 aligned pairs, mean |Δy| = 0.1317, corr(y-, y+) = 0.703
+Generator 2: 4 aligned pairs, mean |Δy| = 0.0864, corr(y-, y+) = 1.000
+Generator 3: 118 aligned pairs, mean |Δy| = 0.1215, corr(y-, y+) = 0.331
+Control (top active dir): 32 aligned pairs, mean |Δy| = 0.3370, corr = 0.144
 
 Figure saved to output_concrete_dimensionless/generator_validation.png
 
 $ /usr/local/bin/python make_publication_figure.py
-generator pairs: n=328, mean |dy|=0.193
-control pairs:   n=23, mean |dy|=0.293
-random pairs:    n=111573, mean |dy|=0.213
+generator pairs: n=188, mean |dy|=0.124
+control pairs:   n=32, mean |dy|=0.337
+random pairs:    n=111629, mean |dy|=0.208
 replicates:      n=162, mean |dy|=0.052
 Saved output_concrete_dimensionless/publication_figure.png (+ .pdf)
 
