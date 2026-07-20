@@ -1,0 +1,52 @@
+REGION-FREE LOCAL SYMMETRY SCAN (WLSS)
+Dataset rows            : 1152
+Window fraction         : 0.10 of data (~115 rows/window)
+Bootstrap resamples     : 400
+Merge tolerance (ROPE)  : 0.100 on projected exponents
+Local model             : ln f = ln C + a ln Re_p + b ln phi + c ln(1-phi)
+
+Noise floor (10th pct of window residual RMS) : 0.0491  [ln f units]
+
+========================================================================
+SCAN AXIS: log10(Re_p)
+  windows at noise floor (<=3x)   : 41/41  (100% resolving)
+  multiscale (2x width in bands)  : 32/41 centers
+  discovered regimes              : 2
+------------------------------------------------------------------------
+  REGIME 1  [log10(Re_p) in -6.03 .. -0.10]  (5 windows, 576 rows)
+    exponents (a,b,c) : [-0.999, -3.012, +1.988]
+    95% bands         : a [-1.000,-0.998]  b [-3.032,-2.999]  c [+1.969,+2.003]
+    local law         : f = 148.6 * Re_p^-0.999 * phi^-3.012 * (1-phi)^+1.988
+    window R2 (ln f)  : 0.9999   residual RMS = 0.0480
+    cos vs Ergun        viscous (Darcy) : raw +1.0000   manifold +1.0000
+    cos vs Ergun inertial (Forchheimer) : raw +0.9310   manifold +0.9806
+    --> best match: viscous (Darcy) (manifold cos +1.0000)
+------------------------------------------------------------------------
+  REGIME 2  [log10(Re_p) in +2.42 .. +6.02]  (3 windows, 346 rows)
+    exponents (a,b,c) : [-0.008, -3.009, +1.011]
+    95% bands         : a [-0.011,-0.006]  b [-3.039,-2.979]  c [+0.981,+1.041]
+    local law         : f = 1.942 * Re_p^-0.008 * phi^-3.009 * (1-phi)^+1.011
+    window R2 (ln f)  : 0.9992   residual RMS = 0.0572
+    cos vs Ergun        viscous (Darcy) : raw +0.9310   manifold +0.9809
+    cos vs Ergun inertial (Forchheimer) : raw +1.0000   manifold +1.0000
+    --> best match: inertial (Forchheimer) (manifold cos +1.0000)
+  transition / no-local-power-law zones (log10(Re_p)): [+0.11..+2.42]
+
+========================================================================
+SCAN AXIS: log10(phi)
+  windows at noise floor (<=3x)   : 0/41  (0% resolving)
+  multiscale (2x width in bands)  : 5/41 centers
+  discovered regimes              : 0
+  transition / no-local-power-law zones (log10(phi)): [-0.82..-0.07]
+
+========================================================================
+SCAN AXIS: log10(1-phi)
+  windows at noise floor (<=3x)   : 0/41  (0% resolving)
+  multiscale (2x width in bands)  : 7/41 centers
+  discovered regimes              : 0
+  transition / no-local-power-law zones (log10(1-phi)): [-0.82..-0.07]
+
+========================================================================
+VERDICT: regime structure resolved along log10(Re_p) — 2 local scaling symmetries + transition zone(s) discovered without any region specification.
+  regime 1 rows -> regime_1_rows.csv  (576 rows; run discover_symmetry.py / discover_equation_encoder_l2.py on it to certify symmetry type per regime)
+  regime 2 rows -> regime_2_rows.csv  (346 rows; run discover_symmetry.py / discover_equation_encoder_l2.py on it to certify symmetry type per regime)

@@ -230,6 +230,28 @@ easiest to find, but does not make it the unique minimum.
 
 ---
 
+## Region-free discovery — no need to specify the regimes
+
+Everything above requires handing the pipeline a regime-pure dataset:
+the "region" is chosen by the user at data-generation time. The
+**Windowed Local Symmetry Scan** (`discover_local_symmetry.py`, see
+[`LOCAL_SYMMETRY.md`](LOCAL_SYMMETRY.md)) removes that requirement: it
+takes ONE dataset spanning the whole Ergun curve
+(`dataset_ergun_full_curve.csv`, 12 decades of `Re_p` straddling the
+crossover) and discovers — with bootstrap **uncertainty bands** on every
+exponent — the viscous regime, the inertial regime, their local scaling
+laws (both at manifold cos +1.0000 vs Ergun, all true exponents inside
+the 95 % bands), and the transition zone in between, entirely from the
+data:
+
+```bash
+python generate_full_ergun_dataset.py
+python discover_local_symmetry.py --data dataset_ergun_full_curve.csv \
+    --output-dir output_local_symmetry --compare-ergun
+```
+
+---
+
 ## How to Run
 
 ```bash
