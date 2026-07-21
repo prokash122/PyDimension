@@ -23,7 +23,9 @@ Step 2: Discovering intrinsic latent dimension
   Multi-layer encoder: [64, 32]
   raw_input=True: [X, X², log|X|] augmentation is disabled
 
-  Optimal latent dimension: 4
+  Auto-selected latent dimension: 4 (overridden to 5 via --latent-dim)
+
+  Optimal latent dimension: 5
     k=1: R2_train=0.7460, R2_test=0.4470, MSE=0.469831
     k=2: R2_train=0.7817, R2_test=0.4617, MSE=0.457396
     k=3: R2_train=0.7539, R2_test=0.4694, MSE=0.450799
@@ -36,16 +38,16 @@ Step 3: Identifying symmetry type
 ============================================================
 
   Detected symmetry: translational
-    translational  : 0.373816 <--
-    rotational     : 0.556477
-    scaling        : 0.577348
-  Loss gap: 1.5x
+    translational  : 0.397331 <--
+    scaling        : 0.545322
+    rotational     : 0.595125
+  Loss gap: 1.4x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
 ============================================================
   Symmetry type: translational
-  Generators: 4
+  Generators: 3
 
 ============================================================
 Step 5: Physical interpretation of generators
@@ -53,10 +55,9 @@ Step 5: Physical interpretation of generators
   Each generator g shifts the dimensionless mix ratios,
   pi -> pi + eps*g, without changing the strength residual y.
 
-  Generator 1: [w/b: +0.313, Cement/b: -0.442, Slag/b: -0.185, FlyAsh/b: -0.254, SP/b: +0.755, FineAgg/b: +0.187]
-  Generator 2: [w/b: +0.751, Cement/b: +0.221, FlyAsh/b: +0.379, CoarseAgg/b: +0.234, FineAgg/b: -0.331, ln(t/28): +0.280]
-  Generator 3: [w/b: +0.140, Cement/b: +0.589, Slag/b: +0.372, FlyAsh/b: +0.098, SP/b: +0.288, CoarseAgg/b: -0.322, FineAgg/b: +0.533, ln(t/28): -0.122]
-  Generator 4: [w/b: -0.088, Cement/b: -0.101, Slag/b: +0.830, FlyAsh/b: -0.329, SP/b: +0.144, CoarseAgg/b: +0.194, FineAgg/b: -0.304, ln(t/28): +0.183]
+  Generator 1: [Cement/b: -0.482, Slag/b: -0.662, SP/b: -0.260, CoarseAgg/b: +0.320, FineAgg/b: -0.397]
+  Generator 2: [w/b: +0.184, Cement/b: -0.314, Slag/b: -0.341, FlyAsh/b: -0.260, SP/b: +0.091, CoarseAgg/b: -0.167, FineAgg/b: +0.765, ln(t/28): -0.251]
+  Generator 3: [w/b: -0.231, Cement/b: -0.503, Slag/b: +0.383, FlyAsh/b: -0.347, SP/b: +0.357, CoarseAgg/b: +0.418, FineAgg/b: +0.064, ln(t/28): +0.346]
 
 Artifacts saved to output_concrete_dimensionless/pipeline_artifacts.npz
 Trained model saved to output_concrete_dimensionless/trained_model.pt
@@ -69,5 +70,5 @@ Figure saved to output_concrete_dimensionless/concrete_symmetry_dimensionless.pn
 COMPLETE
 ============================================================
   Symmetry: translational
-  Generators: 4
+  Generators: 3
 
