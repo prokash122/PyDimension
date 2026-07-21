@@ -1,4 +1,4 @@
-# concrete generator check — 2026-07-21T02:57:36.969320
+# concrete generator check — 2026-07-21T05:17:35.729785
 # python 3.11.15, torch 2.13.0+cu130, cuda=False (cpu)
 
 $ /usr/local/bin/python discover_symmetry_dimensionless.py --data Concrete_Data.xls --seed 42 --max-latent 6
@@ -40,10 +40,10 @@ Step 3: Identifying symmetry type
 ============================================================
 
   Detected symmetry: translational
-    translational  : 0.373816 <--
-    rotational     : 0.556477
-    scaling        : 0.577348
-  Loss gap: 1.5x
+    translational  : 0.361275 <--
+    rotational     : 0.578443
+    scaling        : 0.579686
+  Loss gap: 1.6x
 
 ============================================================
 Step 4: Extracting Lie-algebra generators
@@ -57,10 +57,10 @@ Step 5: Physical interpretation of generators
   Each generator g shifts the dimensionless mix ratios,
   pi -> pi + eps*g, without changing the strength residual y.
 
-  Generator 1: [w/b: +0.313, Cement/b: -0.442, Slag/b: -0.185, FlyAsh/b: -0.254, SP/b: +0.755, FineAgg/b: +0.187]
-  Generator 2: [w/b: +0.751, Cement/b: +0.221, FlyAsh/b: +0.379, CoarseAgg/b: +0.234, FineAgg/b: -0.331, ln(t/28): +0.280]
-  Generator 3: [w/b: +0.140, Cement/b: +0.589, Slag/b: +0.372, FlyAsh/b: +0.098, SP/b: +0.288, CoarseAgg/b: -0.322, FineAgg/b: +0.533, ln(t/28): -0.122]
-  Generator 4: [w/b: -0.088, Cement/b: -0.101, Slag/b: +0.830, FlyAsh/b: -0.329, SP/b: +0.144, CoarseAgg/b: +0.194, FineAgg/b: -0.304, ln(t/28): +0.183]
+  Generator 1: [w/b: -0.446, Cement/b: +0.097, Slag/b: +0.240, FlyAsh/b: +0.115, SP/b: +0.801, CoarseAgg/b: +0.095, FineAgg/b: +0.061, ln(t/28): -0.258]
+  Generator 2: [w/b: -0.093, Cement/b: -0.599, Slag/b: -0.112, FlyAsh/b: -0.414, SP/b: +0.115, CoarseAgg/b: +0.585, FineAgg/b: -0.262, ln(t/28): +0.158]
+  Generator 3: [w/b: +0.215, Cement/b: -0.306, Slag/b: +0.132, FlyAsh/b: -0.472, SP/b: +0.191, CoarseAgg/b: -0.334, FineAgg/b: +0.685, ln(t/28): +0.057]
+  Generator 4: [Cement/b: +0.199, Slag/b: +0.756, FlyAsh/b: -0.157, SP/b: -0.051, FineAgg/b: -0.185, ln(t/28): +0.571]
 
 Artifacts saved to output_concrete_dimensionless/pipeline_artifacts.npz
 Trained model saved to output_concrete_dimensionless/trained_model.pt
@@ -77,12 +77,12 @@ COMPLETE
 
 
 $ /usr/local/bin/python plot_generator_lines.py
-Genuine trained model on data: R2 = 0.6738
-strength change  along g1: 1e-07   along g2: 1e-07   along g3: 1e-07   along g4: 1e-07
+Genuine trained model on data: R2 = 0.6885
+strength change  along g1: 2e-07   along g2: 1e-07   along g3: 2e-07   along g4: 1e-07
 Saved output_concrete_dimensionless/generator_lines.png (+ .pdf)
 
 $ /usr/local/bin/python plot_symmetry_type.py
-winner: translational; losses: translational=0.3738, rotational=0.5565, scaling=0.5773
+winner: translational; losses: translational=0.3613, rotational=0.5784, scaling=0.5797
 Saved output_concrete_dimensionless/symmetry_type.png (+ .pdf)
 
 All steps completed.

@@ -21,7 +21,7 @@ residual with a multilayer-perceptron autoencoder (hidden widths
 `[64, 32]`, `raw_input=True`). The intrinsic latent dimension is
 identified as `k = 4` (an interior optimum of a search over
 `k ∈ {1, …, 6}`), and competitive encoder training selects the
-**translational** symmetry candidate with a **1.5×** validation-MSE gap over
+**translational** symmetry candidate with a **1.6×** validation-MSE gap over
 the next-best (rotational) candidate. With eight features and `k = 4`, the
 null space yields **four** Lie-algebra generators — three physically
 interpretable strength-preserving substitutions, plus one trivial
@@ -192,8 +192,11 @@ interior optimum, selected automatically. Held-out performance peaks at
 
 The R² values refer to the *residual* `σ_c/σ_ideal`, i.e. to the variance
 left over after the analytic baseline has removed the dominant w/b and
-age effects. `k = 4` beats every neighbour by ≥ 0.04 in MSE, so unlike
-the seven-feature coordinates the optimum is unambiguous here.
+age effects. On this CPU host `k = 4` is a clear winner (MSE ≈ 0.41 vs
+≥ 0.45). The per-`k` MSEs are close enough, though, that different
+hardware can shift the arg-min — e.g. on a GPU the same code selects
+`k = 5` (→ 3 generators) — so the exact `k` is hardware-dependent. Pin
+it with `--latent-dim` if a fixed generator count is required.
 
 ### 5.2 Symmetry type
 
@@ -201,17 +204,18 @@ Competitive training selects the translational candidate:
 
 | Symmetry candidate | Held-out MSE |
 |---|---|
-| **translational** | **0.3738** |
-| rotational | 0.5565 |
-| scaling | 0.5773 |
+| **translational** | **0.3613** |
+| rotational | 0.5784 |
+| scaling | 0.5797 |
 
 The translational candidate beats the second-best (rotational) candidate
-by a factor of **1.5×** in validation MSE: the strength residual is
-additive in the binder-referenced mix ratios. (The gap and the
-runner-up's identity fluctuate between roughly 1.4× and 1.9× across
-retrainings because CPU thread scheduling makes the optimizer
-non-deterministic even at fixed seed; the translational winner itself is
-stable across all runs.) `plot_symmetry_type.py` renders this table as a
+by a factor of **1.6×** in validation MSE: the strength residual is
+additive in the binder-referenced mix ratios. (These numbers now
+reproduce exactly on a given machine — the symmetry stage was made
+deterministic by seeding on the candidate's index rather than
+`hash(sym_type)`, which Python randomizes per process. Values still
+differ across hardware, e.g. CPU vs GPU, because of floating-point
+arithmetic.) `plot_symmetry_type.py` renders this table as a
 standalone publication figure
 (`output_concrete_dimensionless/symmetry_type.png` / `.pdf`, 300 dpi):
 the green translational bar against the two orange runners-up.
@@ -224,10 +228,10 @@ shown, one representative run):
 
 | Generator | Dominant components | Physical reading |
 |---|---|---|
-| `g₁` | SP/b (+0.76), Cement/b (−0.44), w/b (+0.31), FlyAsh/b (−0.25), FineAgg/b (+0.19), Slag/b (−0.19) | More superplasticizer and w/b, less cement and SCMs |
-| `g₂` | w/b (+0.75), FlyAsh/b (+0.38), FineAgg/b (−0.33), ln(t/28) (+0.28), CoarseAgg/b (+0.23), Cement/b (+0.22) | Higher w/b and fly ash, cure longer, less fine aggregate |
-| `g₃` | Cement/b (+0.59), FineAgg/b (+0.53), Slag/b (+0.37), CoarseAgg/b (−0.32), SP/b (+0.29) | More cement, slag and fine aggregate, less coarse aggregate |
-| `g₄` | Slag/b (+0.83), FlyAsh/b (−0.33), FineAgg/b (−0.30), CoarseAgg/b (+0.19), ln(t/28) (+0.18) | Swap fly ash and fine aggregate for slag |
+| `g₁` | SP/b (+0.80), w/b (−0.45), ln(t/28) (−0.26), Slag/b (+0.24), FlyAsh/b (+0.12) | More superplasticizer, less w/b and curing age |
+| `g₂` | Cement/b (−0.60), CoarseAgg/b (+0.59), FlyAsh/b (−0.41), FineAgg/b (−0.26), ln(t/28) (+0.16) | More coarse aggregate and age, less cement and fly ash |
+| `g₃` | FineAgg/b (+0.69), FlyAsh/b (−0.47), CoarseAgg/b (−0.33), Cement/b (−0.31), w/b (+0.22), SP/b (+0.19) | More fine aggregate, less fly ash and coarse aggregate |
+| `g₄` | Slag/b (+0.76), ln(t/28) (+0.57), Cement/b (+0.20), FineAgg/b (−0.19), FlyAsh/b (−0.16) | More slag and longer curing |
 
 The four vectors span the translational null space; because any
 orthonormal basis of that 4-D space is equally valid, the individual
@@ -358,10 +362,9 @@ additive combinations of the mix ratios. Of the four null-space
 directions, one is the trivial binder-simplex redundancy (forced by the
 three binder fractions summing to one); the remaining three provide an
 interpretable, data-driven catalogue of strength-preserving mix
-substitutions — e.g. raising superplasticizer and w/b while cutting
-cement (`g₁`), or trading coarse for fine aggregate with more cement and
-slag (`g₃`) — that can guide constrained mix-design optimisation at a
-fixed target strength. The
+substitutions — e.g. raising superplasticizer while lowering w/b (`g₁`),
+or trading fly ash and coarse aggregate for fine aggregate (`g₃`) — that
+can guide constrained mix-design optimisation at a fixed target strength. The
 publication figure (Section&nbsp;6) confirms the trained model embodies
 these directions exactly: model-predicted `σc*` is held flat along every
 generator (`W·g = 0`), while the strength-relevant direction spans the

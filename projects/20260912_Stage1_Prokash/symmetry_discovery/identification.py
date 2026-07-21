@@ -198,13 +198,16 @@ def identify_symmetry(
     best_encoders = {}
     best_decoders = {}
 
-    for sym_type in sym_types:
+    for type_idx, sym_type in enumerate(sym_types):
         best_loss    = np.inf
         best_encoder = None
         best_decoder = None
 
         for restart in range(n_restarts):
-            torch.manual_seed(seed + hash(sym_type) % 1000 + restart * 37)
+            # NOTE: use the tuple index, NOT hash(sym_type). Python randomizes
+            # string hashing per process (PYTHONHASHSEED), so hash() would give
+            # a different seed every run and make this stage non-reproducible.
+            torch.manual_seed(seed + type_idx * 1000 + restart * 37)
 
             enc = SymmetryEncoder(sym_type, n_inputs, n_latent).to(_device)
             # Fresh decoder for each restart: avoids bias from Task-3 warm-start,
