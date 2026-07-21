@@ -151,11 +151,10 @@ The pipeline implements six sequential stages:
    raw standardised features (`raw_input=True`, no `[X, X², log|X|]`
    augmentation); the decoder is a paired MLP of matching capacity. Each
    `k` is repeated over `n_restarts = 3` random seeds and 600 epochs, and
-   the latent dimension minimising the held-out MSE is selected. On the
-   eight-feature set this lands cleanly on `k = 4` (MSE ≈ 0.41 vs ≥ 0.45
-   elsewhere); it is also pinned by default (`--latent-dim 4`) for
-   reproducibility, since the per-`k` MSEs can tie under other coordinate
-   choices — `--latent-dim 0` restores the automatic pick.
+   the latent dimension minimising the held-out MSE is selected
+   automatically. On the eight-feature set this lands cleanly on `k = 4`
+   (MSE ≈ 0.41 vs ≥ 0.45 elsewhere). (`--latent-dim` can pin a specific
+   `k` if desired; the default `0` uses the automatic selection.)
 4. **Symmetry-type identification.** Three competing encoder families are
    trained against the Step&nbsp;3 decoder:
    - **Translational:** `z = W π`,
@@ -179,9 +178,8 @@ captured in `output_concrete_dimensionless/run.log`.
 ### 5.1 Latent dimension
 
 On the eight-feature set the latent dimension is `k = 4` — a clear
-interior optimum (auto-selected, and pinned by default for
-reproducibility). Held-out performance peaks at `k = 4` and is markedly
-worse on either side:
+interior optimum, selected automatically. Held-out performance peaks at
+`k = 4` and is markedly worse on either side:
 
 | `k` | `R²_train` | `R²_test` | MSE |
 |---|---|---|---|
@@ -203,9 +201,9 @@ Competitive training selects the translational candidate:
 
 | Symmetry candidate | Held-out MSE |
 |---|---|
-| **translational** | **0.3740** |
-| rotational | 0.5525 |
-| scaling | 0.5700 |
+| **translational** | **0.3738** |
+| rotational | 0.5565 |
+| scaling | 0.5773 |
 
 The translational candidate beats the second-best (rotational) candidate
 by a factor of **1.5×** in validation MSE: the strength residual is
@@ -222,30 +220,31 @@ the green translational bar against the two orange runners-up.
 
 With `n = 8` dimensionless features and `k = 4` latent directions, there
 are `n − k = 4` translational generators (components with `|g_j| > 0.05`
-shown). Because the three binder fractions are collinear, **one of the
-four is the trivial binder-simplex direction** (all binder fractions
-moving together — a redundancy artifact, not a physical substitution);
-the other three are strength-preserving mix substitutions:
+shown, one representative run):
 
 | Generator | Dominant components | Physical reading |
 |---|---|---|
-| `g₁` | SP/b (+0.88), FlyAsh/b (−0.33), w/b (−0.27), Slag/b (+0.19) | Add superplasticizer while cutting fly ash and w/b |
-| `g₂` | CoarseAgg/b (+0.83), ln(t/28) (+0.34), FlyAsh/b (−0.26), Cement/b (−0.25), w/b (−0.19), Slag/b (−0.17) | Add coarse aggregate and cure longer while trimming fly ash and cement |
-| `g₃` | FineAgg/b (+0.91), FlyAsh/b (−0.35), Cement/b (−0.19), SP/b (−0.10) | Add fine aggregate while cutting fly ash |
-| `g₄` *(trivial)* | Slag/b (+0.76), Cement/b (+0.53), CoarseAgg/b (+0.33) | Binder fractions rise together — the `m_c/b + m_s/b + m_f/b = 1` redundancy, not a physical direction |
+| `g₁` | SP/b (+0.76), Cement/b (−0.44), w/b (+0.31), FlyAsh/b (−0.25), FineAgg/b (+0.19), Slag/b (−0.19) | More superplasticizer and w/b, less cement and SCMs |
+| `g₂` | w/b (+0.75), FlyAsh/b (+0.38), FineAgg/b (−0.33), ln(t/28) (+0.28), CoarseAgg/b (+0.23), Cement/b (+0.22) | Higher w/b and fly ash, cure longer, less fine aggregate |
+| `g₃` | Cement/b (+0.59), FineAgg/b (+0.53), Slag/b (+0.37), CoarseAgg/b (−0.32), SP/b (+0.29) | More cement, slag and fine aggregate, less coarse aggregate |
+| `g₄` | Slag/b (+0.83), FlyAsh/b (−0.33), FineAgg/b (−0.30), CoarseAgg/b (+0.19), ln(t/28) (+0.18) | Swap fly ash and fine aggregate for slag |
 
 The four vectors span the translational null space; because any
 orthonormal basis of that 4-D space is equally valid, the individual
 `gᵢ` directions (and their component signs) rotate from run to run — it is
 the *subspace* they span, and the flatness of the model along it, that is
-stable. The trivial binder-simplex direction always appears (it is forced
-by the collinearity), leaving three physical strength-preserving
-directions. Dropping one binder fraction (a 7-feature set) removes it and
-yields three generators directly (see git history).
+stable. Because the three binder fractions are collinear, **one of the
+four null-space dimensions is the trivial "binder fractions sum to one"
+redundancy** rather than a physical substitution; in an arbitrary basis
+it is distributed across the four `gᵢ` above rather than isolated in a
+single one. So the robust statement is the 4-D subspace (three physical
+strength-preserving directions plus one redundancy), not any single named
+`gᵢ`. Dropping one binder fraction (a 7-feature set) removes the
+redundancy and yields three generators directly (see git history).
 
-Each physical generator is a constant-residual direction in mix-ratio
-space: moving the composition along `g_i` (within physical limits) leaves
-the predicted strength residual `σ_c/σ_ideal` unchanged.
+Each physical direction in this span is a constant-residual direction in
+mix-ratio space: moving the composition along it (within physical limits)
+leaves the predicted strength residual `σ_c/σ_ideal` unchanged.
 
 ### 5.4 Figure
 
@@ -318,10 +317,9 @@ python discover_symmetry_dimensionless.py \
     --n-restarts 3
 ```
 
-The script defaults to `--encoder-hidden 64 32`, `raw_input=True`, and
-`--latent-dim 4` (the latent dimension is pinned because the per-`k`
-MSEs are nearly tied; pass `--latent-dim 0` to let the pipeline pick
-`k` automatically), so no extra flags are required. Then produce the
+The script defaults to `--encoder-hidden 64 32` and `raw_input=True`, and
+selects the latent dimension `k` automatically (`--latent-dim N` can pin
+a specific `k`), so no extra flags are required. Then produce the
 publication figures (Sections 5.2 and 6):
 
 ```bash
@@ -360,9 +358,10 @@ additive combinations of the mix ratios. Of the four null-space
 directions, one is the trivial binder-simplex redundancy (forced by the
 three binder fractions summing to one); the remaining three provide an
 interpretable, data-driven catalogue of strength-preserving mix
-substitutions — e.g. adding superplasticizer while cutting fly ash and
-w/b (`g₁`), or swapping fly ash for fine aggregate (`g₃`) — that can guide
-constrained mix-design optimisation at a fixed target strength. The
+substitutions — e.g. raising superplasticizer and w/b while cutting
+cement (`g₁`), or trading coarse for fine aggregate with more cement and
+slag (`g₃`) — that can guide constrained mix-design optimisation at a
+fixed target strength. The
 publication figure (Section&nbsp;6) confirms the trained model embodies
 these directions exactly: model-predicted `σc*` is held flat along every
 generator (`W·g = 0`), while the strength-relevant direction spans the

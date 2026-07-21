@@ -338,11 +338,11 @@ def main():
     parser.add_argument("--max-latent", type=int, default=6,
                         help="Largest latent dimension to test (must be < 8 "
                              "so that translational generators remain)")
-    parser.add_argument("--latent-dim", type=int, default=4,
+    parser.add_argument("--latent-dim", type=int, default=0,
                         help="Pin the latent dimension k instead of using the "
-                             "auto-selected argmin (the per-k MSEs are nearly "
-                             "tied, so the auto pick is noise-sensitive). "
-                             "Set to 0 to let the pipeline choose.")
+                             "auto-selected argmin. Default 0 = let the "
+                             "pipeline choose whatever k minimises the "
+                             "held-out MSE.")
     parser.add_argument("--output-dir", default="output_concrete_dimensionless")
     parser.add_argument("--encoder-hidden", type=int, nargs="+", default=[64, 32])
     args = parser.parse_args()
