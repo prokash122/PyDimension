@@ -246,7 +246,11 @@ step by implementing the method of
 > multiple-physical-regime systems*, Comput. Methods Appl. Mech. Engrg.
 > 420 (2024) 116728.
 
-on a **single combined dataset** spanning both regimes
+A full mathematical statement of the paper's method, our Stage-1
+method, their linkage, and the combined algorithm is in
+[`METHOD_REGIME_AWARE.md`](METHOD_REGIME_AWARE.md).
+
+The pipeline runs on a **single combined dataset** spanning both regimes
 (`dataset_ergun_combined_widephi.csv`, from
 `generate_combined_dataset.py`: 1,440 rows, `Re_p` from 10⁻⁶ to 10⁶,
 `φ` from 0.15 to 0.85, 5 % log-normal noise — 907 viscous / 533 inertial
