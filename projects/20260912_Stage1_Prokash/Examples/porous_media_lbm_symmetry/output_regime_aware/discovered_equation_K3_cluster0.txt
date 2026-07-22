@@ -1,0 +1,23 @@
+Dataset                 : dataset_ergun_combined_widephi.csv [K=3, cluster 0, full]
+Architecture            : scaling encoder (z = w . log|pi|)  +  Tanh MLP decoder [1 -> 64 -> 64 -> 1]
+Training                : Adam, lr=1e-3, weight_decay=1e-4, MSE on min-max(log10 f),  1500 epochs, 8 restarts (best kept)
+Best restart seed       : 2  (train MSE = 0.000022, test MSE = 0.000024)
+
+Encoder raw weight w     : [+0.0692, +0.2033, -0.1552]
+Encoder L2-normed w      : [-0.2611, -0.7673, +0.5858]      on [log Re_p, log phi, log(1-phi)]
+phi_bar                  : 0.3969
+cos vs Ergun (raw 3-D)   : +0.9981
+cos vs Ergun (manifold)  : +1.0000
+
+Actual (Ergun) : f = 150 * Re_p^-1 * phi^-3 * (1-phi)^+2
+  exponents          = [-1.0, -3.0, 2.0]
+  prefactor C_actual = 150.0
+
+1-D OLS on log f = alpha*(w . x) + log C:
+  alpha  = +3.7803   log C = +5.3408   C = 208.7
+  exponents (alpha * w_norm) = [-0.9869, -2.9005, +2.2145]
+
+Discovered law (encoder L2 only):
+    f = 208.7 * Re_p^-0.987 * phi^-2.900 * (1-phi)^+2.215
+  R2(log f) = 0.9996
+  R2(f)     = 0.9932

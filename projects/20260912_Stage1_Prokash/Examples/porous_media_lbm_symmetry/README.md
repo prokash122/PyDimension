@@ -8,6 +8,12 @@ equation can be read directly off the winning scaling encoder's
 L2-normed weight vector, with no post-processing beyond fitting an
 overall scale α and a prefactor C.
 
+> **New:** the manual regime split is no longer required. See
+> [Regime-Aware Discovery — Clustering Dimensionless
+> Learning](#regime-aware-discovery--clustering-dimensionless-learning)
+> below, which identifies the two regimes automatically from a single
+> mixed dataset (Zhang et al., CMAME 2024) and recovers both local laws.
+
 The ground truth (never shown to the pipeline) is the Ergun equation
 
 ```
@@ -230,6 +236,131 @@ easiest to find, but does not make it the unique minimum.
 
 ---
 
+## Regime-Aware Discovery — Clustering Dimensionless Learning
+
+Everything above required the two regimes to be **split by hand** into
+separate datasets. `discover_regimes_clustering.py` removes that manual
+step by implementing the method of
+
+> L. Zhang, Z. Xu, S. Wang, G. He, *Clustering dimensionless learning for
+> multiple-physical-regime systems*, Comput. Methods Appl. Mech. Engrg.
+> 420 (2024) 116728.
+
+on a **single combined dataset** spanning both regimes
+(`dataset_ergun_combined_widephi.csv`, from
+`generate_combined_dataset.py`: 1,440 rows, `Re_p` from 10⁻⁶ to 10⁶,
+`φ` from 0.15 to 0.85, 5 % log-normal noise — 907 viscous / 533 inertial
+by the analytic crossover `Re_p/(1−φ) = 150/1.75 ≈ 85.7`, which the
+pipeline never sees).
+
+### Method (paper → this case)
+
+| Paper step | Here |
+|---|---|
+| 1. Dimensional analysis | independent Π's are `(Re_p, φ)`; `x = log Π`, z-scored per component (the paper's own Sec. 2.4 recommendation when logs have incomparable ranges — `log Re_p` spans ~12 decades, `log φ` less than 1) |
+| 2. GPR regression | anisotropic RBF + white kernel, `g = ln f` regressed on `x` (`f` spans 10 decades, so `ln f` is regressed; gradients of `ln f` w.r.t. `log Π` are then *local power-law exponents*) |
+| 3. Gradients | analytic posterior-mean gradient of the GPR (paper Appendix), no finite differences |
+| 4. Clustering (Eqs. 16–20) | eigenstructure-weighted K-means on normalised gradient directions, `Sim(∇g, Ω^I) = Σⱼ (λⱼ/‖λ‖)(ĝ·wⱼ)²`, 20 restarts, best total similarity kept |
+| 5. K-selection criteria | `λ₁/λₙ ≥ E = 50` and cluster fraction ≥ 5 %, evaluated for K = 1…4 |
+| 6. Active subspace per cluster (Eqs. 25–26) | eigenpairs of each cluster's normalised-gradient covariance → dominant `π̂ = exp(x·w₁)` |
+| 7. — (new, this repo) | each discovered cluster is fed to the Stage-1 scaling-encoder extraction to obtain the local law |
+
+### Regime identification (K = 2)
+
+The two discovered clusters split the master curve almost exactly at the
+analytic crossover — **95.1 % agreement** with the true regime labels,
+with all disagreements confined to the transition band:
+
+| Discovered cluster | n | `Re_p/(1−φ)` range | majority true regime | λ₁/λ₂ | dominant direction |
+|---|---|---|---|---|---|
+| 0 | 977 | 1.2·10⁻⁶ … 5.0·10² | viscous (92.8 %) | 31.0 | mean local exponents `∂ln f/∂ln Re_p = −0.92`, `∂ln f/∂ln φ = −5.9` |
+| 1 | 463 | 1.4·10² … 6.9·10⁶ | inertial (100 %) | 47.2 | `∂ln f/∂ln Re_p = −0.03` — **f independent of Re_p**, φ-group alone dominates |
+
+![Discovered clusters on the master curve](output_regime_aware/regime_clusters_master_curve_K2.png)
+
+![Gradient clustering and per-cluster eigenvalues](output_regime_aware/regime_clusters_gradients_K2.png)
+
+The paper's criterion (a) with the suggested `E = 50` is *not* met
+exactly at K = 2 (ratios 31 and 47): within the viscous regime the
+gradient direction varies continuously with `φ` because of the
+`(1−φ)²` factor, so no partition of this system produces the near-1-D
+gradient bundles of the paper's pipe-flow example. The ratios are still
+≫ 1 (a clearly dominant direction per cluster). At K = 3 the extra
+cluster does **not** isolate the transition zone — it splits the viscous
+branch by porosity (grouping high-|∂ln f/∂ln φ| rows), which is exactly
+what gradient-direction clustering should do, but is not a new physical
+regime; its committed extraction report (`discovered_equation_K3_*`)
+shows it is still viscous-type. K = 2 is the physical-regime level
+(the paper: "clustering results for smaller number present the main
+physical regimes").
+
+### Regime-aware equations — no manual split
+
+Each discovered K = 2 cluster is fed to the same scaling-encoder + Tanh
+MLP decoder extraction as the single-regime runs, with two adaptations:
+
+1. **Restart selection by power-law R²(log f).** On the `φ/(1−φ)`
+   manifold, restarts landing in different members of the equivalence
+   class have near-identical decoder test-MSE (the README caveat above),
+   so test-MSE cannot pick between them. Since the claim being made is
+   "f is a monomial in the Π's", the winning restart (of 8) is the one
+   whose extracted 1-D OLS power law has the highest R²(log f) —
+   sign-invariant and ground-truth-free.
+2. **Core extraction.** Besides the full cluster, the law is extracted
+   from the cluster **core** — after dropping the 25 % of points with the
+   lowest similarity margin (own-cluster `Sim` minus best other-cluster
+   `Sim`, Eq. 16). The margin is smallest at the regime interface, so
+   this trims the transition zone without using any ground truth.
+
+Committed results (`output_regime_aware/`, `--seed 0 --eq-split-seed 42`):
+
+| Cluster (auto) | Subset | Discovered law | R²(f) | cos vs Ergun (raw / manifold) |
+|---|---|---|---|---|
+| **Actual viscous** | | `f = 150 · Re_p⁻¹ · φ⁻³ · (1−φ)²` | | |
+| 0 (viscous) | full | `f = 235.6 · Re_p⁻⁰·⁹⁶⁵ · φ⁻²·⁹⁰⁷ · (1−φ)⁺²·¹¹²` | 0.960 | +0.9992 / +1.0000 |
+| 0 (viscous) | core | **`f = 198.3 · Re_p⁻⁰·⁹⁸⁶ · φ⁻²·⁹²⁴ · (1−φ)⁺²·¹⁵⁰`** | **0.993** | +0.9990 / +1.0000 |
+| **Actual inertial** | | `f = 1.75 · φ⁻³ · (1−φ)` | | |
+| 1 (inertial) | full | `f = 2.11 · Re_p⁻⁰·⁰¹⁸ · φ⁻³·⁰⁰² · (1−φ)⁺⁰·⁹⁹⁸` | 0.995 | +1.0000 / +1.0000 |
+| 1 (inertial) | core | **`f = 1.85 · Re_p⁻⁰·⁰⁰³ · φ⁻²·⁹⁸² · (1−φ)⁺¹·⁰¹⁹`** | **0.997** | +1.0000 / +1.0000 |
+
+Both Ergun limits are recovered from one mixed dataset with **no manual
+regime split anywhere in the loop**. The inertial branch is essentially
+exact. The viscous branch's exponents are within 1.5–8 % but its
+prefactor (198 vs 150) still carries transition-zone bias: cluster 0
+necessarily contains points up to `Re_p/(1−φ) ≈ 500` where the
+inertial term already contributes, which lifts the log-OLS intercept.
+An oracle check confirms this is contamination, not a method error:
+restricting cluster 0 to a decade below the crossover gives
+`f = 164.6 · Re_p⁻⁰·⁹⁹⁸ · φ⁻²·⁹⁶⁰ · (1−φ)⁺²·⁰⁴⁷` (R² = 0.998). The
+similarity-margin trim recovers part of that gap without any oracle;
+sharper interface localisation is left as future work.
+
+### How to run (regime-aware)
+
+```bash
+cd projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry
+
+# one combined dataset spanning both regimes (only needed once)
+python generate_combined_dataset.py
+
+# clustering dimensionless learning + per-cluster equation extraction
+python discover_regimes_clustering.py \
+    --data dataset_ergun_combined_widephi.csv \
+    --output-dir output_regime_aware --k-detail 2 3
+```
+
+Outputs in `output_regime_aware/`:
+
+| File | Contents |
+|---|---|
+| `run.log` | Full transcript: GPR fit, gradient stats, K = 1…4 criteria table, per-cluster active-subspace eigenpairs, extractions |
+| `cluster_assignments_K{2,3}.csv` | Per-row `(Re_p, φ, f, regime_true, cluster)` |
+| `discovered_equation_K{2,3}_cluster*{,_core}.txt` | Per-cluster extraction reports (same format as the single-regime runs) |
+| `regime_clusters_master_curve_K*.png` | Discovered clusters vs true regimes on the Ergun master curve |
+| `regime_clusters_gradients_K*.png` | GPR gradients in standardised log-Π space + per-cluster eigenvalue spectra |
+
+---
+
 ## How to Run
 
 ```bash
@@ -312,9 +443,13 @@ porous_media_lbm_symmetry/
 ├── discover_symmetry.py                      ← Stage-1 pipeline (region-agnostic)
 ├── discover_equation_encoder_l2.py           ← reads L2-normed encoder weight → law
 ├── run_two_regions.py                        ← one-command runner for both regions
+├── generate_combined_dataset.py              ← both regimes in one CSV (regime-aware input)
+├── dataset_ergun_combined_widephi.csv        ← 1440 rows spanning Re_p 1e-6…1e6
+├── discover_regimes_clustering.py            ← clustering dimensionless learning (Zhang et al. 2024)
 ├── ergun_two_regions.png
 ├── output_viscous_widephi/
-└── output_inertial_widephi/
+├── output_inertial_widephi/
+└── output_regime_aware/                      ← automatic regime split + per-regime laws
 ```
 
 Dependencies: `torch`, `numpy`, `pandas`, `scipy`, `sympy`,

@@ -1,0 +1,227 @@
+========================================================================
+Clustering dimensionless learning (Zhang et al., CMAME 2024)
+on the combined two-regime Ergun dataset
+========================================================================
+Dataset : dataset_ergun_combined_widephi.csv   rows = 1440
+Re_p    : [9.26e-07, 1.06e+06]
+phi     : [0.150, 0.850]
+True crossover (reference only): Re_p/(1-phi) = 85.7
+
+[Step 1] x = log(Re_p, phi), z-scored per component
+  std(log Re_p) = 8.111, std(log phi) = 0.523
+
+[Step 2] GPR of g = ln f on standardised log-Pi coordinates
+  fitted kernel: 1.33**2 * RBF(length_scale=[0.681, 1.45]) + WhiteKernel(noise_level=6.46e-05)
+  R^2(train) = 0.999938
+
+[Step 3] analytic posterior-mean gradients
+  raw local exponents (d ln f / d ln Re_p): min -1.055  max +0.022
+  raw local exponents (d ln f / d ln phi) : min -13.289  max -2.389
+
+[Steps 4-5] gradient clustering, K = 1 .. 4   (E = 50, eps = 0.05)
+
+   K  cluster   size    frac     lam1     lam2  lam1/lam2  crit(a)  crit(b)
+   1        0   1440  100.0%   0.7589 2.41e-01        3.1       NO      yes
+     -> K = 1: criterion (a) violated, criterion (b) satisfied
+   2        0    977   67.8%   0.9688 3.12e-02       31.0       NO      yes
+   2        1    463   32.2%   0.9793 2.07e-02       47.2       NO      yes
+     -> K = 2: criterion (a) violated, criterion (b) satisfied
+   3        0    682   47.4%   0.9946 5.36e-03      185.7      yes      yes
+   3        1    316   21.9%   0.9788 2.12e-02       46.2       NO      yes
+   3        2    442   30.7%   0.9885 1.15e-02       85.7      yes      yes
+     -> K = 3: criterion (a) violated, criterion (b) satisfied
+   4        0    672   46.7%   0.9950 5.01e-03      198.6      yes      yes
+   4        1    283   19.7%   0.9911 8.86e-03      111.9      yes      yes
+   4        2     78    5.4%   0.9800 2.00e-02       48.9       NO      yes
+   4        3    407   28.3%   0.9963 3.72e-03      267.9      yes      yes
+     -> K = 4: criterion (a) violated, criterion (b) satisfied
+
+========================================================================
+Detailed regime analysis, K = 2
+========================================================================
+
+  cluster 0: n = 977  Re_p/(1-phi) in [1.18e-06, 4.95e+02]
+    majority true regime: viscous (92.8% of cluster)
+    active-subspace eigenvalues: lam = [0.9688, 0.0312]  ratio = 31.0
+    dominant direction w1 (standardised): [-0.9235, -0.3837]
+    pi_hat ~ Re_p^-0.155 * phi^-1.000   (raw-log exponents, max-normalised)
+    mean local exponents  d ln f/d ln Re_p = -0.915   d ln f/d ln phi = -5.853
+
+  cluster 1: n = 463  Re_p/(1-phi) in [1.35e+02, 6.94e+06]
+    majority true regime: inertial (100.0% of cluster)
+    active-subspace eigenvalues: lam = [0.9793, 0.0207]  ratio = 47.2
+    dominant direction w1 (standardised): [-0.0759, -0.9971]
+    pi_hat ~ Re_p^-0.005 * phi^-1.000   (raw-log exponents, max-normalised)
+    mean local exponents  d ln f/d ln Re_p = -0.028   d ln f/d ln phi = -4.792
+
+  agreement with true regime split (majority mapping): 95.1%
+  wrote cluster_assignments_K2.csv
+
+[Step 7] regime-aware equation extraction (K = 2)
+
+  --- cluster 0 [full] (977 pts, expected: viscous limit) ---
+    restart seed=0  test MSE=9.85e-05  power-law R2(log f)=0.9977
+    restart seed=1  test MSE=1.37e-04  power-law R2(log f)=0.9970
+    restart seed=2  test MSE=8.88e-05  power-law R2(log f)=0.9978
+    restart seed=3  test MSE=1.05e-04  power-law R2(log f)=0.9973
+    restart seed=4  test MSE=1.08e-04  power-law R2(log f)=0.9975
+    restart seed=5  test MSE=9.09e-05  power-law R2(log f)=0.9977
+    restart seed=6  test MSE=2.48e-04  power-law R2(log f)=0.9944
+    restart seed=7  test MSE=1.43e-04  power-law R2(log f)=0.9970
+    discovered: f = 235.6 * Re_p^-0.965 * phi^-2.907 * (1-phi)^+2.112
+    actual    : f = 150 * Re_p^-1 * phi^-3 * (1-phi)^+2
+    cos vs Ergun (raw 3-D) = +0.9992   (manifold) = +1.0000   R2(f) = 0.9598
+
+  --- cluster 0 [core] (733 pts, expected: viscous limit) ---
+    (dropped the 25% of the cluster with the lowest similarity margin)
+    restart seed=0  test MSE=4.37e-05  power-law R2(log f)=0.9993
+    restart seed=1  test MSE=7.04e-05  power-law R2(log f)=0.9988
+    restart seed=2  test MSE=2.34e-05  power-law R2(log f)=0.9995
+    restart seed=3  test MSE=3.83e-05  power-law R2(log f)=0.9992
+    restart seed=4  test MSE=3.32e-05  power-law R2(log f)=0.9994
+    restart seed=5  test MSE=2.75e-05  power-law R2(log f)=0.9995
+    restart seed=6  test MSE=1.59e-04  power-law R2(log f)=0.9969
+    restart seed=7  test MSE=6.90e-05  power-law R2(log f)=0.9988
+    discovered: f = 198.3 * Re_p^-0.986 * phi^-2.924 * (1-phi)^+2.150
+    actual    : f = 150 * Re_p^-1 * phi^-3 * (1-phi)^+2
+    cos vs Ergun (raw 3-D) = +0.9990   (manifold) = +1.0000   R2(f) = 0.9928
+
+  --- cluster 1 [full] (463 pts, expected: inertial limit) ---
+    restart seed=0  test MSE=8.22e-05  power-law R2(log f)=0.9936
+    restart seed=1  test MSE=7.47e-05  power-law R2(log f)=0.9986
+    restart seed=2  test MSE=7.34e-05  power-law R2(log f)=0.9951
+    restart seed=3  test MSE=9.59e-05  power-law R2(log f)=0.9504
+    restart seed=4  test MSE=8.84e-05  power-law R2(log f)=0.9618
+    restart seed=5  test MSE=8.08e-05  power-law R2(log f)=0.9844
+    restart seed=6  test MSE=1.06e-04  power-law R2(log f)=0.9468
+    restart seed=7  test MSE=7.50e-05  power-law R2(log f)=0.9987
+    discovered: f = 2.11 * Re_p^-0.018 * phi^-3.002 * (1-phi)^+0.998
+    actual    : f = 1.75 * Re_p^0 * phi^-3 * (1-phi)^+1
+    cos vs Ergun (raw 3-D) = +1.0000   (manifold) = +1.0000   R2(f) = 0.9949
+
+  --- cluster 1 [core] (347 pts, expected: inertial limit) ---
+    (dropped the 25% of the cluster with the lowest similarity margin)
+    restart seed=0  test MSE=4.40e-05  power-law R2(log f)=0.9948
+    restart seed=1  test MSE=4.11e-05  power-law R2(log f)=0.9993
+    restart seed=2  test MSE=3.77e-05  power-law R2(log f)=0.9965
+    restart seed=3  test MSE=6.87e-05  power-law R2(log f)=0.9526
+    restart seed=4  test MSE=4.21e-05  power-law R2(log f)=0.9663
+    restart seed=5  test MSE=3.94e-05  power-law R2(log f)=0.9855
+    restart seed=6  test MSE=5.73e-05  power-law R2(log f)=0.9540
+    restart seed=7  test MSE=4.13e-05  power-law R2(log f)=0.9993
+    discovered: f = 1.85 * Re_p^-0.003 * phi^-2.982 * (1-phi)^+1.019
+    actual    : f = 1.75 * Re_p^0 * phi^-3 * (1-phi)^+1
+    cos vs Ergun (raw 3-D) = +1.0000   (manifold) = +1.0000   R2(f) = 0.9973
+
+========================================================================
+Detailed regime analysis, K = 3
+========================================================================
+
+  cluster 0: n = 682  Re_p/(1-phi) in [1.18e-06, 1.09e+02]
+    majority true regime: viscous (99.4% of cluster)
+    active-subspace eigenvalues: lam = [0.9946, 0.0054]  ratio = 185.7
+    dominant direction w1 (standardised): [-0.9570, -0.2902]
+    pi_hat ~ Re_p^-0.212 * phi^-1.000   (raw-log exponents, max-normalised)
+    mean local exponents  d ln f/d ln Re_p = -0.963   d ln f/d ln phi = -4.515
+
+  cluster 1: n = 316  Re_p/(1-phi) in [3.64e-06, 7.17e+02]
+    majority true regime: viscous (72.5% of cluster)
+    active-subspace eigenvalues: lam = [0.9788, 0.0212]  ratio = 46.2
+    dominant direction w1 (standardised): [-0.7905, -0.6125]
+    pi_hat ~ Re_p^-0.083 * phi^-1.000   (raw-log exponents, max-normalised)
+    mean local exponents  d ln f/d ln Re_p = -0.763   d ln f/d ln phi = -8.716
+
+  cluster 2: n = 442  Re_p/(1-phi) in [2.13e+02, 6.94e+06]
+    majority true regime: inertial (100.0% of cluster)
+    active-subspace eigenvalues: lam = [0.9885, 0.0115]  ratio = 85.7
+    dominant direction w1 (standardised): [-0.0563, -0.9984]
+    pi_hat ~ Re_p^-0.004 * phi^-1.000   (raw-log exponents, max-normalised)
+    mean local exponents  d ln f/d ln Re_p = -0.019   d ln f/d ln phi = -4.758
+
+  agreement with true regime split (majority mapping): 93.7%
+  wrote cluster_assignments_K3.csv
+
+[Step 7] regime-aware equation extraction (K = 3)
+
+  --- cluster 0 [full] (682 pts, expected: viscous limit) ---
+    restart seed=0  test MSE=4.61e-05  power-law R2(log f)=0.9993
+    restart seed=1  test MSE=7.11e-05  power-law R2(log f)=0.9989
+    restart seed=2  test MSE=2.42e-05  power-law R2(log f)=0.9996
+    restart seed=3  test MSE=3.21e-05  power-law R2(log f)=0.9994
+    restart seed=4  test MSE=3.21e-05  power-law R2(log f)=0.9995
+    restart seed=5  test MSE=2.59e-05  power-law R2(log f)=0.9995
+    restart seed=6  test MSE=1.45e-04  power-law R2(log f)=0.9973
+    restart seed=7  test MSE=6.53e-05  power-law R2(log f)=0.9989
+    discovered: f = 208.7 * Re_p^-0.987 * phi^-2.900 * (1-phi)^+2.215
+    actual    : f = 150 * Re_p^-1 * phi^-3 * (1-phi)^+2
+    cos vs Ergun (raw 3-D) = +0.9981   (manifold) = +1.0000   R2(f) = 0.9932
+
+  --- cluster 0 [core] (511 pts, expected: viscous limit) ---
+    (dropped the 25% of the cluster with the lowest similarity margin)
+    restart seed=0  test MSE=4.38e-05  power-law R2(log f)=0.9996
+    restart seed=1  test MSE=5.25e-05  power-law R2(log f)=0.9993
+    restart seed=2  test MSE=1.75e-05  power-law R2(log f)=0.9998
+    restart seed=3  test MSE=2.12e-05  power-law R2(log f)=0.9997
+    restart seed=4  test MSE=2.07e-05  power-law R2(log f)=0.9998
+    restart seed=5  test MSE=1.60e-05  power-law R2(log f)=0.9998
+    restart seed=6  test MSE=1.11e-04  power-law R2(log f)=0.9983
+    restart seed=7  test MSE=4.21e-05  power-law R2(log f)=0.9994
+    discovered: f = 213.5 * Re_p^-0.993 * phi^-2.874 * (1-phi)^+2.330
+    actual    : f = 150 * Re_p^-1 * phi^-3 * (1-phi)^+2
+    cos vs Ergun (raw 3-D) = +0.9959   (manifold) = +1.0000   R2(f) = 0.9967
+
+  --- cluster 1 [full] (316 pts, expected: viscous limit) ---
+    restart seed=0  test MSE=1.26e-03  power-law R2(log f)=0.7887
+    restart seed=1  test MSE=7.37e-04  power-law R2(log f)=0.7353
+    restart seed=2  test MSE=7.19e-04  power-law R2(log f)=0.7273
+    restart seed=3  test MSE=2.73e-03  power-law R2(log f)=0.8144
+    restart seed=4  test MSE=3.09e-04  power-law R2(log f)=0.9958
+    restart seed=5  test MSE=1.03e-03  power-law R2(log f)=0.7751
+    restart seed=6  test MSE=2.49e-03  power-law R2(log f)=0.7955
+    restart seed=7  test MSE=9.81e-04  power-law R2(log f)=0.7751
+    discovered: f = 403.6 * Re_p^-0.956 * phi^-3.320 * (1-phi)^+2.461
+    actual    : f = 150 * Re_p^-1 * phi^-3 * (1-phi)^+2
+    cos vs Ergun (raw 3-D) = +0.9979   (manifold) = +0.9997   R2(f) = 0.9814
+
+  --- cluster 1 [core] (237 pts, expected: viscous limit) ---
+    (dropped the 25% of the cluster with the lowest similarity margin)
+    restart seed=0  test MSE=1.11e-03  power-law R2(log f)=0.7074
+    restart seed=1  test MSE=9.15e-04  power-law R2(log f)=0.7041
+    restart seed=2  test MSE=9.36e-04  power-law R2(log f)=0.7087
+    restart seed=3  test MSE=1.84e-03  power-law R2(log f)=0.7460
+    restart seed=4  test MSE=2.57e-04  power-law R2(log f)=0.9957
+    restart seed=5  test MSE=1.10e-03  power-law R2(log f)=0.7125
+    restart seed=6  test MSE=1.69e-03  power-law R2(log f)=0.7184
+    restart seed=7  test MSE=1.06e-03  power-law R2(log f)=0.7081
+    discovered: f = 944.6 * Re_p^-0.965 * phi^-2.935 * (1-phi)^+2.919
+    actual    : f = 150 * Re_p^-1 * phi^-3 * (1-phi)^+2
+    cos vs Ergun (raw 3-D) = +0.9814   (manifold) = +0.9995   R2(f) = 0.9841
+
+  --- cluster 2 [full] (442 pts, expected: inertial limit) ---
+    restart seed=0  test MSE=1.18e-04  power-law R2(log f)=0.9936
+    restart seed=1  test MSE=1.03e-04  power-law R2(log f)=0.9990
+    restart seed=2  test MSE=1.06e-04  power-law R2(log f)=0.9955
+    restart seed=3  test MSE=1.29e-04  power-law R2(log f)=0.9513
+    restart seed=4  test MSE=1.19e-04  power-law R2(log f)=0.9628
+    restart seed=5  test MSE=1.12e-04  power-law R2(log f)=0.9850
+    restart seed=6  test MSE=1.46e-04  power-law R2(log f)=0.9484
+    restart seed=7  test MSE=1.04e-04  power-law R2(log f)=0.9991
+    discovered: f = 2.068 * Re_p^-0.012 * phi^-2.979 * (1-phi)^+1.026
+    actual    : f = 1.75 * Re_p^0 * phi^-3 * (1-phi)^+1
+    cos vs Ergun (raw 3-D) = +0.9999   (manifold) = +1.0000   R2(f) = 0.9945
+
+  --- cluster 2 [core] (331 pts, expected: inertial limit) ---
+    (dropped the 25% of the cluster with the lowest similarity margin)
+    restart seed=0  test MSE=6.51e-05  power-law R2(log f)=0.9950
+    restart seed=1  test MSE=6.15e-05  power-law R2(log f)=0.9992
+    restart seed=2  test MSE=5.95e-05  power-law R2(log f)=0.9963
+    restart seed=3  test MSE=9.62e-05  power-law R2(log f)=0.9515
+    restart seed=4  test MSE=6.48e-05  power-law R2(log f)=0.9662
+    restart seed=5  test MSE=6.06e-05  power-law R2(log f)=0.9854
+    restart seed=6  test MSE=8.09e-05  power-law R2(log f)=0.9556
+    restart seed=7  test MSE=6.20e-05  power-law R2(log f)=0.9992
+    discovered: f = 1.8 * Re_p^-0.001 * phi^-2.983 * (1-phi)^+1.015
+    actual    : f = 1.75 * Re_p^0 * phi^-3 * (1-phi)^+1
+    cos vs Ergun (raw 3-D) = +1.0000   (manifold) = +1.0000   R2(f) = 0.9971
+
+All outputs in /home/user/PyDimension/projects/20260912_Stage1_Prokash/Examples/porous_media_lbm_symmetry/output_regime_aware
